@@ -1,0 +1,17 @@
+name: agreda
+channels:
+  - defaults
+dependencies:
+  - matplotlib-venn
+  - statsmodels
+  - matplotlib
+  - scanpy
+  - jupyterlab
+  - scipy
+  - scikit-learn
+  - seaborn
+  - h5py
+  - pandas
+  - python-igraph
+  - leidenalg
+prefix: /home/mawil/miniconda3/envs/agreda
