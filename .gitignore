@@ -131,5 +131,7 @@ dmypy.json
 # vs-code workspace
 *.code-workspace
 
-# data directory
+# data models and results directories
 data/
+model/
+results/
