@@ -1,20 +1,26 @@
-name: agreda
+name: agreda2
 channels:
   - defaults
 dependencies:
+  - scikit-learn
+  - pytables
+  - scipy
+  - seaborn
+  - conda-forge::jupyterlab
+  - tqdm
+  - pandas
   - conda-forge::matplotlib-venn
   - statsmodels
-  - matplotlib
-  - conda-forge::scanpy
-  - conda-forge::jupyterlab
-  - jupyter
-  - scipy
-  - scikit-learn
-  - seaborn
-  - h5py
-  - pandas
-  - conda-forge::python-igraph
-  - conda-forge::leidenalg
+  - numpy[version='<1.23.0']
   - ipywidgets
-  - pytables
-prefix: /home/mawil/miniconda3/envs/agreda
+  - jupyter
+  - h5py
+  - conda-forge::scanpy
+  - matplotlib
+  - conda-forge::leidenalg
+  - conda-forge::python-igraph
+  - torchaudio
+  - pytorch
+  - cudatoolkit=11.3
+  - torchvision
+prefix: /home/wma/miniconda3/envs/agreda2
