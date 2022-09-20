@@ -23,4 +23,5 @@ dependencies:
   - pytorch
   - cudatoolkit=11.3
   - torchvision
+  - ignite
 prefix: /home/wma/miniconda3/envs/agreda2
