@@ -2,6 +2,7 @@ name: agreda2
 channels:
   - defaults
 dependencies:
+  - python=3.10.4
   - scikit-learn
   - pytables
   - scipy
@@ -11,7 +12,7 @@ dependencies:
   - pandas
   - conda-forge::matplotlib-venn
   - statsmodels
-  - numpy[version='<1.23.0']
+  - numpy[version='<1.22']
   - ipywidgets
   - jupyter
   - h5py
@@ -19,9 +20,9 @@ dependencies:
   - matplotlib
   - conda-forge::leidenalg
   - conda-forge::python-igraph
-  - torchaudio
-  - pytorch
+  - pytorch::torchaudio
+  - pytorch::pytorch
   - cudatoolkit=11.3
-  - torchvision
-  - ignite
+  - pytorch::torchvision
+  - pytorch::ignite
 prefix: /home/wma/miniconda3/envs/agreda2
