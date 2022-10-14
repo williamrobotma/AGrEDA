@@ -132,7 +132,7 @@ dmypy.json
 *.code-workspace
 
 # data models and results directories
-data/
-model/
-model_cell_dart/
-results/
+/data/
+/model/
+/model_cell_dart/
+/results/
