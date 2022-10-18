@@ -25,7 +25,7 @@ class SpotDataset(torch.utils.data.Dataset):
         assert self.X.dim() == 2, f"X should be rank 2, got {self.X.dim()}"
 
         if Y is None:
-            self.Y = Y
+            self.Y = torch.empty((self.X.shape[0], 0), dtype=torch.float)
         else:
             self.Y = torch.as_tensor(Y).float()
             assert self.Y.dim() == 2, f"Y should be rank 2, got {self.Y.dim()}"
@@ -35,7 +35,4 @@ class SpotDataset(torch.utils.data.Dataset):
         return len(self.X)
 
     def __getitem__(self, idx):
-        if self.Y is None:
-            return self.X[idx]
-
         return self.X[idx], self.Y[idx]

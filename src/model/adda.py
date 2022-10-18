@@ -65,7 +65,7 @@ class ADDAST(nn.Module):
 
     def target_inference(self):
         """Inference mode for target. Does not change grad or eval mode."""
-        self.set_encoder("source")
+        self.set_encoder("target")
 
     def train_discriminator(self):
         set_requires_grad(self.target_encoder, False)
