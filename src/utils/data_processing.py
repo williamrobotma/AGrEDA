@@ -3,7 +3,10 @@
 Adapted from: https://github.com/mexchy1000/CellDART
 """
 import numpy as np
-from sklearn.preprocessing import OneHotEncoder
+import pandas as pd
+import scanpy as sc
+from sklearn import preprocessing
+
 
 def random_mix(X, y, nmix=5, n_samples=10000, seed=0):
     """Creates a weighted average random sampling of gene expression, and the
@@ -32,7 +35,7 @@ def random_mix(X, y, nmix=5, n_samples=10000, seed=0):
     """
     # Define empty lists
     pseudo_gex, ctps = [], []
-    ys_ = OneHotEncoder().fit_transform(y.reshape(-1, 1)).toarray()
+    ys_ = preprocessing.OneHotEncoder().fit_transform(y.reshape(-1, 1)).toarray()
 
     rstate = np.random.RandomState(seed)
     fraction_all = rstate.rand(n_samples, nmix)
@@ -61,3 +64,72 @@ def random_mix(X, y, nmix=5, n_samples=10000, seed=0):
     ctps = np.asarray(ctps)
 
     return pseudo_gex, ctps
+
+
+def log_minmaxscale(arr):
+    """returns log1pc and min/max normalized arr"""
+    arrd = len(arr)
+    arr = np.log1p(arr)
+
+    arr_minus_min = arr - np.reshape(np.min(arr, axis=1), (arrd, 1))
+    min2max = np.reshape((np.max(arr, axis=1) - np.min(arr, axis=1)), (arrd, 1))
+    return arr_minus_min / min2max
+
+
+def rank_genes(adata_sc):
+    """Ranks genes for cell_subclasses.
+
+    Args:
+        adata_sc (:obj: AnnData): Single-cell data with cell_subclass.
+
+    Returns:
+        A DataFrame containing the ranked genes by cell_subclass.
+    """
+    sc.tl.rank_genes_groups(adata_sc, "cell_subclass", method="wilcoxon")
+
+    genelists = adata_sc.uns["rank_genes_groups"]["names"]
+    df_genelists = pd.DataFrame.from_records(genelists)
+
+    return df_genelists
+
+
+def select_marker_genes(
+    adata_sc, adata_st, n_markers, genelists_path=None, force_rerank=False
+):
+    """Ranks genes for cell_subclasses, finds set of top genes and selects those
+    features in adatas.
+
+    Args:
+        adata_sc (:obj: AnnData): Single-cell data with cell_subclass.
+        adata_st (:obj: AnnData): Spatial transcriptomic data.
+        n_markers (int): Number of top markers to include for each
+        cell_subclass.
+
+    Returns:
+        A tuple of a tuple of (adata_sc, adata_st) with the reduced set of
+        marker genes, and a DataFrame containing the ranked genes by
+        cell_subclass.
+    """
+
+    # Load or rank genes
+    if force_rerank or (genelists_path is None):
+        df_genelists = rank_genes(adata_sc)
+    else:
+        try:
+            df_genelists = pd.read_pickle(genelists_path)
+        except FileNotFoundError as e:
+            print(e)
+            df_genelists = rank_genes(adata_sc)
+
+    # Get set of all top genes for cluster
+    res_genes = []
+    for column in df_genelists.head(n_markers):
+        res_genes.extend(df_genelists.head(n_markers)[column].tolist())
+    res_genes_ = list(set(res_genes))
+
+    # Find gene intersection
+    inter_genes = [val for val in res_genes_ if val in adata_st.var.index]
+    print("Selected Feature Gene number", len(inter_genes))
+
+    # Return adatas with subset of genes
+    return (adata_sc[:, inter_genes], adata_st[:, inter_genes]), df_genelists
