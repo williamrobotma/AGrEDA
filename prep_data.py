@@ -11,6 +11,7 @@ import numpy as np
 import pandas as pd
 import scanpy as sc
 from sklearn import model_selection
+import matplotlib.pyplot as plt
 
 from src.utils import data_processing
 
@@ -57,12 +58,14 @@ adata_sc_dlpfc = sc.read_h5ad(SC_DLPFC_PATH)
 sc.pp.normalize_total(adata_sc_dlpfc, inplace=True, target_sum=1e4)
 adata_sc_dlpfc.var_names_make_unique()
 # %%
-(adata_sc_dlpfc, adata_spatialLIBD), df_genelists = data_processing.select_marker_genes(
+(adata_sc_dlpfc, adata_spatialLIBD), df_genelists, (fig, ax) = data_processing.select_marker_genes(
     adata_sc_dlpfc,
     adata_spatialLIBD,
     NUM_MARKERS,
     genelists_path=GENELISTS_PATH,
 )
+
+fig.savefig('results/venn.png')
 
 # %%[markdown]
 #  ## Format Data

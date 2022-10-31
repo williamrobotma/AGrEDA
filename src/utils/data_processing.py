@@ -5,6 +5,8 @@ Adapted from: https://github.com/mexchy1000/CellDART
 import numpy as np
 import pandas as pd
 import scanpy as sc
+import matplotlib_venn
+import matplotlib.pyplot as plt
 from sklearn import preprocessing
 
 
@@ -94,7 +96,11 @@ def rank_genes(adata_sc):
 
 
 def select_marker_genes(
-    adata_sc, adata_st, n_markers, genelists_path=None, force_rerank=False
+    adata_sc,
+    adata_st,
+    n_markers,
+    genelists_path=None,
+    force_rerank=False,
 ):
     """Ranks genes for cell_subclasses, finds set of top genes and selects those
     features in adatas.
@@ -127,9 +133,24 @@ def select_marker_genes(
         res_genes.extend(df_genelists.head(n_markers)[column].tolist())
     res_genes_ = list(set(res_genes))
 
+    all_sc_genes = set(adata_sc.var.index)
+    all_st_genes = set(adata_st.var.index)
+    top_genes_sc = set(res_genes)
+
+    fig, ax = plt.subplots()
+    matplotlib_venn.venn3_unweighted(
+        [all_sc_genes, all_st_genes, top_genes_sc],
+        set_labels=(
+            "SC genes",
+            "ST genes",
+            f"Union of top {n_markers} genes for all clusters",
+        ),
+        ax=ax,
+    )
+
     # Find gene intersection
     inter_genes = [val for val in res_genes_ if val in adata_st.var.index]
     print("Selected Feature Gene number", len(inter_genes))
 
     # Return adatas with subset of genes
-    return (adata_sc[:, inter_genes], adata_st[:, inter_genes]), df_genelists
+    return (adata_sc[:, inter_genes], adata_st[:, inter_genes]), df_genelists, (fig, ax)
