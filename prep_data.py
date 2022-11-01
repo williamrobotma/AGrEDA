@@ -57,15 +57,6 @@ adata_spatialLIBD.var_names_make_unique()
 adata_sc_dlpfc = sc.read_h5ad(SC_DLPFC_PATH)
 sc.pp.normalize_total(adata_sc_dlpfc, inplace=True, target_sum=1e4)
 adata_sc_dlpfc.var_names_make_unique()
-# %%
-(adata_sc_dlpfc, adata_spatialLIBD), df_genelists, (fig, ax) = data_processing.select_marker_genes(
-    adata_sc_dlpfc,
-    adata_spatialLIBD,
-    NUM_MARKERS,
-    genelists_path=GENELISTS_PATH,
-)
-
-fig.savefig('results/venn.png')
 
 # %%[markdown]
 #  ## Format Data
@@ -82,47 +73,85 @@ fig.savefig('results/venn.png')
 df_sc = adata_sc_dlpfc.to_df()
 df_sc.index = pd.MultiIndex.from_frame(adata_sc_dlpfc.obs.reset_index())
 
+lab_sc_sub = df_sc.index.get_level_values("cell_subclass")
+
+
+(
+    adata_sc_dlpfc_train,
+    adata_sc_dlpfc_eval,
+    lab_sc_sub_train,
+    lab_sc_sub_eval,
+) = model_selection.train_test_split(
+    adata_sc_dlpfc,
+    lab_sc_sub,
+    test_size=0.2,
+    random_state=225,
+    stratify=lab_sc_sub,
+)
+
+(
+    adata_sc_dlpfc_val,
+    adata_sc_dlpfc_test,
+    lab_sc_sub_val,
+    lab_sc_sub_test,
+) = model_selection.train_test_split(
+    adata_sc_dlpfc_eval,
+    lab_sc_sub_eval,
+    test_size=0.5,
+    random_state=263,
+    stratify=lab_sc_sub_eval,
+)
+
+
+# %%
+(
+    (adata_sc_dlpfc_train, adata_spatialLIBD),
+    df_genelists,
+    (fig, ax),
+) = data_processing.select_marker_genes(
+    adata_sc_dlpfc_train,
+    adata_spatialLIBD,
+    NUM_MARKERS,
+    genelists_path=GENELISTS_PATH,
+)
+fig.savefig("results/venn.png")
+# %%
+
 sc_sub_dict = dict(zip(range(df_genelists.shape[1]), df_genelists.columns.tolist()))
 sc_sub_dict2 = dict((y, x) for x, y in sc_sub_dict.items())
 
-lab_sc_sub = df_sc.index.get_level_values("cell_subclass")
-lab_sc_num = [sc_sub_dict2[ii] for ii in lab_sc_sub]
-lab_sc_num = np.asarray(lab_sc_num, dtype="int")
+lab_sc_num_test = [sc_sub_dict2[ii] for ii in lab_sc_sub_test]
+lab_sc_num_test = np.asarray(lab_sc_num_test, dtype="int")
 
-(
-    mat_sc_train,
-    mat_sc_eval,
-    lab_sc_num_train,
-    lab_sc_num_eval,
-) = model_selection.train_test_split(
-    df_sc.to_numpy(),
-    lab_sc_num,
-    test_size=0.2,
-    random_state=225,
-    stratify=lab_sc_num,
-)
+lab_sc_num_val = [sc_sub_dict2[ii] for ii in lab_sc_sub_val]
+lab_sc_num_val = np.asarray(lab_sc_num_val, dtype="int")
 
-(
-    mat_sc_val,
-    mat_sc_test,
-    lab_sc_num_val,
-    lab_sc_num_test,
-) = model_selection.train_test_split(
-    mat_sc_eval,
-    lab_sc_num_eval,
-    test_size=0.5,
-    random_state=263,
-    stratify=lab_sc_num_eval,
-)
+lab_sc_num_train = [sc_sub_dict2[ii] for ii in lab_sc_sub_train]
+lab_sc_num_train = np.asarray(lab_sc_num_train, dtype="int")
 
+adata_sc_dlpfc = adata_sc_dlpfc[:, adata_sc_dlpfc_train.var.index]
+adata_sc_dlpfc_val = adata_sc_dlpfc_val[:, adata_sc_dlpfc_train.var.index]
+adata_sc_dlpfc_test = adata_sc_dlpfc_test[:, adata_sc_dlpfc_train.var.index]
+
+
+# %%
 sc_mix_train, lab_mix_train = data_processing.random_mix(
-    mat_sc_train, lab_sc_num_train, nmix=N_MIX, n_samples=N_SPOTS
+    adata_sc_dlpfc_train.to_df().to_numpy(),
+    lab_sc_num_train,
+    nmix=N_MIX,
+    n_samples=N_SPOTS,
 )
 sc_mix_val, lab_mix_val = data_processing.random_mix(
-    mat_sc_val, lab_sc_num_val, nmix=N_MIX, n_samples=N_SPOTS // 8
+    adata_sc_dlpfc_val.to_df().to_numpy(),
+    lab_sc_num_val,
+    nmix=N_MIX,
+    n_samples=N_SPOTS // 8,
 )
 sc_mix_test, lab_mix_test = data_processing.random_mix(
-    mat_sc_test, lab_sc_num_test, nmix=N_MIX, n_samples=N_SPOTS // 8
+    adata_sc_dlpfc_test.to_df().to_numpy(),
+    lab_sc_num_test,
+    nmix=N_MIX,
+    n_samples=N_SPOTS // 8,
 )
 
 

@@ -126,6 +126,7 @@ def select_marker_genes(
         except FileNotFoundError as e:
             print(e)
             df_genelists = rank_genes(adata_sc)
+            df_genelists.to_pickle(genelists_path)
 
     # Get set of all top genes for cluster
     res_genes = []
