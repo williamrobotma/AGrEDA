@@ -14,7 +14,7 @@ class SpotDataset(torch.utils.data.Dataset):
     Shape:
         - X: :math: `(N_{spots}, C_{genes})`, where :math: `N_{spots}` is the
         number of spots, and :math: `C_{genes}` is the number of genes.
-        - X: :math: `(N_{spots}, C_{types})`, where :math: `N_{spots}` is the
+        - Y: :math: `(N_{spots}, C_{types})`, where :math: `N_{spots}` is the
         number of spots, and :math: `C_{types}` is the number of cell types.
 
     """

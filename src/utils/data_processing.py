@@ -109,7 +109,7 @@ def select_marker_genes(
         adata_sc (:obj: AnnData): Single-cell data with cell_subclass.
         adata_st (:obj: AnnData): Spatial transcriptomic data.
         n_markers (int): Number of top markers to include for each
-        cell_subclass.
+            cell_subclass.
 
     Returns:
         A tuple of a tuple of (adata_sc, adata_st) with the reduced set of

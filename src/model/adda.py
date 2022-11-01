@@ -16,9 +16,8 @@ class ADDAST(nn.Module):
         ncls_source (int): Number of cell types.
 
     Attributes:
-    is_encoder_source (bool): Whether source encoder is used for forward pass;
-        else use target encoder
-
+        is_encoder_source (bool): Whether source encoder is used for forward 
+            pass; else use target encoder
 
     """
 

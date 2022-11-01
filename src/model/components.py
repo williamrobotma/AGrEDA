@@ -49,7 +49,7 @@ class Discriminator(nn.Module):
     """Classifies domain of embedding.
 
     Args:
-    emb_dim (int): Embedding size.
+        emb_dim (int): Embedding size.
 
     """
 
