@@ -140,18 +140,21 @@ sc_mix_train, lab_mix_train = data_processing.random_mix(
     lab_sc_num_train,
     nmix=N_MIX,
     n_samples=N_SPOTS,
+    seed=251
 )
 sc_mix_val, lab_mix_val = data_processing.random_mix(
     adata_sc_dlpfc_val.to_df().to_numpy(),
     lab_sc_num_val,
     nmix=N_MIX,
     n_samples=N_SPOTS // 8,
+    seed=55
 )
 sc_mix_test, lab_mix_test = data_processing.random_mix(
     adata_sc_dlpfc_test.to_df().to_numpy(),
     lab_sc_num_test,
     nmix=N_MIX,
     n_samples=N_SPOTS // 8,
+    seed=119
 )
 
 
