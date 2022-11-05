@@ -1,6 +1,7 @@
 name: agreda
 channels:
   - pytorch
+  - bioconda
   - conda-forge
   - defaults
 dependencies:
@@ -28,10 +29,10 @@ dependencies:
   - brotlipy=0.7.0
   - bzip2=1.0.8
   - c-ares=1.18.1
-  - ca-certificates=2022.07.19
+  - ca-certificates=2022.10.11
   - cached-property=1.5.2
   - cached_property=1.5.2
-  - certifi=2022.6.15.2
+  - certifi=2022.9.24
   - cffi=1.15.1
   - charset-normalizer=2.0.4
   - colorama=0.4.5
@@ -60,12 +61,14 @@ dependencies:
   - gst-plugins-base=1.14.0
   - gstreamer=1.14.0
   - h5py=3.6.0
+  - harmonypy=0.0.6
   - hdf5=1.12.1
   - icu=58.2
   - idna=3.3
   - ignite=0.4.10
   - igraph=0.9.8
   - imagesize=1.4.1
+  - imbalanced-learn=0.9.1
   - importlib-metadata=4.11.3
   - importlib_metadata=4.11.3
   - importlib_resources=5.9.0
@@ -268,3 +271,4 @@ dependencies:
   - zstd=1.5.2
   - pip:
     - pyqt5-sip==12.11.0
+prefix: /projects/wma/.conda2/envs/agreda

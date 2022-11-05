@@ -3,7 +3,14 @@ import warnings
 
 from torch import nn
 
-from .components import MLPEncoder, Predictor, Discriminator
+from .components import (
+    MLPEncoder,
+    Predictor,
+    Discriminator,
+    ADDAMLPEncoder,
+    AddaDiscriminator,
+    AddaPredictor
+)
 from .utils import set_requires_grad
 
 
@@ -16,18 +23,25 @@ class ADDAST(nn.Module):
         ncls_source (int): Number of cell types.
 
     Attributes:
-        is_encoder_source (bool): Whether source encoder is used for forward 
+        is_encoder_source (bool): Whether source encoder is used for forward
             pass; else use target encoder
 
     """
 
-    def __init__(self, inp_dim, emb_dim, ncls_source):
+    def __init__(self, inp_dim, emb_dim, ncls_source, is_adda=False):
         super().__init__()
 
-        self.source_encoder = MLPEncoder(inp_dim, emb_dim)
-        self.target_encoder = MLPEncoder(inp_dim, emb_dim)
-        self.clf = Predictor(emb_dim, ncls_source)
-        self.dis = Discriminator(emb_dim)
+        if is_adda:
+            self.source_encoder = ADDAMLPEncoder(inp_dim, emb_dim)
+            self.target_encoder = ADDAMLPEncoder(inp_dim, emb_dim)
+            self.dis = AddaDiscriminator(emb_dim)
+            self.clf = AddaPredictor(emb_dim, ncls_source)
+        else:
+            self.source_encoder = MLPEncoder(inp_dim, emb_dim)
+            self.target_encoder = MLPEncoder(inp_dim, emb_dim)
+            self.dis = Discriminator(emb_dim)
+
+            self.clf = Predictor(emb_dim, ncls_source)
 
         self.is_encoder_source = True
 
