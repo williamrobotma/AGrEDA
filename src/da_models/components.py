@@ -1,5 +1,7 @@
 """Building blocks for models."""
 from torch import nn
+import torch
+import torch.nn.functional as F
 
 
 class MLPEncoder(nn.Module):
@@ -36,19 +38,23 @@ class ADDAMLPEncoder(nn.Module):
 
     """
 
-    def __init__(self, inp_dim, emb_dim):
+    def __init__(self, inp_dim, emb_dim, dropout=0.5):
         super().__init__()
 
         self.encoder = nn.Sequential(
-            nn.BatchNorm1d(inp_dim, eps=0.001, momentum=0.99),
-            nn.Dropout(0.5),
+            # nn.BatchNorm1d(inp_dim, eps=0.001, momentum=0.99),
+            # nn.Dropout(0.5),
             nn.Linear(inp_dim, 1024),
             nn.BatchNorm1d(1024, eps=0.001, momentum=0.99),
             nn.LeakyReLU(),
-            nn.Dropout(0.5),
-            nn.Linear(1024, emb_dim),
+            nn.Dropout(dropout),
+            nn.Linear(1024, 512),
+            nn.BatchNorm1d(512, eps=0.001, momentum=0.99),
+            nn.LeakyReLU(),
+            nn.Dropout(dropout),
+            nn.Linear(512, emb_dim),
             # nn.BatchNorm1d(emb_dim, eps=0.001, momentum=0.99),
-            nn.Tanh(),
+            nn.ELU(),
         )
 
     def forward(self, x):
@@ -68,11 +74,13 @@ class Predictor(nn.Module):
         super().__init__()
 
         self.head = nn.Sequential(
-            nn.Linear(emb_dim, ncls_source), nn.LogSoftmax(dim=1)
+            nn.Linear(emb_dim, ncls_source),
+            nn.LogSoftmax(dim=1),
         )
 
     def forward(self, x):
         return self.head(x)
+
 
 class AddaPredictor(nn.Module):
     """Predicts cell type proportions from embeddings.
@@ -87,11 +95,25 @@ class AddaPredictor(nn.Module):
         super().__init__()
 
         self.head = nn.Sequential(
-            nn.Dropout(0.5), nn.Linear(emb_dim, ncls_source), nn.LogSoftmax(dim=1)
+            # nn.Linear(emb_dim, 32),
+            # nn.BatchNorm1d(32, eps=0.001, momentum=0.99),
+            # nn.ReLU(),
+            # nn.Dropout(0.5),
+            nn.Linear(emb_dim, ncls_source),
+            # nn.LogSoftmax(dim=1),
+            # F.nor
+            # nn.LogSoftmax(dim=1),
         )
 
     def forward(self, x):
-        return self.head(x)
+        x = self.head(x)
+        # x = (x - torch.min(x, dim=1, keepdim=True)[0]) / (
+        #     torch.max(x, dim=1)[0] - torch.min(x, dim=1)[0]
+        # ).view(x.shape[0], -1)
+        # print(x)
+        # x = torch.log(x)
+        x = F.log_softmax(x, dim=1)
+        return x
 
 
 class Discriminator(nn.Module):
@@ -129,12 +151,15 @@ class AddaDiscriminator(nn.Module):
         super().__init__()
 
         self.head = nn.Sequential(
-            nn.Dropout(0.5),
-            nn.Linear(emb_dim, 32),
-            nn.BatchNorm1d(32, eps=0.001, momentum=0.99),
+            nn.Linear(emb_dim, 512),
+            nn.BatchNorm1d(512, eps=0.001, momentum=0.99),
             nn.LeakyReLU(),
             nn.Dropout(0.5),
-            nn.Linear(32, 1),
+            nn.Linear(512, 1024),
+            nn.BatchNorm1d(1024, eps=0.001, momentum=0.99),
+            nn.LeakyReLU(),
+            nn.Dropout(0.5),
+            nn.Linear(1024, 1),
         )
 
     def forward(self, x):

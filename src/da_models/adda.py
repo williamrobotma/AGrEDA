@@ -9,7 +9,7 @@ from .components import (
     Discriminator,
     ADDAMLPEncoder,
     AddaDiscriminator,
-    AddaPredictor
+    AddaPredictor,
 )
 from .utils import set_requires_grad
 
@@ -33,8 +33,6 @@ class ADDAST(nn.Module):
 
         if is_adda:
             self.source_encoder = ADDAMLPEncoder(inp_dim, emb_dim)
-            self.target_encoder = ADDAMLPEncoder(inp_dim, emb_dim)
-            self.dis = AddaDiscriminator(emb_dim)
             self.clf = AddaPredictor(emb_dim, ncls_source)
         else:
             self.source_encoder = MLPEncoder(inp_dim, emb_dim)
@@ -44,6 +42,9 @@ class ADDAST(nn.Module):
             self.clf = Predictor(emb_dim, ncls_source)
 
         self.is_encoder_source = True
+        self.inp_dim = inp_dim
+        self.emb_dim = emb_dim
+        self.ncls_source = ncls_source
 
     def forward(self, x):
         if self.is_encoder_source:
@@ -54,6 +55,10 @@ class ADDAST(nn.Module):
         x = self.clf(x)
 
         return x
+
+    def init_adv(self):
+        self.target_encoder = ADDAMLPEncoder(self.inp_dim, self.emb_dim, dropout=0.0)
+        self.dis = AddaDiscriminator(self.emb_dim)
 
     def pretraining(self):
         """Enable pretraining mode to train model on source domain."""
