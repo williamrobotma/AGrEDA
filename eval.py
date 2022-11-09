@@ -5,6 +5,7 @@ import os
 import datetime
 from collections import defaultdict
 import pickle
+import warnings
 
 
 import h5py
@@ -38,7 +39,11 @@ script_start_time = datetime.datetime.now().strftime("%Y-%m-%d_%Hh%Mm%S")
 
 
 # %%
-device = torch.device("cuda:2" if torch.cuda.is_available() else "cpu")
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+if device == "cpu":
+    warnings.warn(
+        'Using CPU', 
+        stacklevel=2)
 
 # NUM_MARKERS = 20
 # N_MIX = 8
