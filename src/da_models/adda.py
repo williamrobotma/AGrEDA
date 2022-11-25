@@ -58,6 +58,10 @@ class ADDAST(nn.Module):
 
     def init_adv(self):
         self.target_encoder = ADDAMLPEncoder(self.inp_dim, self.emb_dim, dropout=0.0)
+
+        self.target_encoder.load_state_dict(
+            self.source_encoder.state_dict()
+        )
         self.dis = AddaDiscriminator(self.emb_dim)
 
     def pretraining(self):
