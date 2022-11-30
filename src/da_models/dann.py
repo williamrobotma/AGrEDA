@@ -17,23 +17,23 @@ from .utils import set_requires_grad
 
 class RevGrad(Function):
     @staticmethod
-    def forward(ctx, input_, lambd):
-        ctx.save_for_backward(input_, lambd)
+    def forward(ctx, input_, alpha_):
+        ctx.save_for_backward(input_, alpha_)
         output = input_
         return output
 
     @staticmethod
     def backward(ctx, grad_output):  # pragma: no cover
         grad_input = None
-        _, lambd = ctx.saved_tensors
+        _, alpha_ = ctx.saved_tensors
         if ctx.needs_input_grad[0]:
-            grad_input = -grad_output / lambd
+            grad_input = -grad_output / alpha_
         return grad_input, None
 
 
-def grad_reverse(x, lambd):
-    lambd = tensor(lambd, requires_grad=False)
-    return RevGrad.apply(x, lambd)
+def grad_reverse(x, alpha_):
+    alpha_ = tensor(alpha_, requires_grad=False)
+    return RevGrad.apply(x, alpha_)
 
 
 class DANN(nn.Module):
@@ -50,18 +50,18 @@ class DANN(nn.Module):
 
     """
 
-    def __init__(self, inp_dim, emb_dim, ncls_source, lambd=1.0):
+    def __init__(self, inp_dim, emb_dim, ncls_source, alpha_=1.0):
         super().__init__()
 
         self.encoder = ADDAMLPEncoder(inp_dim, emb_dim)
         self.dis = AddaDiscriminator(emb_dim)
         self.clf = AddaPredictor(emb_dim, ncls_source)
-        self.lambd = lambd
+        self.alpha_ = alpha_
 
         self.is_pretraining = False
 
-    def set_lambda(self, lambd):
-        self.lambd = lambd
+    def set_lambda(self, alpha_):
+        self.alpha_ = alpha_
 
     def forward(self, x, dis=True, clf=True):
         x = self.encoder(x)
@@ -71,7 +71,7 @@ class DANN(nn.Module):
         else:
             x_clf = None
         if dis or not self.is_pretraining:
-            x_dis = grad_reverse(x, self.lambd)
+            x_dis = grad_reverse(x, self.alpha_)
             x_dis = self.dis(x_dis)
 
         return x_clf, x_dis
