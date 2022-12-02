@@ -28,7 +28,6 @@ class MLPEncoder(nn.Module):
     def forward(self, x):
         return self.encoder(x)
 
-
 class ADDAMLPEncoder(nn.Module):
     """MLP embedding encoder for gene expression data.
 
@@ -59,6 +58,35 @@ class ADDAMLPEncoder(nn.Module):
 
     def forward(self, x):
         return self.encoder(x)
+
+class ADDAMLPDecoder(nn.Module):
+    """MLP embedding decoder for gene expression data.
+
+    Args:
+        emb_dim (int): Embedding size.
+        inp_dim (int): Number of gene expression features.
+        
+
+    """
+
+    def __init__(self, inp_dim, emb_dim, dropout=0.5):
+        super().__init__()
+
+        self.decoder = nn.Sequential(
+            nn.Linear(emb_dim, 512),
+            nn.BatchNorm1d(512, eps=0.001, momentum=0.99),
+            nn.LeakyReLU(),
+            nn.Dropout(dropout),
+            nn.Linear(512, 1024),
+            nn.BatchNorm1d(1024, eps=0.001, momentum=0.99),
+            nn.LeakyReLU(),
+            nn.Dropout(dropout),
+            nn.Linear(1024, inp_dim),
+            nn.Sigmoid(),
+        )
+
+    def forward(self, x):
+        return self.decoder(x)
 
 
 class Predictor(nn.Module):

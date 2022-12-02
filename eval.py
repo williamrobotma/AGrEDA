@@ -31,6 +31,7 @@ import torch
 import harmonypy as hm
 
 from src.da_models.adda import ADDAST
+from src.da_models.dann import DANN
 from src.da_models.datasets import SpotDataset
 from src.utils.evaluation import JSD
 
@@ -41,28 +42,21 @@ script_start_time = datetime.datetime.now().strftime("%Y-%m-%d_%Hh%Mm%S")
 # %%
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 if device == "cpu":
-    warnings.warn(
-        'Using CPU', 
-        stacklevel=2)
+    warnings.warn("Using CPU", stacklevel=2)
 
-# NUM_MARKERS = 20
-# N_MIX = 8
-# N_SPOTS = 20000
+
 TRAIN_USING_ALL_ST_SAMPLES = False
 
 SAMPLE_ID_N = "151673"
 
 BATCH_SIZE = 1024
-NUM_WORKERS = 4
-INITIAL_TRAIN_EPOCHS = 100
+NUM_WORKERS = 16
 
-
-MIN_EPOCHS = 0.4 * INITIAL_TRAIN_EPOCHS
-EARLY_STOP_CRIT = INITIAL_TRAIN_EPOCHS
 
 PROCESSED_DATA_DIR = "data/preprocessed"
 
-MODEL_NAME = "ADDA"
+MODEL_NAME = "DANN"
+PRETRAINING = False
 
 MILISI = True
 
@@ -70,8 +64,8 @@ MILISI = True
 results_folder = os.path.join("results", MODEL_NAME, script_start_time)
 model_folder = os.path.join("model", MODEL_NAME, script_start_time)
 
-model_folder = os.path.join("model", MODEL_NAME, "TESTING")
-results_folder = os.path.join("results", MODEL_NAME, "TESTING")
+model_folder = os.path.join("model", MODEL_NAME, "V1")
+results_folder = os.path.join("results", MODEL_NAME, "V1")
 
 
 if not os.path.isdir(results_folder):
@@ -204,7 +198,7 @@ advtrain_folder = os.path.join(model_folder, "advtrain")
 
 
 # %%
-st_sample_id_l = [SAMPLE_ID_N]
+# st_sample_id_l = [SAMPLE_ID_N]
 
 
 # %% [markdown]
@@ -213,7 +207,8 @@ st_sample_id_l = [SAMPLE_ID_N]
 # %%
 # checkpoints_da_d = {}
 print("Getting predictions: ")
-pred_sp_d, pred_sp_noda_d = {}, {}
+pred_sp_d = {}
+
 if TRAIN_USING_ALL_ST_SAMPLES:
     check_point_da = torch.load(os.path.join(advtrain_folder, f"final_model.pth"))
     model = check_point_da["model"]
@@ -223,12 +218,10 @@ if TRAIN_USING_ALL_ST_SAMPLES:
     model.target_inference()
     with torch.no_grad():
         for sample_id in st_sample_id_l:
-            pred_sp_d[sample_id] = (
-                torch.exp(model(torch.Tensor(mat_sp_test_s_d[sample_id]).to(device)))
-                .detach()
-                .cpu()
-                .numpy()
-            )
+            out = model(torch.Tensor(mat_sp_test_s_d[sample_id]).to(device))
+            if isinstance(out, tuple):
+                out = out[0]
+            pred_sp_d[sample_id] = torch.exp(out).detach().cpu().numpy()
 
 else:
     for sample_id in st_sample_id_l:
@@ -242,28 +235,26 @@ else:
         model.target_inference()
 
         with torch.no_grad():
-            pred_sp_d[sample_id] = (
-                torch.exp(model(torch.Tensor(mat_sp_test_s_d[sample_id]).to(device)))
-                .detach()
-                .cpu()
-                .numpy()
-            )
+            out = model(torch.Tensor(mat_sp_test_s_d[sample_id]).to(device))
+            if isinstance(out, tuple):
+                out = out[0]
+            pred_sp_d[sample_id] = torch.exp(out).detach().cpu().numpy()
 
-checkpoint_noda = torch.load(os.path.join(pretrain_folder, f"final_model.pth"))
-model_noda = checkpoint_noda["model"]
-model_noda.to(device)
+if PRETRAINING:
+    pred_sp_noda_d = {}
+    checkpoint_noda = torch.load(os.path.join(pretrain_folder, f"final_model.pth"))
+    model_noda = checkpoint_noda["model"]
+    model_noda.to(device)
 
-model_noda.eval()
-model_noda.set_encoder("source")
+    model_noda.eval()
+    model_noda.set_encoder("source")
 
-with torch.no_grad():
-    for sample_id in st_sample_id_l:
-        pred_sp_noda_d[sample_id] = (
-            torch.exp(model_noda(torch.Tensor(mat_sp_test_s_d[sample_id]).to(device)))
-            .detach()
-            .cpu()
-            .numpy()
-        )
+    with torch.no_grad():
+        for sample_id in st_sample_id_l:
+            out = model_noda(torch.Tensor(mat_sp_test_s_d[sample_id]).to(device))
+            if isinstance(out, tuple):
+                out = out[0]
+            pred_sp_noda_d[sample_id] = torch.exp(out).detach().cpu().numpy()
 
 
 # %% [markdown]
@@ -277,7 +268,9 @@ for split in splits:
         rf50_d[k][split] = {}
 
 if MILISI:
-    miLISI_d = {"da": {}, "noda": {}}
+    miLISI_d = {"da": {}}
+    if PRETRAINING:
+        miLISI_d["noda"] = {}
     splits = ["train", "val", "test"]
     for split in splits:
         for k in miLISI_d:
@@ -286,12 +279,13 @@ if MILISI:
 Xs = [sc_mix_train_s, sc_mix_val_s, sc_mix_test_s]
 random_states = np.asarray([225, 53, 92])
 
-checkpoint_noda = torch.load(os.path.join(pretrain_folder, f"final_model.pth"))
-model_noda = checkpoint_noda["model"]
-model_noda.to(device)
+if PRETRAINING:
+    checkpoint_noda = torch.load(os.path.join(pretrain_folder, f"final_model.pth"))
+    model_noda = checkpoint_noda["model"]
+    model_noda.to(device)
 
-model_noda.eval()
-model_noda.set_encoder("source")
+    model_noda.eval()
+    model_noda.set_encoder("source")
 
 for sample_id in st_sample_id_l:
     print(f"Calculating domain shift for {sample_id}:", end=" ")
@@ -313,42 +307,64 @@ for sample_id in st_sample_id_l:
             X = torch.Tensor(X).to(device)
             X_target = torch.Tensor(mat_sp_test_s_d[sample_id]).to(device)
 
-            source_emb = model.source_encoder(X)
-            target_emb = model.target_encoder(X_target)
-
-            source_emb_noda = model_noda.source_encoder(X)
-            target_emb_noda = model_noda.source_encoder(X_target)
-
             y_dis = torch.cat(
                 [
-                    torch.zeros(source_emb.shape[0], device=device, dtype=torch.long),
-                    torch.ones(target_emb.shape[0], device=device, dtype=torch.long),
+                    torch.zeros(X.shape[0], device=device, dtype=torch.long),
+                    torch.ones(X_target.shape[0], device=device, dtype=torch.long),
                 ]
             )
 
+            try:
+                source_emb = model.source_encoder(X)
+            except AttributeError:
+                source_emb = model.encoder(X)
+            try:
+                target_emb = model.target_encoder(X_target)
+            except AttributeError:
+                target_emb = model.encoder(X_target)
+
             emb = torch.cat([source_emb, target_emb])
-            emb_noda = torch.cat([source_emb_noda, target_emb_noda])
 
             emb = emb.detach().cpu().numpy()
-            emb_noda = emb_noda.detach().cpu().numpy()
             y_dis = y_dis.detach().cpu().numpy()
 
+            if PRETRAINING:
+                try:
+                    source_emb_noda = model_noda.source_encoder(X)
+                    target_emb_noda = model_noda.source_encoder(X_target)
+                except AttributeError:
+                    source_emb_noda = model_noda.encoder(X)
+                    target_emb_noda = model_noda.encoder(X_target)
+
+                emb_noda = torch.cat([source_emb_noda, target_emb_noda])
+
+                emb_noda = emb_noda.detach().cpu().numpy()
+
+        n_cols = 2 if PRETRAINING else 1
+        fig, axs = plt.subplots(1, n_cols, figsize=(n_cols * 10, 10), squeeze=False)
         pca_da_df = pd.DataFrame(
             PCA(n_components=2).fit_transform(emb), columns=["PC1", "PC2"]
         )
-        pca_noda_df = pd.DataFrame(
-            PCA(n_components=2).fit_transform(emb_noda), columns=["PC1", "PC2"]
-        )
-        pca_da_df["domain"] = pca_noda_df["domain"] = [
-            "source" if x == 0 else "target" for x in y_dis
-        ]
-        fig, axs = plt.subplots(1, 2, figsize=(20, 10), squeeze=False)
+
+        pca_da_df["domain"] = ["source" if x == 0 else "target" for x in y_dis]
         sns.scatterplot(
             data=pca_da_df, x="PC1", y="PC2", hue="domain", ax=axs[0][0], marker="."
         )
-        sns.scatterplot(
-            data=pca_noda_df, x="PC1", y="PC2", hue="domain", ax=axs[0][1], marker="."
-        )
+
+        if PRETRAINING:
+            pca_noda_df = pd.DataFrame(
+                PCA(n_components=2).fit_transform(emb_noda), columns=["PC1", "PC2"]
+            )
+            pca_noda_df["domain"] = pca_da_df["domain"]
+
+            sns.scatterplot(
+                data=pca_noda_df,
+                x="PC1",
+                y="PC2",
+                hue="domain",
+                ax=axs[0][1],
+                marker=".",
+            )
 
         for ax in axs.flat:
             ax.set_aspect("equal", "box")
@@ -365,30 +381,40 @@ for sample_id in st_sample_id_l:
             miLISI_d["da"][split][sample_id] = np.median(
                 hm.compute_lisi(emb, meta_df, ["Domain"])
             )
-            miLISI_d["noda"][split][sample_id] = np.median(
-                hm.compute_lisi(emb_noda, meta_df, ["Domain"])
+
+            if PRETRAINING:
+                miLISI_d["noda"][split][sample_id] = np.median(
+                    hm.compute_lisi(emb_noda, meta_df, ["Domain"])
+                )
+
+        if PRETRAINING:
+            (
+                emb_train,
+                emb_test,
+                emb_noda_train,
+                emb_noda_test,
+                y_dis_train,
+                y_dis_test,
+            ) = model_selection.train_test_split(
+                emb,
+                emb_noda,
+                y_dis,
+                test_size=0.2,
+                random_state=rs,
+                stratify=y_dis,
+            )
+        else:
+            (
+                emb_train,
+                emb_test,
+                y_dis_train,
+                y_dis_test,
+            ) = model_selection.train_test_split(
+                emb, y_dis, test_size=0.2, random_state=rs, stratify=y_dis
             )
 
-        (
-            emb_train,
-            emb_test,
-            emb_noda_train,
-            emb_noda_test,
-            y_dis_train,
-            y_dis_test,
-        ) = model_selection.train_test_split(
-            emb,
-            emb_noda,
-            y_dis,
-            test_size=0.2,
-            random_state=rs,
-            stratify=y_dis,
-        )
-
         pca = PCA(n_components=50)
-        pca.fit(emb_train)
-
-        emb_train_50 = pca.transform(emb_train)
+        emb_train_50 = pca.fit_transform(emb_train)
         emb_test_50 = pca.transform(emb_test)
 
         clf = BalancedRandomForestClassifier(random_state=145, n_jobs=-1)
@@ -400,22 +426,21 @@ for sample_id in st_sample_id_l:
 
         rf50_d["da"][split][sample_id] = bal_accu_test
 
-        pca = PCA(n_components=50)
-        pca.fit(emb_noda_train)
+        if PRETRAINING:
+            pca = PCA(n_components=50)
+            emb_noda_train_50 = pca.fit_transform(emb_noda_train)
+            emb_noda_test_50 = pca.transform(emb_noda_test)
 
-        emb_noda_train_50 = pca.transform(emb_noda_train)
-        emb_noda_test_50 = pca.transform(emb_noda_test)
+            clf = BalancedRandomForestClassifier(random_state=145, n_jobs=-1)
+            clf.fit(emb_noda_train_50, y_dis_train)
+            y_pred_noda_test = clf.predict(emb_noda_test_50)
 
-        clf = BalancedRandomForestClassifier(random_state=145, n_jobs=-1)
-        clf.fit(emb_noda_train_50, y_dis_train)
-        y_pred_noda_test = clf.predict(emb_noda_test_50)
+            # bal_accu_train = metrics.balanced_accuracy_score(y_dis_train, y_pred_train)
+            bal_accu_noda_test = metrics.balanced_accuracy_score(
+                y_dis_test, y_pred_noda_test
+            )
 
-        # bal_accu_train = metrics.balanced_accuracy_score(y_dis_train, y_pred_train)
-        bal_accu_noda_test = metrics.balanced_accuracy_score(
-            y_dis_test, y_pred_noda_test
-        )
-
-        rf50_d["noda"][split][sample_id] = bal_accu_noda_test
+            rf50_d["noda"][split][sample_id] = bal_accu_noda_test
     # newline at end of split
     print("")
 
@@ -576,7 +601,9 @@ plt.close()
 
 
 # %%
-realspots_d = {"da": {}, "noda": {}}
+realspots_d = {"da": {}}
+if PRETRAINING:
+    realspots_d["noda"] = {}
 
 for sample_id in st_sample_id_l:
     fig, ax = plt.subplots(2, 5, figsize=(20, 8), constrained_layout=True, dpi=10)
@@ -603,7 +630,8 @@ for sample_id in st_sample_id_l:
     )
 
     da_aucs = []
-    noda_aucs = []
+    if PRETRAINING:
+        noda_aucs = []
     for i, num in enumerate(numlist):
         da_aucs.append(
             plot_roc(
@@ -614,15 +642,16 @@ for sample_id in st_sample_id_l:
                 ax.flat[i],
             )
         )
-        noda_aucs.append(
-            plot_roc(
-                num,
-                adata_spatialLIBD_d[sample_id],
-                pred_sp_noda_d[sample_id],
-                f"{MODEL_NAME}_wo_da",
-                ax.flat[i],
+        if PRETRAINING:
+            noda_aucs.append(
+                plot_roc(
+                    num,
+                    adata_spatialLIBD_d[sample_id],
+                    pred_sp_noda_d[sample_id],
+                    f"{MODEL_NAME}_wo_da",
+                    ax.flat[i],
+                )
             )
-        )
 
         ax.flat[i].plot(
             [0, 1], [0, 1], transform=ax.flat[i].transAxes, ls="--", color="k"
@@ -643,7 +672,8 @@ for sample_id in st_sample_id_l:
             ax.flat[i].set_ylabel("")
 
     realspots_d["da"][sample_id] = np.mean(da_aucs)
-    realspots_d["noda"][sample_id] = np.mean(noda_aucs)
+    if PRETRAINING:
+        realspots_d["noda"][sample_id] = np.mean(noda_aucs)
 
     fig.suptitle(sample_id)
     fig.savefig(
@@ -660,16 +690,20 @@ metric_ctp = JSD()
 
 
 # %%
-jsd_d = {"da": {}, "noda": {}}
+jsd_d = {"da": {}}
+if PRETRAINING:
+    jsd_d["noda"] = {}
+
 for k in jsd_d:
     jsd_d[k] = {"train": {}, "val": {}, "test": {}}
 
-checkpoint_noda = torch.load(os.path.join(pretrain_folder, f"final_model.pth"))
-model_noda = checkpoint_noda["model"]
-model_noda.to(device)
+if PRETRAINING:
+    checkpoint_noda = torch.load(os.path.join(pretrain_folder, f"final_model.pth"))
+    model_noda = checkpoint_noda["model"]
+    model_noda.to(device)
 
-model_noda.eval()
-model_noda.set_encoder("source")
+    model_noda.eval()
+    model_noda.set_encoder("source")
 
 for sample_id in st_sample_id_l:
     if TRAIN_USING_ALL_ST_SAMPLES:
@@ -688,10 +722,13 @@ for sample_id in st_sample_id_l:
 
     with torch.no_grad():
         pred_mix_train = model(torch.Tensor(sc_mix_train_s).to(device))
-
         pred_mix_val = model(torch.Tensor(sc_mix_val_s).to(device))
-
         pred_mix_test = model(torch.Tensor(sc_mix_test_s).to(device))
+
+        if isinstance(pred_mix_train, tuple):
+            pred_mix_train = pred_mix_train[0]
+            pred_mix_val = pred_mix_val[0]
+            pred_mix_test = pred_mix_test[0]
 
         target_names = [sc_sub_dict[i] for i in range(len(sc_sub_dict))]
 
@@ -710,27 +747,31 @@ for sample_id in st_sample_id_l:
         jsd_d["da"]["test"][sample_id] = jsd_test.detach().cpu().numpy()
 
     with torch.no_grad():
-        pred_mix_train = model_noda(torch.Tensor(sc_mix_train_s).to(device))
+        if PRETRAINING:
+            pred_mix_train = model_noda(torch.Tensor(sc_mix_train_s).to(device))
+            pred_mix_val = model_noda(torch.Tensor(sc_mix_val_s).to(device))
+            pred_mix_test = model_noda(torch.Tensor(sc_mix_test_s).to(device))
 
-        pred_mix_val = model_noda(torch.Tensor(sc_mix_val_s).to(device))
+        if isinstance(pred_mix_train, tuple):
+            pred_mix_train = pred_mix_train[0]
+            pred_mix_val = pred_mix_val[0]
+            pred_mix_test = pred_mix_test[0]
 
-        pred_mix_test = model_noda(torch.Tensor(sc_mix_test_s).to(device))
+            target_names = [sc_sub_dict[i] for i in range(len(sc_sub_dict))]
 
-        target_names = [sc_sub_dict[i] for i in range(len(sc_sub_dict))]
+            jsd_train = metric_ctp(
+                torch.Tensor(lab_mix_train).to(device), torch.exp(pred_mix_train)
+            )
+            jsd_val = metric_ctp(
+                torch.Tensor(lab_mix_val).to(device), torch.exp(pred_mix_val)
+            )
+            jsd_test = metric_ctp(
+                torch.Tensor(lab_mix_test).to(device), torch.exp(pred_mix_test)
+            )
 
-        jsd_train = metric_ctp(
-            torch.Tensor(lab_mix_train).to(device), torch.exp(pred_mix_train)
-        )
-        jsd_val = metric_ctp(
-            torch.Tensor(lab_mix_val).to(device), torch.exp(pred_mix_val)
-        )
-        jsd_test = metric_ctp(
-            torch.Tensor(lab_mix_test).to(device), torch.exp(pred_mix_test)
-        )
-
-        jsd_d["noda"]["train"][sample_id] = jsd_train.detach().cpu().numpy()
-        jsd_d["noda"]["val"][sample_id] = jsd_val.detach().cpu().numpy()
-        jsd_d["noda"]["test"][sample_id] = jsd_test.detach().cpu().numpy()
+            jsd_d["noda"]["train"][sample_id] = jsd_train.detach().cpu().numpy()
+            jsd_d["noda"]["val"][sample_id] = jsd_val.detach().cpu().numpy()
+            jsd_d["noda"]["test"][sample_id] = jsd_test.detach().cpu().numpy()
 
 
 # %%
@@ -753,6 +794,12 @@ def gen_l_dfs(da):
     return
 
 
+da_dict_keys = ["da"]
+da_df_keys = ["After DA"]
+if PRETRAINING:
+    da_dict_keys.insert(0, "noda")
+    da_df_keys.insert(0, "Before DA")
+
 results_df = pd.concat(
     [
         pd.concat(
@@ -760,10 +807,10 @@ results_df = pd.concat(
             axis=1,
             keys=df_keys,
         )
-        for da in ["noda", "da"]
+        for da in da_dict_keys
     ],
     axis=0,
-    keys=["Before DA", "After DA"],
+    keys=da_df_keys,
 )
 
 results_df.to_csv(os.path.join(results_folder, "results.csv"))
