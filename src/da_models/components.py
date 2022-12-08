@@ -34,13 +34,16 @@ class ADDAMLPEncoder(nn.Module):
     Args:
         inp_dim (int): Number of gene expression features.
         emb_dim (int): Embedding size.
+        dropout (float): Dropout rate.
+        enc_out_act (nn.Module): Activation function for encoder output. 
+            Default: nn.ELU()
 
     """
 
-    def __init__(self, inp_dim, emb_dim, dropout=0.5):
+    def __init__(self, inp_dim, emb_dim, dropout=0.5, enc_out_act=nn.ELU()):
         super().__init__()
 
-        self.encoder = nn.Sequential(
+        layers = [
             # nn.BatchNorm1d(inp_dim, eps=0.001, momentum=0.99),
             # nn.Dropout(0.5),
             nn.Linear(inp_dim, 1024),
@@ -53,8 +56,10 @@ class ADDAMLPEncoder(nn.Module):
             nn.Dropout(dropout),
             nn.Linear(512, emb_dim),
             # nn.BatchNorm1d(emb_dim, eps=0.001, momentum=0.99),
-            nn.ELU(),
-        )
+        ]
+        if enc_out_act:
+            layers.append(enc_out_act)
+        self.encoder = nn.Sequential(*layers)
 
     def forward(self, x):
         return self.encoder(x)
@@ -65,14 +70,16 @@ class ADDAMLPDecoder(nn.Module):
     Args:
         emb_dim (int): Embedding size.
         inp_dim (int): Number of gene expression features.
-        
+        dropout (float): Dropout rate.
+        dec_out_act (nn.Module): Activation function for decoder output.
+            Default: nn.Sigmoid()        
 
     """
 
-    def __init__(self, inp_dim, emb_dim, dropout=0.5):
+    def __init__(self, inp_dim, emb_dim, dropout=0.5, dec_out_act=nn.Sigmoid()):
         super().__init__()
 
-        self.decoder = nn.Sequential(
+        layers = [
             nn.Linear(emb_dim, 512),
             nn.BatchNorm1d(512, eps=0.001, momentum=0.99),
             nn.LeakyReLU(),
@@ -82,8 +89,11 @@ class ADDAMLPDecoder(nn.Module):
             nn.LeakyReLU(),
             nn.Dropout(dropout),
             nn.Linear(1024, inp_dim),
-            nn.Sigmoid(),
-        )
+        ]
+        if dec_out_act:
+            layers.append(dec_out_act)
+
+        self.decoder = nn.Sequential(*layers)
 
     def forward(self, x):
         return self.decoder(x)
