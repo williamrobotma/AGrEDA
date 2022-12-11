@@ -26,6 +26,10 @@ parser.add_argument(
     choices=scaler_opts,
     help="Scaler to use.",
 )
+parser.add_argument("--stsplit", action="store_true", help="Whether to split ST data.")
+parser.add_argument(
+    "--allgenes", "-a", action="store_true", help="Turn off marker selection."
+)
 args = parser.parse_args()
 
 # %%
@@ -33,7 +37,7 @@ SPATIALLIBD_DIR = "./data/spatialLIBD"
 SC_DLPFC_PATH = "./data/sc_dlpfc/adata_sc_dlpfc.h5ad"
 GENELISTS_PATH = "data/sc_dlpfc/df_genelists.pkl"
 
-SAVE_DIR = f"data/preprocessed_{args.scaler}"
+SAVE_DIR = f"data/preprocessed_{'all' if args.allgenes else 'markers'}_{args.scaler}"
 
 # %%
 NUM_MARKERS = 20
@@ -48,6 +52,8 @@ def main():
         Scaler = preprocessing.StandardScaler
     elif args.scaler == "celldart":
         pass
+    if not os.path.isdir(SAVE_DIR):
+        os.makedirs(SAVE_DIR)
 
     # %%[markdown]
     #  # Prepare Data
@@ -55,6 +61,8 @@ def main():
     #  ### Load SpatialLIBD Data
 
     # %%
+    print("Loading SpatialLIBD Data")
+
     adata_dir = os.path.join(SPATIALLIBD_DIR, "adata")
 
     adata_spatialLIBD_d = {}
@@ -76,6 +84,8 @@ def main():
     #  ### Load Single Cell Data
 
     # %%
+    print("Loading Single Cell Data")
+
     adata_sc_dlpfc = sc.read_h5ad(SC_DLPFC_PATH)
     sc.pp.normalize_total(adata_sc_dlpfc, inplace=True, target_sum=1e4)
     adata_sc_dlpfc.var_names_make_unique()
@@ -92,6 +102,7 @@ def main():
     # ### Generate Pseudospots
 
     # %%
+    print("Splitting single cell data")
     df_sc = adata_sc_dlpfc.to_df()
     df_sc.index = pd.MultiIndex.from_frame(adata_sc_dlpfc.obs.reset_index())
 
@@ -124,6 +135,7 @@ def main():
     )
 
     # %%
+    print("Selecting genes")
     (
         (adata_sc_dlpfc_train, adata_spatialLIBD),
         df_genelists,
@@ -131,10 +143,10 @@ def main():
     ) = data_processing.select_marker_genes(
         adata_sc_dlpfc_train,
         adata_spatialLIBD,
-        NUM_MARKERS,
+        n_markers=None if args.allgenes else NUM_MARKERS,
         genelists_path=GENELISTS_PATH,
     )
-    fig.savefig("results/venn.png")
+    fig.savefig(os.path.join(SAVE_DIR, "venn.png"))
     # %%
 
     sc_sub_dict = dict(zip(range(df_genelists.shape[1]), df_genelists.columns.tolist()))
@@ -154,6 +166,8 @@ def main():
     adata_sc_dlpfc_test = adata_sc_dlpfc_test[:, adata_sc_dlpfc_train.var.index]
 
     # %%
+    print("Generating Pseudospots")
+
     sc_mix_train, lab_mix_train = data_processing.random_mix(
         adata_sc_dlpfc_train.to_df().to_numpy(),
         lab_sc_num_train,
@@ -176,6 +190,7 @@ def main():
         seed=119,
     )
 
+    print("Log scaling pseudospots")
     if args.scaler == "celldart":
         sc_mix_train_s = data_processing.log_minmaxscale(sc_mix_train)
         sc_mix_val_s = data_processing.log_minmaxscale(sc_mix_val)
@@ -190,44 +205,109 @@ def main():
     # ### Format Spatial Data
 
     # %%
-    mat_sp_test_d = {}
-    mat_sp_test_s_d = {}
+    print("Log scaling spatial data")
+    mat_sp_train_d = {}
+    mat_sp_train_s_d = {}
+    if args.stsplit:
+        mat_sp_test_d = {}
+        mat_sp_test_s_d = {}
+        mat_sp_val_d = {}
+        mat_sp_val_s_d = {}
     for sample_id in st_sample_id_l:
-        mat_sp_test_d[sample_id] = adata_spatialLIBD[
+        X_st_train = adata_spatialLIBD[
             adata_spatialLIBD.obs.sample_id == sample_id
         ].X.toarray()
 
-        if args.scaler == "celldart":
-            mat_sp_test_s_d[sample_id] = data_processing.log_minmaxscale(
-                mat_sp_test_d[sample_id]
+        if args.stsplit:
+            X_st_train, X_st_val = model_selection.train_test_split(
+                X_st_train,
+                test_size=0.2,
+                random_state=163,
             )
+
+            X_st_val, X_st_test = model_selection.train_test_split(
+                X_st_val,
+                test_size=0.5,
+                random_state=195,
+            )
+            mat_sp_val_d[sample_id] = X_st_val
+            mat_sp_test_d[sample_id] = X_st_test
+        mat_sp_train_d[sample_id] = X_st_train
+
+        if args.scaler == "celldart":
+            mat_sp_train_s_d[sample_id] = data_processing.log_minmaxscale(
+                mat_sp_train_d[sample_id]
+            )
+            if args.stsplit:
+                mat_sp_val_s_d[sample_id] = data_processing.log_minmaxscale(
+                    mat_sp_val_d[sample_id]
+                )
+                mat_sp_test_s_d[sample_id] = data_processing.log_minmaxscale(
+                    mat_sp_test_d[sample_id]
+                )
         else:
             sp_scaler = Scaler()
-            mat_sp_test_s_d[sample_id] = sp_scaler.fit_transform(
-                np.log1p(mat_sp_test_d[sample_id])
+            mat_sp_train_s_d[sample_id] = sp_scaler.fit_transform(
+                np.log1p(mat_sp_train_d[sample_id])
             )
+            if args.stsplit:
+                mat_sp_val_s_d[sample_id] = sp_scaler.transform(
+                    np.log1p(mat_sp_val_d[sample_id])
+                )
+                mat_sp_test_s_d[sample_id] = sp_scaler.transform(
+                    np.log1p(mat_sp_test_d[sample_id])
+                )
 
     # if TRAIN_USING_ALL_ST_SAMPLES:
     mat_sp_train = adata_spatialLIBD.X.toarray()
+    if args.stsplit:
+        mat_sp_train, mat_sp_val = model_selection.train_test_split(
+            mat_sp_train,
+            test_size=0.2,
+            random_state=629,
+        )
+        mat_sp_val, mat_sp_test = model_selection.train_test_split(
+            mat_sp_val,
+            test_size=0.5,
+            random_state=18,
+        )
     if args.scaler == "celldart":
         mat_sp_train_s = data_processing.log_minmaxscale(mat_sp_train)
+        if args.stsplit:
+            mat_sp_val_s = data_processing.log_minmaxscale(mat_sp_val)
+            mat_sp_test_s = data_processing.log_minmaxscale(mat_sp_test)
     else:
         sp_all_scaler = Scaler()
         mat_sp_train_s = sp_all_scaler.fit_transform(np.log1p(mat_sp_train))
+        if args.stsplit:
+            mat_sp_val_s = sp_all_scaler.transform(np.log1p(mat_sp_val))
+            mat_sp_test_s = sp_all_scaler.transform(np.log1p(mat_sp_test))
 
     # %%[markdown]
     # # Export
 
     # %%
-    if not os.path.isdir(SAVE_DIR):
-        os.makedirs(SAVE_DIR)
+    print("Exporting")
+    if args.stsplit:
+        with h5py.File(os.path.join(SAVE_DIR, "mat_sp_split_s_d.hdf5"), "w") as f:
+            for grp_name in mat_sp_train_s_d:
+                grp_samp = f.create_group(grp_name)
+                dset = grp_samp.create_dataset("train", data=mat_sp_train_s_d[grp_name])
+                dset = grp_samp.create_dataset("val", data=mat_sp_val_s_d[grp_name])
+                dset = grp_samp.create_dataset("test", data=mat_sp_test_s_d[grp_name])
 
-    with h5py.File(os.path.join(SAVE_DIR, "mat_sp_test_s_d.hdf5"), "w") as f:
-        for dset_name in mat_sp_test_s_d:
-            dset = f.create_dataset(dset_name, data=mat_sp_test_s_d[dset_name])
+        with h5py.File(os.path.join(SAVE_DIR, "mat_sp_split_s.hdf5"), "w") as f:
+            grp_samp = f.create_group("all")
+            dset = grp_samp.create_dataset("train", data=mat_sp_train_s)
+            dset = grp_samp.create_dataset("val", data=mat_sp_val_s)
+            dset = grp_samp.create_dataset("test", data=mat_sp_test_s)
+    else:
+        with h5py.File(os.path.join(SAVE_DIR, "mat_sp_train_s_d.hdf5"), "w") as f:
+            for dset_name in mat_sp_train_s_d:
+                dset = f.create_dataset(dset_name, data=mat_sp_train_s_d[dset_name])
 
-    with h5py.File(os.path.join(SAVE_DIR, "mat_sp_train_s.hdf5"), "w") as f:
-        dset = f.create_dataset("all", data=mat_sp_train_s)
+        with h5py.File(os.path.join(SAVE_DIR, "mat_sp_train_s.hdf5"), "w") as f:
+            dset = f.create_dataset("all", data=mat_sp_train_s)
 
     with h5py.File(os.path.join(SAVE_DIR, "sc.hdf5"), "w") as f:
         grp_x = f.create_group("X")
@@ -252,6 +332,8 @@ def main():
 
     with open(os.path.join(SAVE_DIR, "st_sample_id_l.pkl"), "wb") as f:
         pickle.dump(st_sample_id_l.tolist(), f)
+
+    print("Done")
 
 
 if __name__ == "__main__":

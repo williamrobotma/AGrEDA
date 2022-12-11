@@ -28,16 +28,18 @@ class ADDAST(nn.Module):
 
     """
 
-    def __init__(self, inp_dim, emb_dim, ncls_source, is_adda=False):
+    def __init__(self, inp_dim, emb_dim, ncls_source, bn_momentum=0.99, is_adda=False):
         super().__init__()
 
         if is_adda:
-            self.source_encoder = ADDAMLPEncoder(inp_dim, emb_dim)
+            self.source_encoder = ADDAMLPEncoder(
+                inp_dim, emb_dim, bn_momentum=bn_momentum
+            )
             self.clf = AddaPredictor(emb_dim, ncls_source)
         else:
-            self.source_encoder = MLPEncoder(inp_dim, emb_dim)
-            self.target_encoder = MLPEncoder(inp_dim, emb_dim)
-            self.dis = Discriminator(emb_dim)
+            self.source_encoder = MLPEncoder(inp_dim, emb_dim, bn_momentum=bn_momentum)
+            self.target_encoder = MLPEncoder(inp_dim, emb_dim, bn_momentum=bn_momentum)
+            self.dis = Discriminator(emb_dim, bn_momentum=bn_momentum)
 
             self.clf = Predictor(emb_dim, ncls_source)
 
@@ -45,6 +47,7 @@ class ADDAST(nn.Module):
         self.inp_dim = inp_dim
         self.emb_dim = emb_dim
         self.ncls_source = ncls_source
+        self.bn_momentum = bn_momentum
 
     def forward(self, x):
         if self.is_encoder_source:
@@ -57,12 +60,12 @@ class ADDAST(nn.Module):
         return x
 
     def init_adv(self):
-        self.target_encoder = ADDAMLPEncoder(self.inp_dim, self.emb_dim, dropout=0.0)
-
-        self.target_encoder.load_state_dict(
-            self.source_encoder.state_dict()
+        self.target_encoder = ADDAMLPEncoder(
+            self.inp_dim, self.emb_dim, dropout=0.0, bn_momentum=self.bn_momentum
         )
-        self.dis = AddaDiscriminator(self.emb_dim)
+
+        self.target_encoder.load_state_dict(self.source_encoder.state_dict())
+        self.dis = AddaDiscriminator(self.emb_dim, bn_momentum=self.bn_momentum)
 
     def pretraining(self):
         """Enable pretraining mode to train model on source domain."""

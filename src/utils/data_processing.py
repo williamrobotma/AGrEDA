@@ -87,7 +87,7 @@ def rank_genes(adata_sc):
     Returns:
         A DataFrame containing the ranked genes by cell_subclass.
     """
-    sc.tl.rank_genes_groups(adata_sc, "cell_subclass", method="wilcoxon")
+    sc.tl.rank_genes_groups(adata_sc, groupby="cell_subclass", method="wilcoxon")
 
     genelists = adata_sc.uns["rank_genes_groups"]["names"]
     df_genelists = pd.DataFrame.from_records(genelists)
@@ -98,7 +98,7 @@ def rank_genes(adata_sc):
 def select_marker_genes(
     adata_sc,
     adata_st,
-    n_markers,
+    n_markers=None,
     genelists_path=None,
     force_rerank=False,
 ):
@@ -108,8 +108,14 @@ def select_marker_genes(
     Args:
         adata_sc (:obj: AnnData): Single-cell data with cell_subclass.
         adata_st (:obj: AnnData): Spatial transcriptomic data.
-        n_markers (int): Number of top markers to include for each
-            cell_subclass.
+        n_markers (Any): Number of top markers to include for each
+            cell_subclass. If not provided, or not truthy, all genes will be
+            included.
+        genelists_path (Any): Path to save/load ranked genes. If not provided,
+            will not save/load. Defaults to None.
+        force_rerank (bool): If True, will force rerank of genes and will not
+            save. Defaults to False.
+
 
     Returns:
         A tuple of a tuple of (adata_sc, adata_st) with the reduced set of
@@ -118,39 +124,56 @@ def select_marker_genes(
     """
 
     # Load or rank genes
-    if force_rerank or (genelists_path is None):
+    if force_rerank or not genelists_path:
         df_genelists = rank_genes(adata_sc)
+        if genelists_path:
+            df_genelists.to_pickle(genelists_path)
     else:
         try:
             df_genelists = pd.read_pickle(genelists_path)
         except FileNotFoundError as e:
             print(e)
             df_genelists = rank_genes(adata_sc)
-            df_genelists.to_pickle(genelists_path)
-
-    # Get set of all top genes for cluster
-    res_genes = []
-    for column in df_genelists.head(n_markers):
-        res_genes.extend(df_genelists.head(n_markers)[column].tolist())
-    res_genes_ = list(set(res_genes))
+            if genelists_path:
+                df_genelists.to_pickle(genelists_path)
 
     all_sc_genes = set(adata_sc.var.index)
     all_st_genes = set(adata_st.var.index)
-    top_genes_sc = set(res_genes)
 
-    fig, ax = plt.subplots()
-    matplotlib_venn.venn3_unweighted(
-        [all_sc_genes, all_st_genes, top_genes_sc],
-        set_labels=(
-            "SC genes",
-            "ST genes",
-            f"Union of top {n_markers} genes for all clusters",
-        ),
-        ax=ax,
-    )
+    if n_markers:
+        # Get set of all top genes for cluster
+        res_genes = []
+        for column in df_genelists.head(n_markers):
+            res_genes.extend(df_genelists.head(n_markers)[column].tolist())
+        res_genes_ = list(set(res_genes))
 
-    # Find gene intersection
-    inter_genes = [val for val in res_genes_ if val in adata_st.var.index]
+        top_genes_sc = set(res_genes)
+
+        # Find gene intersection
+        inter_genes = [val for val in res_genes_ if val in adata_st.var.index]
+
+        fig, ax = plt.subplots()
+        matplotlib_venn.venn3_unweighted(
+            [all_sc_genes, all_st_genes, top_genes_sc],
+            set_labels=(
+                "SC genes",
+                "ST genes",
+                f"Union of top {n_markers} genes for all clusters",
+            ),
+            ax=ax,
+        )
+    else:
+        inter_genes = list(all_sc_genes.intersection(all_st_genes))
+        fig, ax = plt.subplots()
+        matplotlib_venn.venn2_unweighted(
+            [all_sc_genes, all_st_genes],
+            set_labels=(
+                "SC genes",
+                "ST genes",
+            ),
+            ax=ax,
+        )
+
     print("Selected Feature Gene number", len(inter_genes))
 
     # Return adatas with subset of genes

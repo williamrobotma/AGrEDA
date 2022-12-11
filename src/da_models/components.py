@@ -13,20 +13,21 @@ class MLPEncoder(nn.Module):
 
     """
 
-    def __init__(self, inp_dim, emb_dim):
+    def __init__(self, inp_dim, emb_dim, bn_momentum=0.99):
         super().__init__()
 
         self.encoder = nn.Sequential(
             nn.Linear(inp_dim, 1024),
-            nn.BatchNorm1d(1024, eps=0.001, momentum=0.99),
+            nn.BatchNorm1d(1024, eps=0.001, momentum=bn_momentum),
             nn.ELU(),
             nn.Linear(1024, emb_dim),
-            nn.BatchNorm1d(emb_dim, eps=0.001, momentum=0.99),
+            nn.BatchNorm1d(emb_dim, eps=0.001, momentum=bn_momentum),
             nn.ELU(),
         )
 
     def forward(self, x):
         return self.encoder(x)
+
 
 class ADDAMLPEncoder(nn.Module):
     """MLP embedding encoder for gene expression data.
@@ -35,27 +36,29 @@ class ADDAMLPEncoder(nn.Module):
         inp_dim (int): Number of gene expression features.
         emb_dim (int): Embedding size.
         dropout (float): Dropout rate.
-        enc_out_act (nn.Module): Activation function for encoder output. 
+        enc_out_act (nn.Module): Activation function for encoder output.
             Default: nn.ELU()
 
     """
 
-    def __init__(self, inp_dim, emb_dim, dropout=0.5, enc_out_act=nn.ELU()):
+    def __init__(
+        self, inp_dim, emb_dim, dropout=0.5, enc_out_act=nn.ELU(), bn_momentum=0.99
+    ):
         super().__init__()
 
         layers = [
-            # nn.BatchNorm1d(inp_dim, eps=0.001, momentum=0.99),
+            # nn.BatchNorm1d(inp_dim, eps=0.001, momentum=bn_momentum),
             # nn.Dropout(0.5),
             nn.Linear(inp_dim, 1024),
-            nn.BatchNorm1d(1024, eps=0.001, momentum=0.99),
+            nn.BatchNorm1d(1024, eps=0.001, momentum=bn_momentum),
             nn.LeakyReLU(),
             nn.Dropout(dropout),
             nn.Linear(1024, 512),
-            nn.BatchNorm1d(512, eps=0.001, momentum=0.99),
+            nn.BatchNorm1d(512, eps=0.001, momentum=bn_momentum),
             nn.LeakyReLU(),
             nn.Dropout(dropout),
             nn.Linear(512, emb_dim),
-            # nn.BatchNorm1d(emb_dim, eps=0.001, momentum=0.99),
+            # nn.BatchNorm1d(emb_dim, eps=0.001, momentum=bn_momentum),
         ]
         if enc_out_act:
             layers.append(enc_out_act)
@@ -63,6 +66,7 @@ class ADDAMLPEncoder(nn.Module):
 
     def forward(self, x):
         return self.encoder(x)
+
 
 class ADDAMLPDecoder(nn.Module):
     """MLP embedding decoder for gene expression data.
@@ -72,20 +76,22 @@ class ADDAMLPDecoder(nn.Module):
         inp_dim (int): Number of gene expression features.
         dropout (float): Dropout rate.
         dec_out_act (nn.Module): Activation function for decoder output.
-            Default: nn.Sigmoid()        
+            Default: nn.Sigmoid()
 
     """
 
-    def __init__(self, inp_dim, emb_dim, dropout=0.5, dec_out_act=nn.Sigmoid()):
+    def __init__(
+        self, inp_dim, emb_dim, dropout=0.5, dec_out_act=nn.Sigmoid(), bn_momentum=0.99
+    ):
         super().__init__()
 
         layers = [
             nn.Linear(emb_dim, 512),
-            nn.BatchNorm1d(512, eps=0.001, momentum=0.99),
+            nn.BatchNorm1d(512, eps=0.001, momentum=bn_momentum),
             nn.LeakyReLU(),
             nn.Dropout(dropout),
             nn.Linear(512, 1024),
-            nn.BatchNorm1d(1024, eps=0.001, momentum=0.99),
+            nn.BatchNorm1d(1024, eps=0.001, momentum=bn_momentum),
             nn.LeakyReLU(),
             nn.Dropout(dropout),
             nn.Linear(1024, inp_dim),
@@ -162,12 +168,12 @@ class Discriminator(nn.Module):
 
     """
 
-    def __init__(self, emb_dim):
+    def __init__(self, emb_dim, bn_momentum=0.99):
         super().__init__()
 
         self.head = nn.Sequential(
             nn.Linear(emb_dim, 32),
-            nn.BatchNorm1d(32, eps=0.001, momentum=0.99),
+            nn.BatchNorm1d(32, eps=0.001, momentum=bn_momentum),
             nn.ELU(),
             nn.Dropout(0.5),
             nn.Linear(32, 2),
@@ -185,16 +191,16 @@ class AddaDiscriminator(nn.Module):
 
     """
 
-    def __init__(self, emb_dim):
+    def __init__(self, emb_dim, bn_momentum=0.99):
         super().__init__()
 
         self.head = nn.Sequential(
             nn.Linear(emb_dim, 512),
-            nn.BatchNorm1d(512, eps=0.001, momentum=0.99),
+            nn.BatchNorm1d(512, eps=0.001, momentum=bn_momentum),
             nn.LeakyReLU(),
             nn.Dropout(0.5),
             nn.Linear(512, 1024),
-            nn.BatchNorm1d(1024, eps=0.001, momentum=0.99),
+            nn.BatchNorm1d(1024, eps=0.001, momentum=bn_momentum),
             nn.LeakyReLU(),
             nn.Dropout(0.5),
             nn.Linear(1024, 1),

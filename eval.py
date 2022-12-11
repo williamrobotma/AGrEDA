@@ -4,11 +4,9 @@
 import os
 import datetime
 from collections import defaultdict
-import pickle
 import warnings
 
 
-import h5py
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -34,13 +32,14 @@ from src.da_models.adda import ADDAST
 from src.da_models.dann import DANN
 from src.da_models.datasets import SpotDataset
 from src.utils.evaluation import JSD
+from src.utils.data_loading import load_spatial, load_sc
 
 # datetime object containing current date and time
 script_start_time = datetime.datetime.now().strftime("%Y-%m-%d_%Hh%Mm%S")
 
 
 # %%
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+device = torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
 if device == "cpu":
     warnings.warn("Using CPU", stacklevel=2)
 
@@ -49,13 +48,16 @@ TRAIN_USING_ALL_ST_SAMPLES = False
 
 SAMPLE_ID_N = "151673"
 
-BATCH_SIZE = 1024
+BATCH_SIZE = 512
 NUM_WORKERS = 16
 
 
-PROCESSED_DATA_DIR = "data/preprocessed"
+PROCESSED_DATA_DIR = "data/preprocessed_markers_standard"
+
+ST_SPLIT = False
 
 MODEL_NAME = "DANN"
+MODEL_VERSION = "Standard1"
 PRETRAINING = False
 
 MILISI = True
@@ -64,8 +66,8 @@ MILISI = True
 results_folder = os.path.join("results", MODEL_NAME, script_start_time)
 model_folder = os.path.join("model", MODEL_NAME, script_start_time)
 
-model_folder = os.path.join("model", MODEL_NAME, "V1")
-results_folder = os.path.join("results", MODEL_NAME, "V1")
+model_folder = os.path.join("model", MODEL_NAME, MODEL_VERSION)
+results_folder = os.path.join("results", MODEL_NAME, MODEL_VERSION)
 
 
 if not os.path.isdir(results_folder):
@@ -84,36 +86,12 @@ sc.settings.verbosity = 3
 # %%
 print("Loading Data")
 # Load spatial data
-mat_sp_test_s_d = {}
-with h5py.File(os.path.join(PROCESSED_DATA_DIR, "mat_sp_test_s_d.hdf5"), "r") as f:
-    for sample_id in f:
-        mat_sp_test_s_d[sample_id] = f[sample_id][()]
-
-if TRAIN_USING_ALL_ST_SAMPLES:
-    with h5py.File(os.path.join(PROCESSED_DATA_DIR, "mat_sp_train_s.hdf5"), "r") as f:
-        mat_sp_train_s = f["all"][()]
-else:
-    mat_sp_train_s_d = mat_sp_test_s_d
+mat_sp_d, mat_sp_train_s, st_sample_id_l = load_spatial(
+    TRAIN_USING_ALL_ST_SAMPLES, PROCESSED_DATA_DIR, ST_SPLIT
+)
 
 # Load sc data
-with h5py.File(os.path.join(PROCESSED_DATA_DIR, "sc.hdf5"), "r") as f:
-    sc_mix_train_s = f["X/train"][()]
-    sc_mix_val_s = f["X/val"][()]
-    sc_mix_test_s = f["X/test"][()]
-
-    lab_mix_train = f["y/train"][()]
-    lab_mix_val = f["y/val"][()]
-    lab_mix_test = f["y/test"][()]
-
-# Load helper dicts / lists
-with open(os.path.join(PROCESSED_DATA_DIR, "sc_sub_dict.pkl"), "rb") as f:
-    sc_sub_dict = pickle.load(f)
-
-with open(os.path.join(PROCESSED_DATA_DIR, "sc_sub_dict2.pkl"), "rb") as f:
-    sc_sub_dict2 = pickle.load(f)
-
-with open(os.path.join(PROCESSED_DATA_DIR, "st_sample_id_l.pkl"), "rb") as f:
-    st_sample_id_l = pickle.load(f)
+sc_mix_d, lab_mix_d, sc_sub_dict, sc_sub_dict2 = load_sc(PROCESSED_DATA_DIR)
 
 
 # %% [markdown]
@@ -125,9 +103,9 @@ with open(os.path.join(PROCESSED_DATA_DIR, "st_sample_id_l.pkl"), "rb") as f:
 # %%
 print("Setting up dataloaders:")
 ### source dataloaders
-source_train_set = SpotDataset(sc_mix_train_s, lab_mix_train)
-source_val_set = SpotDataset(sc_mix_val_s, lab_mix_val)
-source_test_set = SpotDataset(sc_mix_test_s, lab_mix_test)
+source_train_set = SpotDataset(sc_mix_d["train"], lab_mix_d["train"])
+source_val_set = SpotDataset(sc_mix_d["val"], lab_mix_d["val"])
+source_test_set = SpotDataset(sc_mix_d["test"], lab_mix_d["test"])
 
 dataloader_source_train = torch.utils.data.DataLoader(
     source_train_set,
@@ -154,7 +132,7 @@ dataloader_source_test = torch.utils.data.DataLoader(
 ### target dataloaders
 target_test_set_d = {}
 for sample_id in st_sample_id_l:
-    target_test_set_d[sample_id] = SpotDataset(mat_sp_test_s_d[sample_id])
+    target_test_set_d[sample_id] = SpotDataset(mat_sp_d["test"][sample_id])
 
 dataloader_target_test_d = {}
 for sample_id in st_sample_id_l:
@@ -179,7 +157,7 @@ else:
     target_train_set_d = {}
     dataloader_target_train_d = {}
     for sample_id in st_sample_id_l:
-        target_train_set_d[sample_id] = SpotDataset(mat_sp_test_s_d[sample_id])
+        target_train_set_d[sample_id] = SpotDataset(mat_sp_d["train"][sample_id])
         dataloader_target_train_d[sample_id] = torch.utils.data.DataLoader(
             target_train_set_d[sample_id],
             batch_size=BATCH_SIZE,
@@ -218,7 +196,7 @@ if TRAIN_USING_ALL_ST_SAMPLES:
     model.target_inference()
     with torch.no_grad():
         for sample_id in st_sample_id_l:
-            out = model(torch.Tensor(mat_sp_test_s_d[sample_id]).to(device))
+            out = model(torch.Tensor(mat_sp_d["test"][sample_id]).to(device))
             if isinstance(out, tuple):
                 out = out[0]
             pred_sp_d[sample_id] = torch.exp(out).detach().cpu().numpy()
@@ -235,7 +213,7 @@ else:
         model.target_inference()
 
         with torch.no_grad():
-            out = model(torch.Tensor(mat_sp_test_s_d[sample_id]).to(device))
+            out = model(torch.Tensor(mat_sp_d["test"][sample_id]).to(device))
             if isinstance(out, tuple):
                 out = out[0]
             pred_sp_d[sample_id] = torch.exp(out).detach().cpu().numpy()
@@ -251,7 +229,7 @@ if PRETRAINING:
 
     with torch.no_grad():
         for sample_id in st_sample_id_l:
-            out = model_noda(torch.Tensor(mat_sp_test_s_d[sample_id]).to(device))
+            out = model_noda(torch.Tensor(mat_sp_d["test"][sample_id]).to(device))
             if isinstance(out, tuple):
                 out = out[0]
             pred_sp_noda_d[sample_id] = torch.exp(out).detach().cpu().numpy()
@@ -276,7 +254,7 @@ if MILISI:
         for k in miLISI_d:
             miLISI_d[k][split] = {}
 
-Xs = [sc_mix_train_s, sc_mix_val_s, sc_mix_test_s]
+Xs = [sc_mix_d["train"], sc_mix_d["val"], sc_mix_d["test"]]
 random_states = np.asarray([225, 53, 92])
 
 if PRETRAINING:
@@ -305,7 +283,7 @@ for sample_id in st_sample_id_l:
         figs = []
         with torch.no_grad():
             X = torch.Tensor(X).to(device)
-            X_target = torch.Tensor(mat_sp_test_s_d[sample_id]).to(device)
+            X_target = torch.Tensor(mat_sp_d["test"][sample_id]).to(device)
 
             y_dis = torch.cat(
                 [
@@ -721,9 +699,9 @@ for sample_id in st_sample_id_l:
     model.set_encoder("source")
 
     with torch.no_grad():
-        pred_mix_train = model(torch.Tensor(sc_mix_train_s).to(device))
-        pred_mix_val = model(torch.Tensor(sc_mix_val_s).to(device))
-        pred_mix_test = model(torch.Tensor(sc_mix_test_s).to(device))
+        pred_mix_train = model(torch.Tensor(sc_mix_d["train"]).to(device))
+        pred_mix_val = model(torch.Tensor(sc_mix_d["val"]).to(device))
+        pred_mix_test = model(torch.Tensor(sc_mix_d["test"]).to(device))
 
         if isinstance(pred_mix_train, tuple):
             pred_mix_train = pred_mix_train[0]
@@ -733,40 +711,39 @@ for sample_id in st_sample_id_l:
         target_names = [sc_sub_dict[i] for i in range(len(sc_sub_dict))]
 
         jsd_train = metric_ctp(
-            torch.Tensor(lab_mix_train).to(device), torch.exp(pred_mix_train)
+            torch.Tensor(lab_mix_d["train"]).to(device), torch.exp(pred_mix_train)
         )
         jsd_val = metric_ctp(
-            torch.Tensor(lab_mix_val).to(device), torch.exp(pred_mix_val)
+            torch.Tensor(lab_mix_d["val"]).to(device), torch.exp(pred_mix_val)
         )
         jsd_test = metric_ctp(
-            torch.Tensor(lab_mix_test).to(device), torch.exp(pred_mix_test)
+            torch.Tensor(lab_mix_d["test"]).to(device), torch.exp(pred_mix_test)
         )
 
         jsd_d["da"]["train"][sample_id] = jsd_train.detach().cpu().numpy()
         jsd_d["da"]["val"][sample_id] = jsd_val.detach().cpu().numpy()
         jsd_d["da"]["test"][sample_id] = jsd_test.detach().cpu().numpy()
 
-    with torch.no_grad():
         if PRETRAINING:
-            pred_mix_train = model_noda(torch.Tensor(sc_mix_train_s).to(device))
-            pred_mix_val = model_noda(torch.Tensor(sc_mix_val_s).to(device))
-            pred_mix_test = model_noda(torch.Tensor(sc_mix_test_s).to(device))
+            pred_mix_train = model_noda(torch.Tensor(sc_mix_d["train"]).to(device))
+            pred_mix_val = model_noda(torch.Tensor(sc_mix_d["val"]).to(device))
+            pred_mix_test = model_noda(torch.Tensor(sc_mix_d["test"]).to(device))
 
-        if isinstance(pred_mix_train, tuple):
-            pred_mix_train = pred_mix_train[0]
-            pred_mix_val = pred_mix_val[0]
-            pred_mix_test = pred_mix_test[0]
+            if isinstance(pred_mix_train, tuple):
+                pred_mix_train = pred_mix_train[0]
+                pred_mix_val = pred_mix_val[0]
+                pred_mix_test = pred_mix_test[0]
 
             target_names = [sc_sub_dict[i] for i in range(len(sc_sub_dict))]
 
             jsd_train = metric_ctp(
-                torch.Tensor(lab_mix_train).to(device), torch.exp(pred_mix_train)
+                torch.Tensor(lab_mix_d["train"]).to(device), torch.exp(pred_mix_train)
             )
             jsd_val = metric_ctp(
-                torch.Tensor(lab_mix_val).to(device), torch.exp(pred_mix_val)
+                torch.Tensor(lab_mix_d["val"]).to(device), torch.exp(pred_mix_val)
             )
             jsd_test = metric_ctp(
-                torch.Tensor(lab_mix_test).to(device), torch.exp(pred_mix_test)
+                torch.Tensor(lab_mix_d["test"]).to(device), torch.exp(pred_mix_test)
             )
 
             jsd_d["noda"]["train"][sample_id] = jsd_train.detach().cpu().numpy()
