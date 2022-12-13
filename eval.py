@@ -5,6 +5,7 @@ import os
 import datetime
 from collections import defaultdict
 import warnings
+import argparse
 
 
 import pandas as pd
@@ -34,12 +35,23 @@ from src.da_models.datasets import SpotDataset
 from src.utils.evaluation import JSD
 from src.utils.data_loading import load_spatial, load_sc
 
+parser = argparse.ArgumentParser(description="Evaluates.")
+parser.add_argument(
+    "-d",
+    type=str,
+    default="data/preprocessed_markers_celldart",
+    help="processed data directory",
+)
+parser.add_argument("-p", action="store_false", help="no pretraining")
+parser.add_argument("-n", type=str, default="ADDA", help="model name")
+parser.add_argument("-v", type=str, default="TESTING", help="model ver")
+args = parser.parse_args()
 # datetime object containing current date and time
 script_start_time = datetime.datetime.now().strftime("%Y-%m-%d_%Hh%Mm%S")
 
 
 # %%
-device = torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 if device == "cpu":
     warnings.warn("Using CPU", stacklevel=2)
 
@@ -52,13 +64,15 @@ BATCH_SIZE = 512
 NUM_WORKERS = 16
 
 
-PROCESSED_DATA_DIR = "data/preprocessed_markers_standard"
+# PROCESSED_DATA_DIR = "data/preprocessed_markers_celldart"
+PROCESSED_DATA_DIR = args.d
 
 ST_SPLIT = False
 
-MODEL_NAME = "DANN"
-MODEL_VERSION = "Standard1"
-PRETRAINING = False
+MODEL_NAME = args.n
+MODEL_VERSION = args.v
+# PRETRAINING = True
+PRETRAINING = args.p
 
 MILISI = True
 

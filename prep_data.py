@@ -5,6 +5,7 @@ import glob
 import pickle
 import os
 import argparse
+from collections import OrderedDict
 
 import anndata as ad
 import h5py
@@ -65,9 +66,9 @@ def main():
 
     adata_dir = os.path.join(SPATIALLIBD_DIR, "adata")
 
-    adata_spatialLIBD_d = {}
+    adata_spatialLIBD_d = OrderedDict()
 
-    for name in glob.glob(os.path.join(adata_dir, "adata_spatialLIBD-*.h5ad")):
+    for name in sorted(glob.glob(os.path.join(adata_dir, "adata_spatialLIBD-*.h5ad"))):
         sample_id = name.partition("-")[2].rpartition(".")[0]
         adata_spatialLIBD_d[sample_id] = sc.read_h5ad(name)
 
