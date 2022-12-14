@@ -2,6 +2,7 @@
 """Preps the data into sets."""
 # %%
 import glob
+import gc
 import pickle
 import os
 import argparse
@@ -166,6 +167,12 @@ def main():
     adata_sc_dlpfc_val = adata_sc_dlpfc_val[:, adata_sc_dlpfc_train.var.index]
     adata_sc_dlpfc_test = adata_sc_dlpfc_test[:, adata_sc_dlpfc_train.var.index]
 
+    print("Saving sc adata")
+    adata_sc_dlpfc.write(os.path.join(SAVE_DIR, "adata_sc_dlpfc.h5ad"))
+
+    del adata_sc_dlpfc
+    gc.collect()
+
     # %%
     print("Generating Pseudospots")
 
@@ -191,6 +198,13 @@ def main():
         seed=119,
     )
 
+    del adata_sc_dlpfc_train
+    del adata_sc_dlpfc_val
+    del adata_sc_dlpfc_test
+    del adata_sc_dlpfc_eval
+
+    gc.collect()
+
     print("Log scaling pseudospots")
     if args.scaler == "celldart":
         sc_mix_train_s = data_processing.log_minmaxscale(sc_mix_train)
@@ -202,17 +216,46 @@ def main():
         sc_mix_val_s = sc_scaler.transform(np.log1p(sc_mix_val))
         sc_mix_test_s = sc_scaler.transform(np.log1p(sc_mix_test))
 
+    del sc_mix_train
+    del sc_mix_val
+    del sc_mix_test
+    if args.scaler != "celldart":
+        del sc_scaler
+    gc.collect()
+
+    print("Saving pseudospots")
+    with h5py.File(os.path.join(SAVE_DIR, "sc.hdf5"), "w") as f:
+        grp_x = f.create_group("X")
+        dset = grp_x.create_dataset("train", data=sc_mix_train_s)
+        dset = grp_x.create_dataset("val", data=sc_mix_val_s)
+        dset = grp_x.create_dataset("test", data=sc_mix_test_s)
+
+        grp_y = f.create_group("y")
+        dset = grp_y.create_dataset("train", data=lab_mix_train)
+        dset = grp_y.create_dataset("val", data=lab_mix_val)
+        dset = grp_y.create_dataset("test", data=lab_mix_test)
+
+    del sc_mix_train_s
+    del sc_mix_val_s
+    del sc_mix_test_s
+
+    del lab_mix_train
+    del lab_mix_val
+    del lab_mix_test
+
+    gc.collect()
+
     # %%[markdown]
     # ### Format Spatial Data
 
     # %%
     print("Log scaling spatial data")
-    mat_sp_train_d = {}
+    # mat_sp_train_d = {}
     mat_sp_train_s_d = {}
     if args.stsplit:
-        mat_sp_test_d = {}
+        # mat_sp_test_d = {}
         mat_sp_test_s_d = {}
-        mat_sp_val_d = {}
+        # mat_sp_val_d = {}
         mat_sp_val_s_d = {}
     for sample_id in st_sample_id_l:
         X_st_train = adata_spatialLIBD[
@@ -231,34 +274,65 @@ def main():
                 test_size=0.5,
                 random_state=195,
             )
-            mat_sp_val_d[sample_id] = X_st_val
-            mat_sp_test_d[sample_id] = X_st_test
-        mat_sp_train_d[sample_id] = X_st_train
+        #     mat_sp_val_d[sample_id] = X_st_val
+        #     mat_sp_test_d[sample_id] = X_st_test
+        # mat_sp_train_d[sample_id] = X_st_train
 
         if args.scaler == "celldart":
             mat_sp_train_s_d[sample_id] = data_processing.log_minmaxscale(
-                mat_sp_train_d[sample_id]
+                X_st_train
             )
             if args.stsplit:
                 mat_sp_val_s_d[sample_id] = data_processing.log_minmaxscale(
-                    mat_sp_val_d[sample_id]
+                    X_st_val
                 )
                 mat_sp_test_s_d[sample_id] = data_processing.log_minmaxscale(
-                    mat_sp_test_d[sample_id]
+                    X_st_test
                 )
         else:
             sp_scaler = Scaler()
             mat_sp_train_s_d[sample_id] = sp_scaler.fit_transform(
-                np.log1p(mat_sp_train_d[sample_id])
+                np.log1p(X_st_train)
             )
             if args.stsplit:
                 mat_sp_val_s_d[sample_id] = sp_scaler.transform(
-                    np.log1p(mat_sp_val_d[sample_id])
+                    np.log1p(X_st_val)
                 )
                 mat_sp_test_s_d[sample_id] = sp_scaler.transform(
-                    np.log1p(mat_sp_test_d[sample_id])
+                    np.log1p(X_st_test)
                 )
 
+        del X_st_train
+        if args.stsplit:
+            del X_st_val
+            del X_st_test
+        if args.scaler != "celldart":
+            del sp_scaler
+        gc.collect()
+
+    print("Saving spatial data...")
+    if args.stsplit:
+        with h5py.File(os.path.join(SAVE_DIR, "mat_sp_split_s_d.hdf5"), "w") as f:
+            for grp_name in mat_sp_train_s_d:
+                grp_samp = f.create_group(grp_name)
+                dset = grp_samp.create_dataset("train", data=mat_sp_train_s_d[grp_name])
+                dset = grp_samp.create_dataset("val", data=mat_sp_val_s_d[grp_name])
+                dset = grp_samp.create_dataset("test", data=mat_sp_test_s_d[grp_name])
+
+
+    else:
+        with h5py.File(os.path.join(SAVE_DIR, "mat_sp_train_s_d.hdf5"), "w") as f:
+            for dset_name in mat_sp_train_s_d:
+                dset = f.create_dataset(dset_name, data=mat_sp_train_s_d[dset_name])
+
+    del mat_sp_train_s_d
+    if args.stsplit:
+        del mat_sp_val_s_d
+        del mat_sp_test_s_d
+
+    gc.collect()
+
+    print("Log scaling all spatial data...")
     # if TRAIN_USING_ALL_ST_SAMPLES:
     mat_sp_train = adata_spatialLIBD.X.toarray()
     if args.stsplit:
@@ -284,44 +358,38 @@ def main():
             mat_sp_val_s = sp_all_scaler.transform(np.log1p(mat_sp_val))
             mat_sp_test_s = sp_all_scaler.transform(np.log1p(mat_sp_test))
 
-    # %%[markdown]
-    # # Export
-
-    # %%
-    print("Exporting")
+    del mat_sp_train
     if args.stsplit:
-        with h5py.File(os.path.join(SAVE_DIR, "mat_sp_split_s_d.hdf5"), "w") as f:
-            for grp_name in mat_sp_train_s_d:
-                grp_samp = f.create_group(grp_name)
-                dset = grp_samp.create_dataset("train", data=mat_sp_train_s_d[grp_name])
-                dset = grp_samp.create_dataset("val", data=mat_sp_val_s_d[grp_name])
-                dset = grp_samp.create_dataset("test", data=mat_sp_test_s_d[grp_name])
+        del mat_sp_val
+        del mat_sp_test
+    if args.scaler != "celldart":
+        del sp_all_scaler
 
+    gc.collect()
+
+    print("Saving all spatial data...")
+    if args.stsplit:
         with h5py.File(os.path.join(SAVE_DIR, "mat_sp_split_s.hdf5"), "w") as f:
             grp_samp = f.create_group("all")
             dset = grp_samp.create_dataset("train", data=mat_sp_train_s)
             dset = grp_samp.create_dataset("val", data=mat_sp_val_s)
             dset = grp_samp.create_dataset("test", data=mat_sp_test_s)
     else:
-        with h5py.File(os.path.join(SAVE_DIR, "mat_sp_train_s_d.hdf5"), "w") as f:
-            for dset_name in mat_sp_train_s_d:
-                dset = f.create_dataset(dset_name, data=mat_sp_train_s_d[dset_name])
-
         with h5py.File(os.path.join(SAVE_DIR, "mat_sp_train_s.hdf5"), "w") as f:
             dset = f.create_dataset("all", data=mat_sp_train_s)
 
-    with h5py.File(os.path.join(SAVE_DIR, "sc.hdf5"), "w") as f:
-        grp_x = f.create_group("X")
-        dset = grp_x.create_dataset("train", data=sc_mix_train_s)
-        dset = grp_x.create_dataset("val", data=sc_mix_val_s)
-        dset = grp_x.create_dataset("test", data=sc_mix_test_s)
+    del mat_sp_train_s
+    if args.stsplit:
+        del mat_sp_val_s
+        del mat_sp_test_s
 
-        grp_y = f.create_group("y")
-        dset = grp_y.create_dataset("train", data=lab_mix_train)
-        dset = grp_y.create_dataset("val", data=lab_mix_val)
-        dset = grp_y.create_dataset("test", data=lab_mix_test)
+    # %%[markdown]
+    # # Export
 
-    adata_sc_dlpfc.write(os.path.join(SAVE_DIR, "adata_sc_dlpfc.h5ad"))
+    # %%
+
+    print("Exporting rest")
+
     adata_spatialLIBD.write(os.path.join(SAVE_DIR, "adata_spatialLIBD.h5ad"))
 
     # %%
