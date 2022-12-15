@@ -62,7 +62,7 @@ def random_mix(X, y, nmix=5, n_samples=10000, seed=0, n_jobs=1):
 
         return XX_, yy
 
-    pseudo_samples = Parallel(n_jobs=n_jobs)(
+    pseudo_samples = Parallel(n_jobs=n_jobs, verbose=1)(
         delayed(_get_pseudo_sample)(i) for i in range(n_samples)
     )
     pseudo_gex, ctps = zip(*pseudo_samples)

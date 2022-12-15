@@ -412,9 +412,9 @@ def log_scale_st(selected_dir, scaler_name, stsplit=False):
                 grp = fin[sample_id]
                 grp_samp = fout.create_group(sample_id)
                 scaled = scale(
-                    scaler, *(grp[split][()] for split in data_loading.SPLIT_NAMES)
+                    scaler, *(grp[split][()] for split in data_loading.SPLITS)
                 )
-                for split in data_loading.SPLIT_NAMES:
+                for split in data_loading.SPLITS:
                     grp_samp.create_dataset(split, data=next(scaled))
             else:
                 fout.create_dataset(
