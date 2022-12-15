@@ -2,6 +2,8 @@
 
 Adapted from: https://github.com/mexchy1000/CellDART
 """
+from joblib import Parallel, delayed
+
 import numpy as np
 import pandas as pd
 import scanpy as sc
@@ -10,7 +12,7 @@ import matplotlib.pyplot as plt
 from sklearn import preprocessing
 
 
-def random_mix(X, y, nmix=5, n_samples=10000, seed=0):
+def random_mix(X, y, nmix=5, n_samples=10000, seed=0, n_jobs=1):
     """Creates a weighted average random sampling of gene expression, and the
     corresponding weights.
 
@@ -43,7 +45,7 @@ def random_mix(X, y, nmix=5, n_samples=10000, seed=0):
     fraction_all = rstate.rand(n_samples, nmix)
     randindex_all = rstate.randint(len(X), size=(n_samples, nmix))
 
-    for i in range(n_samples):
+    def _get_pseudo_sample(i):
         # fraction: random fraction across the "nmix" number of sampled cells
         fraction = fraction_all[i]
         fraction = fraction / np.sum(fraction)
@@ -58,9 +60,16 @@ def random_mix(X, y, nmix=5, n_samples=10000, seed=0):
         XX = np.asarray(X[randindex]) * fraction
         XX_ = np.sum(XX, axis=0)
 
-        # Add cell type fraction & composite gene expression in the list
-        ctps.append(yy)
-        pseudo_gex.append(XX_)
+        return XX_, yy
+
+    pseudo_samples = Parallel(n_jobs=n_jobs)(
+        delayed(_get_pseudo_sample)(i) for i in range(n_samples)
+    )
+    pseudo_gex, ctps = zip(*pseudo_samples)
+
+    # Add cell type fraction & composite gene expression in the list
+    # ctps.append(yy)
+    # pseudo_gex.append(XX_)
 
     pseudo_gex = np.asarray(pseudo_gex)
     ctps = np.asarray(ctps)
@@ -163,7 +172,9 @@ def select_marker_genes(
             ax=ax,
         )
     else:
-        inter_genes = list(all_sc_genes.intersection(all_st_genes))
+        inter_genes_set = list(all_sc_genes.intersection(all_st_genes))
+        inter_genes = [val for val in adata_st.var.index if val in inter_genes_set]
+
         fig, ax = plt.subplots()
         matplotlib_venn.venn2_unweighted(
             [all_sc_genes, all_st_genes],
