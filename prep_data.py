@@ -72,7 +72,7 @@ def scale(scaler, *unscaled):
         yield from (data_processing.log_minmaxscale(x) for x in unscaled)
 
     else:
-        sp_scaler = scaler().fit(unscaled[0])
+        sp_scaler = scaler().fit(np.log1p(unscaled[0]))
         yield from (sp_scaler.transform(np.log1p(x)) for x in unscaled)
 
 
