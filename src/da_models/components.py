@@ -3,6 +3,11 @@ from torch import nn
 import torch
 import torch.nn.functional as F
 
+ADDA_ENC_HIDDEN_LAYER_SIZES = (
+    1024,
+    512,
+)
+
 
 class MLPEncoder(nn.Module):
     """MLP embedding encoder for gene expression data.
@@ -42,24 +47,27 @@ class ADDAMLPEncoder(nn.Module):
     """
 
     def __init__(
-        self, inp_dim, emb_dim, dropout=0.5, enc_out_act=nn.ELU(), bn_momentum=0.99
+        self,
+        inp_dim,
+        emb_dim,
+        hidden_layer_sizes=ADDA_ENC_HIDDEN_LAYER_SIZES,
+        dropout=0.5,
+        enc_out_act=nn.ELU(),
+        bn_momentum=0.99,
     ):
         super().__init__()
 
-        layers = [
-            # nn.BatchNorm1d(inp_dim, eps=0.001, momentum=bn_momentum),
-            # nn.Dropout(0.5),
-            nn.Linear(inp_dim, 1024),
-            nn.BatchNorm1d(1024, eps=0.001, momentum=bn_momentum),
-            nn.LeakyReLU(),
-            nn.Dropout(dropout),
-            nn.Linear(1024, 512),
-            nn.BatchNorm1d(512, eps=0.001, momentum=bn_momentum),
-            nn.LeakyReLU(),
-            nn.Dropout(dropout),
-            nn.Linear(512, emb_dim),
-            # nn.BatchNorm1d(emb_dim, eps=0.001, momentum=bn_momentum),
-        ]
+        layers = []
+        for i, h in enumerate(hidden_layer_sizes):
+            layers.append(
+                nn.Linear(inp_dim if i == 0 else hidden_layer_sizes[i - 1], h)
+            )
+            layers.append(nn.BatchNorm1d(h, eps=0.001, momentum=bn_momentum))
+            layers.append(nn.LeakyReLU())
+            layers.append(nn.Dropout(dropout))
+
+        layers.append(nn.Linear(hidden_layer_sizes[-1], emb_dim))
+
         if enc_out_act:
             layers.append(enc_out_act)
         self.encoder = nn.Sequential(*layers)
@@ -81,21 +89,24 @@ class ADDAMLPDecoder(nn.Module):
     """
 
     def __init__(
-        self, inp_dim, emb_dim, dropout=0.5, dec_out_act=nn.Sigmoid(), bn_momentum=0.99
+        self,
+        inp_dim,
+        emb_dim,
+        hidden_layer_sizes=ADDA_ENC_HIDDEN_LAYER_SIZES,
+        dropout=0.5,
+        dec_out_act=nn.Sigmoid(),
+        bn_momentum=0.99,
     ):
         super().__init__()
 
-        layers = [
-            nn.Linear(emb_dim, 512),
-            nn.BatchNorm1d(512, eps=0.001, momentum=bn_momentum),
-            nn.LeakyReLU(),
-            nn.Dropout(dropout),
-            nn.Linear(512, 1024),
-            nn.BatchNorm1d(1024, eps=0.001, momentum=bn_momentum),
-            nn.LeakyReLU(),
-            nn.Dropout(dropout),
-            nn.Linear(1024, inp_dim),
-        ]
+        layers = []
+        for i, h in enumerate(reversed(hidden_layer_sizes)):
+            layers.append(nn.Linear(emb_dim if i == 0 else hidden_layer_sizes[-i], h))
+            layers.append(nn.BatchNorm1d(h, eps=0.001, momentum=bn_momentum))
+            layers.append(nn.LeakyReLU())
+            layers.append(nn.Dropout(dropout))
+
+        layers.append(nn.Linear(hidden_layer_sizes[0], inp_dim))
         if dec_out_act:
             layers.append(dec_out_act)
 
