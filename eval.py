@@ -6,6 +6,7 @@ import datetime
 from collections import defaultdict
 import warnings
 import argparse
+from joblib import parallel_backend
 
 
 import pandas as pd
@@ -33,25 +34,72 @@ from src.da_models.adda import ADDAST
 from src.da_models.dann import DANN
 from src.da_models.datasets import SpotDataset
 from src.utils.evaluation import JSD
-from src.utils.data_loading import load_spatial, load_sc
+from src.utils import data_loading
+from src.utils.data_loading import load_spatial, load_sc, get_selected_dir
+
+SCALER_OPTS = ("minmax", "standard", "celldart")
 
 parser = argparse.ArgumentParser(description="Evaluates.")
 parser.add_argument(
+    "--scaler",
+    "-s",
+    type=str,
+    default="celldart",
+    choices=SCALER_OPTS,
+    help="Scaler to use.",
+)
+parser.add_argument("--stsplit", action="store_true", help="Whether to split ST data.")
+parser.add_argument(
+    "--allgenes", "-a", action="store_true", help="Turn off marker selection."
+)
+parser.add_argument(
+    "--nmarkers",
+    type=int,
+    default=data_loading.DEFAULT_N_MARKERS,
+    help="Number of top markers in sc training data to used. Ignored if --allgenes flag is used.",
+)
+parser.add_argument(
+    "--nmix",
+    type=int,
+    default=data_loading.DEFAULT_N_MIX,
+    help="number of sc samples to use to generate pseudospots.",
+)
+parser.add_argument(
+    "--nspots",
+    type=int,
+    default=data_loading.DEFAULT_N_SPOTS,
+    help="Number of training pseudospots to use.",
+)
+parser.add_argument(
     "-d",
     type=str,
-    default="data/preprocessed_markers_celldart",
-    help="processed data directory",
+    default="./data",
+    help="data directory",
+)
+parser.add_argument(
+    "-c",
+    default=None,
+    help="gpu index to use",
 )
 parser.add_argument("-p", action="store_false", help="no pretraining")
 parser.add_argument("-n", type=str, default="ADDA", help="model name")
 parser.add_argument("-v", type=str, default="TESTING", help="model ver")
+parser.add_argument(
+    "--njobs",
+    type=int,
+    default=-1,
+    help="Number of jobs to use for parallel processing.",
+)
 args = parser.parse_args()
 # datetime object containing current date and time
 script_start_time = datetime.datetime.now().strftime("%Y-%m-%d_%Hh%Mm%S")
 
 
 # %%
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+if args.c is not None:
+    device = torch.device(f"cuda:{args.c}" if torch.cuda.is_available() else "cpu")
+else:
+    device = torch.device(f"cuda" if torch.cuda.is_available() else "cpu")
 if device == "cpu":
     warnings.warn("Using CPU", stacklevel=2)
 
@@ -65,9 +113,9 @@ NUM_WORKERS = 16
 
 
 # PROCESSED_DATA_DIR = "data/preprocessed_markers_celldart"
-PROCESSED_DATA_DIR = args.d
+DATA_DIR = args.d
 
-ST_SPLIT = False
+ST_SPLIT = args.stsplit
 
 MODEL_NAME = args.n
 MODEL_VERSION = args.v
@@ -97,15 +145,25 @@ sc.settings.verbosity = 3
 # %% [markdown]
 #   # Data load
 
+selected_dir = get_selected_dir(DATA_DIR, args.nmarkers, args.allgenes)
+
 # %%
 print("Loading Data")
 # Load spatial data
-mat_sp_d, mat_sp_train_s, st_sample_id_l = load_spatial(
-    TRAIN_USING_ALL_ST_SAMPLES, PROCESSED_DATA_DIR, ST_SPLIT
+mat_sp_d, mat_sp_train, st_sample_id_l = load_spatial(
+    selected_dir,
+    args.scaler,
+    train_using_all_st_samples=TRAIN_USING_ALL_ST_SAMPLES,
+    st_split=ST_SPLIT,
 )
 
 # Load sc data
-sc_mix_d, lab_mix_d, sc_sub_dict, sc_sub_dict2 = load_sc(PROCESSED_DATA_DIR)
+sc_mix_d, lab_mix_d, sc_sub_dict, sc_sub_dict2 = load_sc(
+    selected_dir,
+    args.scaler,
+    n_mix=args.nmix,
+    n_spots=args.nspots,
+)
 
 
 # %% [markdown]
@@ -146,7 +204,7 @@ dataloader_source_test = torch.utils.data.DataLoader(
 ### target dataloaders
 target_test_set_d = {}
 for sample_id in st_sample_id_l:
-    target_test_set_d[sample_id] = SpotDataset(mat_sp_d["test"][sample_id])
+    target_test_set_d[sample_id] = SpotDataset(mat_sp_d[sample_id]["test"])
 
 dataloader_target_test_d = {}
 for sample_id in st_sample_id_l:
@@ -159,7 +217,7 @@ for sample_id in st_sample_id_l:
     )
 
 if TRAIN_USING_ALL_ST_SAMPLES:
-    target_train_set = SpotDataset(mat_sp_train_s)
+    target_train_set = SpotDataset(mat_sp_train)
     dataloader_target_train = torch.utils.data.DataLoader(
         target_train_set,
         batch_size=BATCH_SIZE,
@@ -171,7 +229,7 @@ else:
     target_train_set_d = {}
     dataloader_target_train_d = {}
     for sample_id in st_sample_id_l:
-        target_train_set_d[sample_id] = SpotDataset(mat_sp_d["train"][sample_id])
+        target_train_set_d[sample_id] = SpotDataset(mat_sp_d[sample_id]["train"])
         dataloader_target_train_d[sample_id] = torch.utils.data.DataLoader(
             target_train_set_d[sample_id],
             batch_size=BATCH_SIZE,
@@ -210,7 +268,7 @@ if TRAIN_USING_ALL_ST_SAMPLES:
     model.target_inference()
     with torch.no_grad():
         for sample_id in st_sample_id_l:
-            out = model(torch.Tensor(mat_sp_d["test"][sample_id]).to(device))
+            out = model(torch.Tensor(mat_sp_d[sample_id]["test"]).to(device))
             if isinstance(out, tuple):
                 out = out[0]
             pred_sp_d[sample_id] = torch.exp(out).detach().cpu().numpy()
@@ -227,7 +285,7 @@ else:
         model.target_inference()
 
         with torch.no_grad():
-            out = model(torch.Tensor(mat_sp_d["test"][sample_id]).to(device))
+            out = model(torch.Tensor(mat_sp_d[sample_id]["test"]).to(device))
             if isinstance(out, tuple):
                 out = out[0]
             pred_sp_d[sample_id] = torch.exp(out).detach().cpu().numpy()
@@ -243,7 +301,7 @@ if PRETRAINING:
 
     with torch.no_grad():
         for sample_id in st_sample_id_l:
-            out = model_noda(torch.Tensor(mat_sp_d["test"][sample_id]).to(device))
+            out = model_noda(torch.Tensor(mat_sp_d[sample_id]["test"]).to(device))
             if isinstance(out, tuple):
                 out = out[0]
             pred_sp_noda_d[sample_id] = torch.exp(out).detach().cpu().numpy()
@@ -297,7 +355,7 @@ for sample_id in st_sample_id_l:
         figs = []
         with torch.no_grad():
             X = torch.Tensor(X).to(device)
-            X_target = torch.Tensor(mat_sp_d["test"][sample_id]).to(device)
+            X_target = torch.Tensor(mat_sp_d[sample_id]["test"]).to(device)
 
             y_dis = torch.cat(
                 [
@@ -367,17 +425,17 @@ for sample_id in st_sample_id_l:
             dpi=300,
         )
         plt.close()
-
-        if MILISI:
-            meta_df = pd.DataFrame(y_dis, columns=["Domain"])
-            miLISI_d["da"][split][sample_id] = np.median(
-                hm.compute_lisi(emb, meta_df, ["Domain"])
-            )
-
-            if PRETRAINING:
-                miLISI_d["noda"][split][sample_id] = np.median(
-                    hm.compute_lisi(emb_noda, meta_df, ["Domain"])
+        with parallel_backend("threading", n_jobs=args.njobs):
+            if MILISI:
+                meta_df = pd.DataFrame(y_dis, columns=["Domain"])
+                miLISI_d["da"][split][sample_id] = np.median(
+                    hm.compute_lisi(emb, meta_df, ["Domain"])
                 )
+
+                if PRETRAINING:
+                    miLISI_d["noda"][split][sample_id] = np.median(
+                        hm.compute_lisi(emb_noda, meta_df, ["Domain"])
+                    )
 
         if PRETRAINING:
             (
@@ -409,7 +467,7 @@ for sample_id in st_sample_id_l:
         emb_train_50 = pca.fit_transform(emb_train)
         emb_test_50 = pca.transform(emb_test)
 
-        clf = BalancedRandomForestClassifier(random_state=145, n_jobs=-1)
+        clf = BalancedRandomForestClassifier(random_state=145, n_jobs=args.njobs)
         clf.fit(emb_train_50, y_dis_train)
         y_pred_test = clf.predict(emb_test_50)
 
@@ -423,7 +481,7 @@ for sample_id in st_sample_id_l:
             emb_noda_train_50 = pca.fit_transform(emb_noda_train)
             emb_noda_test_50 = pca.transform(emb_noda_test)
 
-            clf = BalancedRandomForestClassifier(random_state=145, n_jobs=-1)
+            clf = BalancedRandomForestClassifier(random_state=145, n_jobs=args.njobs)
             clf.fit(emb_noda_train_50, y_dis_train)
             y_pred_noda_test = clf.predict(emb_noda_test_50)
 
@@ -441,9 +499,7 @@ for sample_id in st_sample_id_l:
 #   # 4. Predict cell fraction of spots and visualization
 
 # %%
-adata_spatialLIBD = sc.read_h5ad(
-    os.path.join(PROCESSED_DATA_DIR, "adata_spatialLIBD.h5ad")
-)
+adata_spatialLIBD = sc.read_h5ad(os.path.join(selected_dir, "adata_spatialLIBD.h5ad"))
 
 adata_spatialLIBD_d = {}
 for sample_id in st_sample_id_l:
@@ -777,10 +833,16 @@ if MILISI:
 
 
 def gen_l_dfs(da):
-    yield pd.DataFrame.from_dict(jsd_d[da], orient="columns")
-    yield pd.DataFrame.from_dict(rf50_d[da], orient="columns")
+    df = pd.DataFrame.from_dict(jsd_d[da], orient="columns")
+    df.columns.name = "SC Split"
+    yield df
+    df = pd.DataFrame.from_dict(rf50_d[da], orient="columns")
+    df.columns.name = "SC Split"
+    yield df
     if MILISI:
-        yield pd.DataFrame.from_dict(miLISI_d[da], orient="columns")
+        df = pd.DataFrame.from_dict(miLISI_d[da], orient="columns")
+        df.columns.name = "SC Split"
+        yield df
     yield pd.Series(realspots_d[da])
     return
 

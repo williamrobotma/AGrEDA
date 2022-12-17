@@ -138,10 +138,11 @@ def select_genes_and_split(
     adata_sc_dlpfc.var_names_make_unique()
 
     print("Splitting single cell data")
-    df_sc = adata_sc_dlpfc.to_df()
-    df_sc.index = pd.MultiIndex.from_frame(adata_sc_dlpfc.obs.reset_index())
+    # df_sc = adata_sc_dlpfc.to_df()
+    # df_sc.index = pd.MultiIndex.from_frame(adata_sc_dlpfc.obs.reset_index())
 
-    lab_sc_sub = df_sc.index.get_level_values("cell_subclass")
+    # lab_sc_sub = df_sc.index.get_level_values("cell_subclass")
+    lab_sc_sub = adata_sc_dlpfc.obs["cell_subclass"]
 
     (
         adata_sc_dlpfc_train,
@@ -261,11 +262,12 @@ def gen_pseudo_spots(
     lab_mix_d = {}
     sc_mix_d = {}
 
+
     total_spots = n_spots / SPLIT_RATIOS[data_loading.SPLITS.index("train")]
     for split, ratio in zip(data_loading.SPLITS, SPLIT_RATIOS):
         sc_mix_d[split], lab_mix_d[split] = data_processing.random_mix(
             adata_sc_dlpfc_d[split].X.toarray(),
-            lab_sc_num_d["train"],
+            lab_sc_num_d[split],
             nmix=n_mix,
             n_samples=round(total_spots * ratio),
             seed=rng_integers(2**32),
@@ -360,7 +362,7 @@ def split_st(selected_dir, stsplit=False, rng=None):
             x_st_train = adata_spatiallibd[
                 adata_spatiallibd.obs.sample_id == sample_id
             ].X.toarray()
-
+            grp_samp = f.create_group(sample_id)
             if stsplit:
                 x_st_train, x_st_val = model_selection.train_test_split(
                     x_st_train, test_size=0.2, random_state=rng_integers(2**32)
@@ -371,12 +373,11 @@ def split_st(selected_dir, stsplit=False, rng=None):
                     test_size=0.5,
                     random_state=rng_integers(2**32),
                 )
-                grp_samp = f.create_group(sample_id)
                 grp_samp.create_dataset("train", data=x_st_train)
                 grp_samp.create_dataset("val", data=x_st_val)
                 grp_samp.create_dataset("test", data=x_st_test)
             else:
-                f.create_dataset(sample_id, data=x_st_train)
+                grp_samp.create_dataset("train", data=x_st_train)
 
 
 def log_scale_st(selected_dir, scaler_name, stsplit=False):
@@ -391,7 +392,7 @@ def log_scale_st(selected_dir, scaler_name, stsplit=False):
     """
     scaler = get_scaler(scaler_name)
 
-    st_sample_id_l = data_loading.load_st_sample_names(selected_dir)
+    # st_sample_id_l = data_loading.load_st_sample_names(selected_dir)
 
     unscaled_data_dir = os.path.join(selected_dir, "unscaled")
     preprocessed_data_dir = os.path.join(selected_dir, scaler_name)
@@ -407,18 +408,20 @@ def log_scale_st(selected_dir, scaler_name, stsplit=False):
 
     with h5py.File(out_path, "w") as fout, h5py.File(in_path, "r") as fin:
 
-        for sample_id in st_sample_id_l:
+        for sample_id in fin:
+
+            grp = fin[sample_id]
+            grp_samp = fout.create_group(sample_id)
+
             if stsplit:
-                grp = fin[sample_id]
-                grp_samp = fout.create_group(sample_id)
                 scaled = scale(
                     scaler, *(grp[split][()] for split in data_loading.SPLITS)
                 )
                 for split in data_loading.SPLITS:
                     grp_samp.create_dataset(split, data=next(scaled))
             else:
-                fout.create_dataset(
-                    sample_id, data=next(scale(scaler, fin[sample_id][()]))
+                grp_samp.create_dataset(
+                    "train", data=next(scale(scaler, grp["train"][()]))
                 )
 
 

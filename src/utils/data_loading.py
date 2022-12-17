@@ -9,13 +9,12 @@ DEFAULT_N_MIX = 8
 SPLITS = ("train", "val", "test")
 
 
-def get_selected_dir(
-    data_dir, n_markers=DEFAULT_N_MARKERS, all_genes=False
-):
+def get_selected_dir(data_dir, n_markers=DEFAULT_N_MARKERS, all_genes=False):
     if all_genes:
         return os.path.join(data_dir, "preprocessed", "all")
     else:
         return os.path.join(data_dir, "preprocessed", f"{n_markers}markers")
+
 
 def load_spatial(selected_dir, scaler_name, **kwargs):
     """Loads preprocessed spatial data.
@@ -33,7 +32,7 @@ def load_spatial(selected_dir, scaler_name, **kwargs):
             (`mat_sp_d`, `mat_sp_train`, `st_sample_id_l`)
 
 
-        `mat_sp_d` is a dict of spatial data by split and sample. If not
+        `mat_sp_d` is a dict of spatial data by sample and split. If not
         `st_split`, then 'val' will not be contained and 'test' will point to
         'train'.
 
@@ -65,7 +64,7 @@ def load_st_spots(data_dir, train_using_all_st_samples=False, st_split=False):
             (`mat_sp_d`, `mat_sp_train`)
 
 
-        `mat_sp_d` is a dict of spatial data by split and sample. If not
+        `mat_sp_d` is a dict of spatial data by sample and split. If not
         `st_split`, then 'val' will not be contained and 'test' will point to
         'train'.
 
@@ -74,22 +73,19 @@ def load_st_spots(data_dir, train_using_all_st_samples=False, st_split=False):
 
 
     """
-    mat_sp_d = {}
-    mat_sp_d["train"] = {}
-    if st_split:
-        mat_sp_d["val"] = {}
-        mat_sp_d["test"] = {}
-        with h5py.File(os.path.join(data_dir, "mat_sp_split_d.hdf5"), "r") as f:
-            for sample_id in f:
-                mat_sp_d["train"][sample_id] = f[f"{sample_id}/train"][()]
-                mat_sp_d["val"][sample_id] = f[f"{sample_id}/val"][()]
-                mat_sp_d["test"][sample_id] = f[f"{sample_id}/test"][()]
-    else:
-        with h5py.File(os.path.join(data_dir, "mat_sp_train_d.hdf5"), "r") as f:
-            for sample_id in f:
-                mat_sp_d["train"][sample_id] = f[sample_id][()]
+    fname = f"mat_sp_{'split' if st_split else 'train'}_d.hdf5"
+    in_path = os.path.join(data_dir, fname)
 
-        mat_sp_d["test"] = mat_sp_d["train"]
+    mat_sp_d = {}
+    with h5py.File(in_path, "r") as f:
+        for sample_id in f:
+            mat_sp_d[sample_id] = {}
+            mat_sp_d[sample_id]["train"] = f[f"{sample_id}/train"][()]
+            if st_split:
+                mat_sp_d[sample_id]["val"] = f[f"{sample_id}/val"][()]
+                mat_sp_d[sample_id]["test"] = f[f"{sample_id}/test"][()]
+            else:
+                mat_sp_d[sample_id]["test"] = mat_sp_d[sample_id]["train"]
 
     if train_using_all_st_samples:
         with h5py.File(os.path.join(data_dir, "mat_sp_train_s.hdf5"), "r") as f:
@@ -112,20 +108,17 @@ def save_st_spots(mat_sp_d, data_dir, stsplit=False):
             Default: False.
 
     """
-    if stsplit:
-        with h5py.File(os.path.join(data_dir, "mat_sp_split_d.hdf5"), "w") as f:
-            for grp_name in mat_sp_d["train"]:
-                grp_samp = f.create_group(grp_name)
-                dset = grp_samp.create_dataset(
-                    "train", data=mat_sp_d["train"][grp_name]
-                )
-                dset = grp_samp.create_dataset("val", data=mat_sp_d["val"][grp_name])
-                dset = grp_samp.create_dataset("test", data=mat_sp_d["test"][grp_name])
+    fname = f"mat_sp_{'split' if stsplit else 'train'}_d.hdf5"
+    out_path = os.path.join(data_dir, fname)
 
-    else:
-        with h5py.File(os.path.join(data_dir, "mat_sp_train_d.hdf5"), "w") as f:
-            for dset_name in mat_sp_d["train"]:
-                dset = f.create_dataset(dset_name, data=mat_sp_d["train"][dset_name])
+    with h5py.File(out_path, "w") as f:
+        for sample_id in mat_sp_d:
+            grp_samp = f.create_group(sample_id)
+            if stsplit:
+                for split in mat_sp_d[sample_id]:
+                    grp_samp.create_dataset(split, data=mat_sp_d[sample_id][split])
+            else:
+                grp_samp.create_dataset("train", data=mat_sp_d[sample_id]["train"])
 
 
 def load_st_sample_names(selected_dir):
