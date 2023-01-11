@@ -159,7 +159,7 @@ def select_marker_genes(
         top_genes_sc = set(res_genes)
 
         # Find gene intersection
-        inter_genes = [val for val in res_genes_ if val in adata_st.var.index]
+        inter_genes = [val for val in adata_st.var.index if val in res_genes_]
 
         fig, ax = plt.subplots()
         matplotlib_venn.venn3_unweighted(
