@@ -13,7 +13,7 @@
 # jupyter nbconvert --ExecutePreprocessor.timeout=-1 --to notebook --inplace --execute reproduce_celldart.ipynb
 # ./eval.py -d "data/preprocessed_markers_celldart" -n "CellDART" -v "bn_fix"
 jupyter nbconvert --ExecutePreprocessor.timeout=-1 --to notebook --inplace --execute adda.ipynb
-./eval.py -n "ADDA" -v "celldart" -c 2 -s "celldart"
+python -u eval.py -n "ADDA" -v "standard_bn99" -s "standard" --njobs 32  -c 3 --seed 72
 # jupyter nbconvert --ExecutePreprocessor.timeout=-1 --to notebook --inplace --execute dann.ipynb
 # ./eval.py -d "data/preprocessed_markers_standard" -n "DANN" -v "Standard1" -p
 # jupyter nbconvert --ExecutePreprocessor.timeout=-1 --to notebook --inplace --execute autoenc.ipynb

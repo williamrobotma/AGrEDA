@@ -53,7 +53,12 @@ parser.add_argument(
     choices=SCALER_OPTS,
     help="Scaler to use.",
 )
-parser.add_argument("--stsplit", action="store_true", help="Whether to split ST data.")
+parser.add_argument(
+    "-d",
+    type=str,
+    default="./data",
+    help="data directory",
+)
 parser.add_argument(
     "--allgenes", "-a", action="store_true", help="Turn off marker selection."
 )
@@ -75,34 +80,28 @@ parser.add_argument(
     default=data_loading.DEFAULT_N_SPOTS,
     help="Number of training pseudospots to use.",
 )
+parser.add_argument("--stsplit", action="store_true", help="Whether to split ST data.")
+parser.add_argument("--pretraining", "-p", action="store_false", help="no pretraining")
+parser.add_argument("--modelname", "-n", type=str, default="ADDA", help="model name")
+parser.add_argument("--modelversion", "-v", type=str, default="TESTING", help="model ver")
 parser.add_argument(
-    "-d",
-    type=str,
-    default="./data",
-    help="data directory",
+    "--njobs",
+    type=int,
+    default=0,
+    help="Number of jobs to use for parallel processing.",
 )
 parser.add_argument(
+    "--cuda",
     "-c",
     default=None,
     help="gpu index to use",
 )
-parser.add_argument("-p", action="store_false", help="no pretraining")
-parser.add_argument("-n", type=str, default="ADDA", help="model name")
-parser.add_argument("-v", type=str, default="TESTING", help="model ver")
-parser.add_argument(
-    "--njobs",
-    type=int,
-    default=-1,
-    help="Number of jobs to use for parallel processing.",
-)
+parser.add_argument("--seed", default="random", help="seed used for training")
 args = parser.parse_args()
-# datetime object containing current date and time
-script_start_time = datetime.datetime.now().strftime("%Y-%m-%d_%Hh%Mm%S")
-
 
 # %%
-if args.c is not None:
-    device = torch.device(f"cuda:{args.c}" if torch.cuda.is_available() else "cpu")
+if args.cuda is not None:
+    device = torch.device(f"cuda:{args.cuda}" if torch.cuda.is_available() else "cpu")
 else:
     device = torch.device(f"cuda" if torch.cuda.is_available() else "cpu")
 if device == "cpu":
@@ -122,10 +121,10 @@ DATA_DIR = args.d
 
 ST_SPLIT = args.stsplit
 
-MODEL_NAME = args.n
-MODEL_VERSION = args.v
+MODEL_NAME = args.modelname
+MODEL_VERSION = args.modelversion
 # PRETRAINING = True
-PRETRAINING = args.p
+PRETRAINING = args.pretraining
 
 MILISI = True
 
@@ -142,6 +141,7 @@ model_rel_path = get_model_rel_path(
     n_mix=args.nmix,
     n_spots=args.nspots,
     st_split=ST_SPLIT,
+    torch_seed_path=args.seed,
 )
 
 model_folder = os.path.join("model", model_rel_path)
@@ -751,6 +751,7 @@ for sample_id in st_sample_id_l:
 
 # %%
 metric_ctp = JSD()
+# metric_ctp = lambda y_pred, y_true: torch.nn.KLDivLoss(reduction="batchmean")(y_pred.log(), y_true)
 
 
 # %%
@@ -794,16 +795,16 @@ for sample_id in st_sample_id_l:
             pred_mix_val = pred_mix_val[0]
             pred_mix_test = pred_mix_test[0]
 
-        target_names = [sc_sub_dict[i] for i in range(len(sc_sub_dict))]
+        # target_names = [sc_sub_dict[i] for i in range(len(sc_sub_dict))]
 
         jsd_train = metric_ctp(
-            torch.as_tensor(lab_mix_d["train"]).float().to(device), torch.exp(pred_mix_train)
+            torch.exp(pred_mix_train), torch.as_tensor(lab_mix_d["train"]).float().to(device)
         )
         jsd_val = metric_ctp(
-            torch.as_tensor(lab_mix_d["val"]).float().to(device), torch.exp(pred_mix_val)
+            torch.exp(pred_mix_val), torch.as_tensor(lab_mix_d["val"]).float().to(device)
         )
         jsd_test = metric_ctp(
-            torch.as_tensor(lab_mix_d["test"]).float().to(device), torch.exp(pred_mix_test)
+            torch.exp(pred_mix_test), torch.as_tensor(lab_mix_d["test"]).float().to(device)
         )
 
         jsd_d["da"]["train"][sample_id] = jsd_train.detach().cpu().numpy()
@@ -820,16 +821,16 @@ for sample_id in st_sample_id_l:
                 pred_mix_val = pred_mix_val[0]
                 pred_mix_test = pred_mix_test[0]
 
-            target_names = [sc_sub_dict[i] for i in range(len(sc_sub_dict))]
+            # target_names = [sc_sub_dict[i] for i in range(len(sc_sub_dict))]
 
             jsd_train = metric_ctp(
-                torch.as_tensor(lab_mix_d["train"]).float().to(device), torch.exp(pred_mix_train)
+                torch.exp(pred_mix_train), torch.as_tensor(lab_mix_d["train"]).float().to(device)
             )
             jsd_val = metric_ctp(
-                torch.as_tensor(lab_mix_d["val"]).float().to(device), torch.exp(pred_mix_val)
+                torch.exp(pred_mix_val), torch.as_tensor(lab_mix_d["val"]).float().to(device)
             )
             jsd_test = metric_ctp(
-                torch.as_tensor(lab_mix_d["test"]).float().to(device), torch.exp(pred_mix_test)
+                torch.exp(pred_mix_test), torch.as_tensor(lab_mix_d["test"]).float().to(device)
             )
 
             jsd_d["noda"]["train"][sample_id] = jsd_train.detach().cpu().numpy()
@@ -883,7 +884,7 @@ results_df = pd.concat(
 )
 
 results_df.to_csv(os.path.join(results_folder, "results.csv"))
-results_df
+print(results_df)
 
 
 # %%

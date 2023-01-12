@@ -18,6 +18,7 @@ def get_model_rel_path(
     n_mix=DEFAULT_N_MIX,
     n_spots=DEFAULT_N_SPOTS,
     st_split=False,
+    torch_seed_path="random",
 ):
     """Get path relative to data or results directory for a given run.
 
@@ -32,6 +33,7 @@ def get_model_rel_path(
         n_spots (int): Number of spots generated for training set. Default:
             20000.
         st_split (bool): Whether to use a train/val/test split for spatial data.
+        torch_seed_path: Seed used for pytorch rng. Default: "random".
 
     Returns:
         str: Path relative to data or results directory.
@@ -41,7 +43,9 @@ def get_model_rel_path(
     data_str = f"{n_mix}mix_{n_spots}spots"
     if st_split:
         data_str += "_stsplit"
-    return os.path.join(model_name, markers_str, scaler_name, data_str, model_version)
+    return os.path.join(
+        model_name, markers_str, scaler_name, data_str, model_version, torch_seed_path
+    )
 
 
 def get_selected_dir(data_dir, n_markers=DEFAULT_N_MARKERS, all_genes=False):
