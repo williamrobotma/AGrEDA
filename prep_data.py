@@ -2,7 +2,6 @@
 """Preps the data into sets."""
 
 import glob
-import gc
 import pickle
 import os
 import argparse
@@ -11,7 +10,6 @@ from collections import OrderedDict
 import anndata as ad
 import h5py
 import numpy as np
-import pandas as pd
 import scanpy as sc
 from sklearn import model_selection, preprocessing
 
@@ -84,7 +82,54 @@ def get_scaler(scaler_name):
     if scaler_name == "celldart":
         return scaler_name
 
-    raise ValueError(f"Scaler {scaler_name} not recognized.")
+    raise ValueError(f"Scaler '{scaler_name}' not recognized.")
+
+
+def check_selected_split_exists(selected_dir):
+    """Check if selected and split data exists and all files are present
+
+    Args:
+        selected_dir (str): Path to selected data directory.
+
+    Returns:
+        bool: Whether selected and split data exists.
+
+    """
+    # df genelists
+    if not os.path.isfile(os.path.join(selected_dir, "df_genelists.pkl")):
+        return False
+
+    if not os.path.isfile(os.path.join(selected_dir, "venn.png")):
+        return False
+
+    # label numbers
+    if not os.path.isfile(os.path.join(selected_dir, f"lab_sc_num.hdf5")):
+        return False
+
+    # sc adatas
+    if not os.path.isfile(os.path.join(selected_dir, "adata_sc_dlpfc.h5ad")):
+        return False
+    if not os.path.isfile(os.path.join(selected_dir, "adata_sc_dlpfc_train.h5ad")):
+        return False
+    if not os.path.isfile(os.path.join(selected_dir, "adata_sc_dlpfc_val.h5ad")):
+        return False
+    if not os.path.isfile(os.path.join(selected_dir, "adata_sc_dlpfc_test.h5ad")):
+        return False
+
+    # st adata
+    if not os.path.isfile(os.path.join(selected_dir, "adata_spatialLIBD.h5ad")):
+        return False
+
+    # dicts and helpers
+    if not os.path.isfile(os.path.join(selected_dir, "sc_sub_dict.pkl")):
+        return False
+    if not os.path.isfile(os.path.join(selected_dir, "sc_sub_dict2.pkl")):
+        return False
+    if not os.path.isfile(os.path.join(selected_dir, "st_sample_id_l.pkl")):
+        return False
+
+    # All files present
+    return True
 
 
 def select_genes_and_split(
@@ -109,6 +154,11 @@ def select_genes_and_split(
     rng_integers = misc.check_integer_rng(rng)
 
     selected_dir = data_loading.get_selected_dir(DATA_DIR, n_markers, allgenes)
+
+    if check_selected_split_exists(selected_dir):
+        print("Selected and split data already exists. Skipping.")
+        return
+
     if not os.path.isdir(selected_dir):
         os.makedirs(selected_dir)
 
@@ -248,6 +298,23 @@ def gen_pseudo_spots(
     """
     rng_integers = misc.check_integer_rng(rng)
 
+    unscaled_data_dir = os.path.join(selected_dir, "unscaled")
+    try:
+        sc_mix_d, lab_mix_d = data_loading.load_pseudospots(
+            unscaled_data_dir, n_mix, n_spots
+        )
+        print(
+            "Unscaled pseudospots already exist. "
+            "Skipping generation and loading from disk."
+        )
+        return sc_mix_d, lab_mix_d
+
+    except FileNotFoundError:
+        pass
+
+    if not os.path.exists(unscaled_data_dir):
+        os.makedirs(unscaled_data_dir)
+
     adata_sc_dlpfc_d = {}
     for split in data_loading.SPLITS:
         adata_sc_dlpfc_d[split] = sc.read_h5ad(
@@ -261,7 +328,6 @@ def gen_pseudo_spots(
 
     lab_mix_d = {}
     sc_mix_d = {}
-
 
     total_spots = n_spots / SPLIT_RATIOS[data_loading.SPLITS.index("train")]
     for split, ratio in zip(data_loading.SPLITS, SPLIT_RATIOS):
@@ -344,18 +410,23 @@ def split_st(selected_dir, stsplit=False, rng=None):
 
     rng_integers = misc.check_integer_rng(rng)
 
+    unscaled_data_dir = os.path.join(selected_dir, "unscaled")
+    out_path = os.path.join(
+        unscaled_data_dir, f"mat_sp_{'split' if stsplit else 'train'}_d.hdf5"
+    )
+    if os.path.isfile(out_path):
+        print("Unscaled spatial data already exists at:")
+        print(out_path)
+        print("Skipping unscaled data generation.")
+        return
+
+    if not os.path.exists(unscaled_data_dir):
+        os.makedirs(unscaled_data_dir)
+
     adata_spatiallibd = sc.read_h5ad(
         os.path.join(selected_dir, "adata_spatialLIBD.h5ad")
     )
     st_sample_id_l = data_loading.load_st_sample_names(selected_dir)
-
-    unscaled_data_dir = os.path.join(selected_dir, "unscaled")
-    if not os.path.exists(unscaled_data_dir):
-        os.makedirs(unscaled_data_dir)
-
-    out_path = os.path.join(
-        unscaled_data_dir, f"mat_sp_{'split' if stsplit else 'train'}_d.hdf5"
-    )
 
     with h5py.File(out_path, "w") as f:
         for sample_id in st_sample_id_l:
@@ -399,13 +470,9 @@ def log_scale_st(selected_dir, scaler_name, stsplit=False):
     if not os.path.isdir(preprocessed_data_dir):
         os.makedirs(preprocessed_data_dir)
 
-    in_path = os.path.join(
-        unscaled_data_dir, f"mat_sp_{'split' if stsplit else 'train'}_d.hdf5"
-    )
-    out_path = os.path.join(
-        preprocessed_data_dir, f"mat_sp_{'split' if stsplit else 'train'}_d.hdf5"
-    )
-
+    st_fname = f"mat_sp_{'split' if stsplit else 'train'}_d.hdf5"
+    in_path = os.path.join(unscaled_data_dir, st_fname)
+    out_path = os.path.join(preprocessed_data_dir, st_fname)
     with h5py.File(out_path, "w") as fout, h5py.File(in_path, "r") as fin:
 
         for sample_id in fin:
@@ -456,6 +523,8 @@ def log_scale_all_st(selected_dir, scaler_name):
 def main():
     selected_dir = data_loading.get_selected_dir(DATA_DIR, args.nmarkers, args.allgenes)
 
+    print("Selecting subset genes and splitting single-cell data")
+    print("-" * 80)
     select_genes_and_split(
         n_markers=args.nmarkers,
         allgenes=args.allgenes,
@@ -465,11 +534,13 @@ def main():
     )
 
     print("Generating Pseudospots")
+    print("-" * 80)
     sc_mix_d, lab_mix_d = gen_pseudo_spots(
         selected_dir, n_mix=args.nmix, n_spots=args.nspots, rng=623
     )
 
     print("Log scaling pseudospots")
+    print("-" * 80)
     log_scale_pseudospots(
         selected_dir,
         args.scaler,
@@ -479,12 +550,13 @@ def main():
         lab_mix_d=lab_mix_d,
     )
 
-    print("Log scaling spatial data")
-
+    print("Log scaling and maybe splitting spatial data")
+    print("-" * 80)
     split_st(selected_dir, stsplit=args.stsplit, rng=16)
     log_scale_st(selected_dir, scaler_name=args.scaler, stsplit=args.stsplit)
 
     print("Log scaling all spatial data...")
+    print("-" * 80)
     # if TRAIN_USING_ALL_ST_SAMPLES:
     log_scale_all_st(selected_dir, args.scaler)
 

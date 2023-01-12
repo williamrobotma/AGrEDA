@@ -850,6 +850,7 @@ if MILISI:
 
 
 def gen_l_dfs(da):
+    """Generate a list of series for a given da"""
     df = pd.DataFrame.from_dict(jsd_d[da], orient="columns")
     df.columns.name = "SC Split"
     yield df
