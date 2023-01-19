@@ -130,7 +130,7 @@ MODEL_NAME = "CellDART"
 with open(os.path.join("configs", MODEL_NAME, CONFIG_FNAME), "r") as f:
     config = yaml.safe_load(f)
 
-print(yaml.dump(config))
+print(yaml.safe_dump(config))
 
 torch_params = config["torch_params"]
 data_params = config["data_params"]
@@ -864,4 +864,4 @@ else:
 
 # %%
 with open(os.path.join(model_folder, "config.yml"), "w") as f:
-    yaml.dump(config, f)
+    yaml.safe_dump(config, f)

@@ -8,6 +8,15 @@ import torch.nn.functional as F
 
 from .utils import set_requires_grad
 
+ADDA_ENC_HIDDEN_LAYER_SIZES = (
+    1024,
+    512,
+)
+
+PREDICTOR_HIDDEN_LAYER_SIZES = (
+    512,
+)
+
 
 class RevGrad(Function):
     """Gradient Reversal layer."""
@@ -39,6 +48,11 @@ class DANN(nn.Module):
         inp_dim (int): Number of gene expression features.
         emb_dim (int): Embedding size.
         ncls_source (int): Number of cell types.
+        alpha_ (float): Value to divide encoder gradient after gradient
+            reversal. Default: 1.0
+        dropout (float): Dropout rate.
+        batchnorm (bool): Whether to use batch normalization. Default: False.
+        bn_momentum (float): Batch normalization momentum. Default: 0.1
 
     Attributes:
         is_encoder_source (bool): Whether source encoder is used for forward
@@ -46,13 +60,13 @@ class DANN(nn.Module):
 
     """
 
-    def __init__(self, inp_dim, emb_dim, ncls_source, alpha_=1.0):
+    def __init__(self, inp_dim, emb_dim, ncls_source, alpha_=1.0, **kwargs):
         super().__init__()
 
-        self.encoder = DannMLPEncoder(inp_dim, emb_dim)
+        self.encoder = DannMLPEncoder(inp_dim, emb_dim, **kwargs)
         self.source_encoder = self.target_encoder = self.encoder
-        self.dis = DannDiscriminator(emb_dim)
-        self.clf = DannPredictor(emb_dim, ncls_source)
+        self.dis = DannDiscriminator(emb_dim, **kwargs)
+        self.clf = DannPredictor(emb_dim, ncls_source, **kwargs)
         self.alpha_ = alpha_
 
         self.is_pretraining = False
@@ -103,27 +117,52 @@ class DannMLPEncoder(nn.Module):
     Args:
         inp_dim (int): Number of gene expression features.
         emb_dim (int): Embedding size.
+        dropout (float): Dropout rate.
+        batchnorm (bool): Whether to use batch normalization. Default: False.
+        bn_momentum (float): Batch normalization momentum. Default: 0.1
 
     """
 
-    def __init__(self, inp_dim, emb_dim, dropout=0.5):
+    def __init__(
+        self,
+        inp_dim,
+        emb_dim,
+        hidden_layer_sizes=ADDA_ENC_HIDDEN_LAYER_SIZES,
+        dropout=0.5,
+        batchnorm=False,
+        bn_momentum=0.1,
+        enc_out_act="elu",
+        **kwargs
+    ):
         super().__init__()
 
-        self.encoder = nn.Sequential(
-            # nn.BatchNorm1d(inp_dim, eps=0.001, momentum=0.99),
-            # nn.Dropout(0.5),
-            nn.Linear(inp_dim, 1024),
-            # nn.BatchNorm1d(1024, eps=0.001, momentum=0.99),
-            nn.LeakyReLU(),
-            # nn.Dropout(dropout),
-            # nn.Linear(1024, 512),
-            # nn.BatchNorm1d(512, eps=0.001, momentum=0.99),
-            # nn.LeakyReLU(),
-            nn.Dropout(dropout),
-            nn.Linear(1024, emb_dim),
-            # nn.BatchNorm1d(emb_dim, eps=0.001, momentum=0.99),
-            nn.ELU(),
-        )
+        layers = []
+        for i, h in enumerate(hidden_layer_sizes):
+            layers.append(
+                nn.Linear(inp_dim if i == 0 else hidden_layer_sizes[i - 1], h)
+            )
+            if batchnorm:
+                layers.append(nn.BatchNorm1d(h, momentum=bn_momentum))
+            layers.append(nn.LeakyReLU())
+            layers.append(nn.Dropout(dropout))
+
+        layers.append(nn.Linear(hidden_layer_sizes[-1], emb_dim))
+
+        if enc_out_act:
+            if enc_out_act == "elu":
+                enc_out_act = nn.ELU()
+            elif enc_out_act == "relu":
+                enc_out_act = nn.ReLU()
+            elif enc_out_act == "tanh":
+                enc_out_act = nn.Tanh()
+            elif enc_out_act == "sigmoid":
+                enc_out_act = nn.Sigmoid()
+
+            layers.append(enc_out_act)
+
+        # layers.append(nn.ELU())
+
+        self.encoder = nn.Sequential(*layers)
 
     def forward(self, x):
         return self.encoder(x)
@@ -135,22 +174,37 @@ class DannPredictor(nn.Module):
     Args:
         emb_dim (int): Embedding size.
         ncls_source (int): Number of cell types.
+        dropout (float): Dropout rate.
+        batchnorm (bool): Whether to use batch normalization. Default: False.
+        bn_momentum (float): Batch normalization momentum. Default: 0.1
 
     """
 
-    def __init__(self, emb_dim, ncls_source):
+    def __init__(
+        self,
+        emb_dim,
+        ncls_source,
+        predictor_hidden_layer_sizes=PREDICTOR_HIDDEN_LAYER_SIZES,
+        dropout=0.5,
+        batchnorm=False,
+        bn_momentum=0.1,
+        **kwargs
+    ):
         super().__init__()
 
-        self.head = nn.Sequential(
-            nn.Linear(emb_dim, 128),
-            # nn.BatchNorm1d(32, eps=0.001, momentum=0.99),
-            # nn.ReLU(),
-            nn.Dropout(0.5),
-            nn.Linear(128, ncls_source),
-            # nn.LogSoftmax(dim=1),
-            # F.nor
-            # nn.LogSoftmax(dim=1),
-        )
+        layers = []
+        for i, h in enumerate(predictor_hidden_layer_sizes):
+            layers.append(
+                nn.Linear(emb_dim if i == 0 else predictor_hidden_layer_sizes[i - 1], h)
+            )
+            if batchnorm:
+                layers.append(nn.BatchNorm1d(h, momentum=bn_momentum))
+            layers.append(nn.LeakyReLU())
+            layers.append(nn.Dropout(dropout))
+
+        layers.append(nn.Linear(predictor_hidden_layer_sizes[-1], ncls_source))
+
+        self.head = nn.Sequential(*layers)
 
     def forward(self, x):
         x = self.head(x)
@@ -171,20 +225,28 @@ class DannDiscriminator(nn.Module):
 
     """
 
-    def __init__(self, emb_dim):
+    def __init__(
+        self,
+        emb_dim,
+        hidden_layer_sizes=ADDA_ENC_HIDDEN_LAYER_SIZES,
+        dropout=0.5,
+        batchnorm=False,
+        bn_momentum=0.1,
+        **kwargs
+    ):
         super().__init__()
 
-        self.head = nn.Sequential(
-            nn.Linear(emb_dim, 1024),
-            # nn.BatchNorm1d(512, eps=0.001, momentum=0.99),
-            nn.LeakyReLU(),
-            nn.Dropout(0.5),
-            # nn.Linear(512, 1024),
-            # nn.BatchNorm1d(1024, eps=0.001, momentum=0.99),
-            # nn.LeakyReLU(),
-            # nn.Dropout(0.5),
-            nn.Linear(1024, 1),
-        )
+        layers = []
+        for i, h in enumerate(reversed(hidden_layer_sizes)):
+            layers.append(nn.Linear(emb_dim if i == 0 else hidden_layer_sizes[-i], h))
+            if batchnorm:
+                layers.append(nn.BatchNorm1d(h, momentum=bn_momentum))
+            layers.append(nn.LeakyReLU())
+            layers.append(nn.Dropout(dropout))
+
+        layers.append(nn.Linear(hidden_layer_sizes[0], 1))
+
+        self.head = nn.Sequential(*layers)
 
     def forward(self, x):
         return self.head(x)

@@ -52,7 +52,7 @@ class ADDAMLPEncoder(nn.Module):
         emb_dim,
         hidden_layer_sizes=ADDA_ENC_HIDDEN_LAYER_SIZES,
         dropout=0.5,
-        enc_out_act=nn.ELU(),
+        enc_out_act="elu",
         bn_momentum=0.99,
     ):
         super().__init__()
@@ -69,6 +69,15 @@ class ADDAMLPEncoder(nn.Module):
         layers.append(nn.Linear(hidden_layer_sizes[-1], emb_dim))
 
         if enc_out_act:
+            if enc_out_act == "elu":
+                enc_out_act = nn.ELU()
+            elif enc_out_act == "relu":
+                enc_out_act = nn.ReLU()
+            elif enc_out_act == "tanh":
+                enc_out_act = nn.Tanh()
+            elif enc_out_act == "sigmoid":
+                enc_out_act = nn.Sigmoid()
+
             layers.append(enc_out_act)
         self.encoder = nn.Sequential(*layers)
 
@@ -94,7 +103,7 @@ class ADDAMLPDecoder(nn.Module):
         emb_dim,
         hidden_layer_sizes=ADDA_ENC_HIDDEN_LAYER_SIZES,
         dropout=0.5,
-        dec_out_act=nn.Sigmoid(),
+        dec_out_act="sigmoid",
         bn_momentum=0.99,
     ):
         super().__init__()
@@ -107,7 +116,16 @@ class ADDAMLPDecoder(nn.Module):
             layers.append(nn.Dropout(dropout))
 
         layers.append(nn.Linear(hidden_layer_sizes[0], inp_dim))
+        
         if dec_out_act:
+            if dec_out_act == "elu":
+                dec_out_act = nn.ELU()
+            elif dec_out_act == "relu":
+                dec_out_act = nn.ReLU()
+            elif dec_out_act == "tanh":
+                dec_out_act = nn.Tanh()
+            elif dec_out_act == "sigmoid":
+                dec_out_act = nn.Sigmoid()
             layers.append(dec_out_act)
 
         self.decoder = nn.Sequential(*layers)

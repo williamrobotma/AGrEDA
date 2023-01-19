@@ -137,4 +137,5 @@ dmypy.json
 /model/
 /model_cell_dart/
 /results/
+/logs/
 *.out
