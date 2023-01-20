@@ -13,7 +13,9 @@ model_params:
     alpha_: 1
     emb_dim: 64
     enc_out_act: null
-    hidden_layer_sizes:
+    enc_hidden_layer_sizes:
+     - 1024
+    dis_hidden_layer_sizes:
      - 1024
   model_version: Standard1
 torch_params:

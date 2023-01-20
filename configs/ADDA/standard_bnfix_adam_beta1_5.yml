@@ -5,7 +5,7 @@ data_params:
   n_mix: 8
   n_spots: 20000
   sample_id_n: '151673'
-  scaler_name: celldart
+  scaler_name: standard
   st_split: false
   train_using_all_st_samples: false
 model_params:

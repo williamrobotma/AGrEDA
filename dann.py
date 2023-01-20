@@ -863,16 +863,16 @@ def train_adversarial_iters(
             # Save the best weights
 
             dis_train_accu_stable = (
-                results_history_source["dis_accu"][-1] > 0.5
-                and results_history_target["dis_accu"][-1] > 0.5
+                results_history_source["dis_accu"][-1] > 0.4
+                and results_history_target["dis_accu"][-1] > 0.4
                 and results_history_source["dis_accu"][-1] < 0.6
                 and results_history_target["dis_accu"][-1] < 0.6
             )
             dis_val_accu_stable = (
                 results_history_source_val["dis_accu"][-1] > 0.3
                 and results_history_target_val["dis_accu"][-1] > 0.3
-                and results_history_source_val["dis_accu"][-1] < 0.8
-                and results_history_target_val["dis_accu"][-1] < 0.8
+                and results_history_source_val["dis_accu"][-1] < 0.9
+                and results_history_target_val["dis_accu"][-1] < 0.9
             )
             dis_stable = dis_train_accu_stable and dis_val_accu_stable
 

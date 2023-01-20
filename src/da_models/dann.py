@@ -8,7 +8,7 @@ import torch.nn.functional as F
 
 from .utils import set_requires_grad
 
-ADDA_ENC_HIDDEN_LAYER_SIZES = (
+ENC_HIDDEN_LAYER_SIZES = (
     1024,
     512,
 )
@@ -16,7 +16,9 @@ ADDA_ENC_HIDDEN_LAYER_SIZES = (
 PREDICTOR_HIDDEN_LAYER_SIZES = (
     512,
 )
-
+DIS_HIDDEN_LAYER_SIZES = (
+    512,
+)
 
 class RevGrad(Function):
     """Gradient Reversal layer."""
@@ -127,7 +129,7 @@ class DannMLPEncoder(nn.Module):
         self,
         inp_dim,
         emb_dim,
-        hidden_layer_sizes=ADDA_ENC_HIDDEN_LAYER_SIZES,
+        enc_hidden_layer_sizes=ENC_HIDDEN_LAYER_SIZES,
         dropout=0.5,
         batchnorm=False,
         bn_momentum=0.1,
@@ -137,16 +139,16 @@ class DannMLPEncoder(nn.Module):
         super().__init__()
 
         layers = []
-        for i, h in enumerate(hidden_layer_sizes):
+        for i, h in enumerate(enc_hidden_layer_sizes):
             layers.append(
-                nn.Linear(inp_dim if i == 0 else hidden_layer_sizes[i - 1], h)
+                nn.Linear(inp_dim if i == 0 else enc_hidden_layer_sizes[i - 1], h)
             )
             if batchnorm:
                 layers.append(nn.BatchNorm1d(h, momentum=bn_momentum))
             layers.append(nn.LeakyReLU())
             layers.append(nn.Dropout(dropout))
 
-        layers.append(nn.Linear(hidden_layer_sizes[-1], emb_dim))
+        layers.append(nn.Linear(enc_hidden_layer_sizes[-1], emb_dim))
 
         if enc_out_act:
             if enc_out_act == "elu":
@@ -228,7 +230,7 @@ class DannDiscriminator(nn.Module):
     def __init__(
         self,
         emb_dim,
-        hidden_layer_sizes=ADDA_ENC_HIDDEN_LAYER_SIZES,
+        dis_hidden_layer_sizes=DIS_HIDDEN_LAYER_SIZES,
         dropout=0.5,
         batchnorm=False,
         bn_momentum=0.1,
@@ -237,14 +239,16 @@ class DannDiscriminator(nn.Module):
         super().__init__()
 
         layers = []
-        for i, h in enumerate(reversed(hidden_layer_sizes)):
-            layers.append(nn.Linear(emb_dim if i == 0 else hidden_layer_sizes[-i], h))
+        for i, h in enumerate(dis_hidden_layer_sizes):
+            layers.append(
+                nn.Linear(emb_dim if i == 0 else dis_hidden_layer_sizes[i - 1], h)
+            )
             if batchnorm:
                 layers.append(nn.BatchNorm1d(h, momentum=bn_momentum))
             layers.append(nn.LeakyReLU())
             layers.append(nn.Dropout(dropout))
 
-        layers.append(nn.Linear(hidden_layer_sizes[0], 1))
+        layers.append(nn.Linear(dis_hidden_layer_sizes[-1], 1))
 
         self.head = nn.Sequential(*layers)
 
