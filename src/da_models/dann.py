@@ -13,12 +13,9 @@ ENC_HIDDEN_LAYER_SIZES = (
     512,
 )
 
-PREDICTOR_HIDDEN_LAYER_SIZES = (
-    512,
-)
-DIS_HIDDEN_LAYER_SIZES = (
-    512,
-)
+PREDICTOR_HIDDEN_LAYER_SIZES = (512,)
+DIS_HIDDEN_LAYER_SIZES = (512,)
+
 
 class RevGrad(Function):
     """Gradient Reversal layer."""
@@ -232,6 +229,7 @@ class DannDiscriminator(nn.Module):
         emb_dim,
         dis_hidden_layer_sizes=DIS_HIDDEN_LAYER_SIZES,
         dropout=0.5,
+        dis_dropout_factor=1,
         batchnorm=False,
         bn_momentum=0.1,
         **kwargs
@@ -246,7 +244,7 @@ class DannDiscriminator(nn.Module):
             if batchnorm:
                 layers.append(nn.BatchNorm1d(h, momentum=bn_momentum))
             layers.append(nn.LeakyReLU())
-            layers.append(nn.Dropout(dropout))
+            layers.append(nn.Dropout(dropout * dis_dropout_factor))
 
         layers.append(nn.Linear(dis_hidden_layer_sizes[-1], 1))
 

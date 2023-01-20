@@ -596,63 +596,110 @@ criterion_dis = nn.BCEWithLogitsLoss()
 
 
 # %%
-def model_adv_loss(x_source, x_target, y_source, model, two_step=False, optimizer=None):
+def model_adv_loss(
+    x_source,
+    x_target,
+    y_source,
+    model,
+    two_step=False,
+    source_first=True,
+    optimizer=None,
+):
 
+    if two_step:
+        if source_first:
+            y_dis_source, y_dis_source_pred, loss_clf, loss_dis_source = source_step(
+                x_source, y_source, model, optimizer
+            )
+            y_dis_target, y_dis_target_pred, loss_dis_target = target_step(
+                x_target, model, optimizer
+            )
+        else:
+            y_dis_target, y_dis_target_pred, loss_dis_target = target_step(
+                x_target, model, optimizer
+            )
+            y_dis_source, y_dis_source_pred, loss_clf, loss_dis_source = source_step(
+                x_source, y_source, model, optimizer
+            )
+    else:
+        y_dis_source, y_dis_source_pred, loss_clf, loss_dis_source = source_pass(
+            x_source, y_source, model
+        )
+        y_dis_target, y_dis_target_pred, loss_dis_target = target_pass(x_target, model)
+        loss = loss_clf + (loss_dis_source + loss_dis_target) * train_params["lambda"]
+        update_weights(optimizer, loss)
+
+    accu_source = logits_to_accu(y_dis_source_pred, y_dis_source)
+    accu_target = logits_to_accu(y_dis_target_pred, y_dis_target)
+
+    return (loss_dis_source, loss_dis_target, loss_clf), (accu_source, accu_target)
+
+
+def logits_to_accu(y_pred, y_true):
+    accu = (
+        (torch.round(torch.sigmoid(y_pred.detach())).to(torch.long) == y_true.detach())
+        .to(torch.float32)
+        .mean()
+        .cpu()
+    )
+
+    return accu
+
+
+def target_step(x_target, model, optimizer):
+    if optimizer is not None:
+        clf_rq_bak = dict(
+            (
+                (name, param.requires_grad)
+                for name, param in model.clf.named_parameters()
+            )
+        )
+        set_requires_grad(model.clf, False)
+
+    y_dis_target, y_dis_target_pred, loss_dis_target = target_pass(x_target, model)
+    loss = loss_dis_target * train_params["lambda"]
+
+    if optimizer is not None:
+        update_weights(optimizer, loss)
+        for name, param in model.clf.named_parameters():
+            param.requires_grad = clf_rq_bak[name]
+
+    return y_dis_target, y_dis_target_pred, loss_dis_target
+
+
+def source_step(x_source, y_source, model, optimizer):
+    y_dis_source, y_dis_source_pred, loss_clf, loss_dis_source = source_pass(
+        x_source, y_source, model
+    )
+    loss = loss_clf + loss_dis_source * train_params["lambda"]
+    update_weights(optimizer, loss)
+    return y_dis_source, y_dis_source_pred, loss_clf, loss_dis_source
+
+
+def update_weights(optimizer, loss):
+    if optimizer is not None:
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
+
+
+def target_pass(x_target, model):
+    y_dis_target = torch.ones(
+        x_target.shape[0], device=device, dtype=x_target.dtype
+    ).view(-1, 1)
+    _, y_dis_target_pred = model(x_target, clf=False)
+    loss_dis_target = criterion_dis(y_dis_target_pred, y_dis_target)
+    return y_dis_target, y_dis_target_pred, loss_dis_target
+
+
+def source_pass(x_source, y_source, model):
     y_dis_source = torch.zeros(
         x_source.shape[0], device=device, dtype=x_source.dtype
     ).view(-1, 1)
     y_clf, y_dis_source_pred = model(x_source, clf=True)
     loss_clf = criterion_clf(y_clf, y_source)
     loss_dis_source = criterion_dis(y_dis_source_pred, y_dis_source)
-
-    if two_step and optimizer is not None:
-        loss = loss_clf + loss_dis_source * train_params["lambda"]
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
-        set_requires_grad(model.clf, False)
-
-    y_dis_target = torch.ones(
-        x_target.shape[0], device=device, dtype=x_target.dtype
-    ).view(-1, 1)
-    _, y_dis_target_pred = model(x_target, clf=False)
-    loss_dis_target = criterion_dis(y_dis_target_pred, y_dis_target)
-
-    if optimizer is not None:
-        if two_step:
-            loss = loss_dis_target * train_params["lambda"]
-        else:
-            loss = (
-                loss_clf + (loss_dis_source + loss_dis_target) * train_params["lambda"]
-            )
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
-
-        if two_step:
-            set_requires_grad(model.clf, True)
-
-    accu_source = (
-        (
-            torch.round(torch.sigmoid(y_dis_source_pred.detach())).to(torch.long)
-            == y_dis_source.detach()
-        )
-        .to(torch.float32)
-        .mean()
-        .cpu()
-    )
-
-    accu_target = (
-        (
-            torch.round(torch.sigmoid(y_dis_target_pred.detach())).to(torch.long)
-            == y_dis_target.detach()
-        )
-        .to(torch.float32)
-        .mean()
-        .cpu()
-    )
-
-    return (loss_dis_source, loss_dis_target, loss_clf), (accu_source, accu_target)
+    return y_dis_source, y_dis_source_pred, loss_clf, loss_dis_source
 
 
 def run_epoch(
@@ -863,16 +910,16 @@ def train_adversarial_iters(
             # Save the best weights
 
             dis_train_accu_stable = (
-                results_history_source["dis_accu"][-1] > 0.4
-                and results_history_target["dis_accu"][-1] > 0.4
+                results_history_source["dis_accu"][-1] > 0.5
+                and results_history_target["dis_accu"][-1] > 0.5
                 and results_history_source["dis_accu"][-1] < 0.6
                 and results_history_target["dis_accu"][-1] < 0.6
             )
             dis_val_accu_stable = (
                 results_history_source_val["dis_accu"][-1] > 0.3
                 and results_history_target_val["dis_accu"][-1] > 0.3
-                and results_history_source_val["dis_accu"][-1] < 0.9
-                and results_history_target_val["dis_accu"][-1] < 0.9
+                and results_history_source_val["dis_accu"][-1] < 0.8
+                and results_history_target_val["dis_accu"][-1] < 0.8
             )
             dis_stable = dis_train_accu_stable and dis_val_accu_stable
 

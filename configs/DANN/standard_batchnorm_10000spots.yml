@@ -3,7 +3,7 @@ data_params:
   data_dir: data
   n_markers: 20
   n_mix: 8
-  n_spots: 20000
+  n_spots: 100000
   sample_id_n: '151673'
   scaler_name: standard
   st_split: false
@@ -24,7 +24,7 @@ model_params:
      - 512
     predictor_hidden_layer_sizes:
      - 512
-  model_version: standard_batchnorm
+  model_version: standard_batchnorm_10000spots
 torch_params:
   manual_seed: 8567
 train_params:
