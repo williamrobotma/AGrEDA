@@ -1,0 +1,51 @@
+data_params:
+  all_genes: false
+  data_dir: data
+  n_markers: 20
+  n_mix: 8
+  n_spots: 100000
+  sample_id_n: '151673'
+  scaler_name: standard
+  st_split: false
+  train_using_all_st_samples: false
+model_params:
+  dann_kwargs:
+    alpha_: 3
+    emb_dim: 64
+    batchnorm: true
+    bn_momentum: 0.1
+    enc_out_act: null
+    dropout: 0.5
+    dis_dropout_factor: 0.2
+    enc_hidden_layer_sizes:
+     - 1024
+    dis_hidden_layer_sizes:
+     - 1024
+  model_version: standard_batchnorm_sameasdann
+torch_params:
+  manual_seed: 8567
+train_params:
+  adv_opt_kwargs:
+    betas:
+    - 0.5
+    - 0.999
+    eps: 1.0e-07
+    lr: 0.0002
+  batch_size: 512
+  early_stop_crit: 100
+  early_stop_crit_adv: 500
+  epochs: 200
+  initial_train_epochs: 100
+  initial_train_lr: 0.001
+  lambda: 1
+  min_epochs: 40.0
+  min_epochs_adv: 40
+  plateau_kwargs:
+    factor: 0.5
+    min_lr: 2.0e-05
+    patience: 40
+    verbose: true
+  pretraining: false
+  two_step: true
+  source_first: true
+

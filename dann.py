@@ -706,9 +706,8 @@ def run_epoch(
     dataloader_source,
     dataloader_target,
     model,
-    optimizer=None,
     tqdm_bar=None,
-    two_step=False,
+    **kwargs,
 ):
     source_results = {}
     target_results = {}
@@ -745,9 +744,7 @@ def run_epoch(
         (
             (loss_dis_source, loss_dis_target, loss_clf),
             (accu_source, accu_target),
-        ) = model_adv_loss(
-            x_source, x_target, y_source, model, two_step=two_step, optimizer=optimizer
-        )
+        ) = model_adv_loss(x_source, x_target, y_source, model, **kwargs)
 
         source_results["dis_loss"].append(loss_dis_source.item())
         target_results["dis_loss"].append(loss_dis_target.item())
@@ -853,9 +850,10 @@ def train_adversarial_iters(
                 dataloader_source_train,
                 dataloader_target_train,
                 model,
-                optimizer=optimizer,
                 tqdm_bar=inner,
+                optimizer=optimizer,
                 two_step=train_params["two_step"],
+                source_first=train_params.get("source_first", True),
             )
 
             for k in results_running_history_source:
