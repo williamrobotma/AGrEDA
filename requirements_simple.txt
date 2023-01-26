@@ -1,0 +1,18 @@
+# harmonypy==0.0.9
+jupyter
+jupyterlab
+# matplotlib-venn
+pandas
+PyYAML
+scanpy #==1.9.1
+scikit-learn
+scipy
+seaborn
+statsmodels
+tables
+torch
+torchaudio
+torchvision
+tqdm
+umap-learn
+
