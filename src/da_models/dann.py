@@ -7,6 +7,7 @@ from torch.autograd import Function
 import torch.nn.functional as F
 
 from .utils import set_requires_grad
+from .components import MLP
 
 ENC_HIDDEN_LAYER_SIZES = (
     1024,
@@ -59,15 +60,57 @@ class DANN(nn.Module):
 
     """
 
-    def __init__(self, inp_dim, emb_dim, ncls_source, alpha_=1.0, **kwargs):
+    def __init__(
+        self,
+        inp_dim,
+        emb_dim,
+        ncls_source,
+        enc_hidden_layer_sizes=ENC_HIDDEN_LAYER_SIZES,
+        enc_out_act="elu",
+        predictor_hidden_layer_sizes=PREDICTOR_HIDDEN_LAYER_SIZES,
+        dis_hidden_layer_sizes=DIS_HIDDEN_LAYER_SIZES,
+        dropout=0.5,
+        dis_dropout_factor=1,
+        batchnorm=False,
+        bn_momentum=0.1,
+        alpha_=1.0,
+        **kwargs
+    ):
         super().__init__()
 
-        self.encoder = DannMLPEncoder(inp_dim, emb_dim, **kwargs)
+        # self.encoder = DannMLPEncoder(inp_dim, emb_dim, **kwargs)
+        # self.source_encoder = self.target_encoder = self.encoder
+        # self.dis = DannDiscriminator(emb_dim, **kwargs)
+        # self.clf = DannPredictor(emb_dim, ncls_source, **kwargs)
+        common_kwargs = dict(
+            batchnorm=batchnorm, bn_kwargs={"momentum": bn_momentum}, **kwargs
+        )
+        self.encoder = MLP(
+            inp_dim,
+            emb_dim,
+            hidden_layer_sizes=enc_hidden_layer_sizes,
+            dropout=dropout,
+            output_act=enc_out_act,
+            **common_kwargs
+        )
         self.source_encoder = self.target_encoder = self.encoder
-        self.dis = DannDiscriminator(emb_dim, **kwargs)
-        self.clf = DannPredictor(emb_dim, ncls_source, **kwargs)
-        self.alpha_ = alpha_
+        self.dis = MLP(
+            emb_dim,
+            1,
+            hidden_layer_sizes=dis_hidden_layer_sizes,
+            dropout=dropout * dis_dropout_factor,
+            **common_kwargs
+        )
+        self.clf = MLP(
+            emb_dim,
+            ncls_source,
+            hidden_layer_sizes=predictor_hidden_layer_sizes,
+            dropout=dropout,
+            output_act=nn.LogSoftmax(dim=1),
+            **common_kwargs
+        )
 
+        self.alpha_ = alpha_
         self.is_pretraining = False
 
     def set_lambda(self, alpha_):
@@ -110,6 +153,34 @@ class DANN(nn.Module):
         pass
 
 
+def get_act_from_str(act):
+    """Get activation function module from string.
+
+    If act is not a string, or doesn't match, return act.
+
+    Args:
+        act (str or nn.Module): Activation function.
+
+    Returns:
+        nn.Module: Activation function module or act if not a string.
+
+    """
+    if isinstance(act, str):
+        act = act.lower()
+        if act == "elu":
+            return nn.ELU()
+        if act == "leakyrelu":
+            return nn.LeakyReLU()
+        if act == "relu":
+            return nn.ReLU()
+        if act == "tanh":
+            return nn.Tanh()
+        if act == "sigmoid":
+            return nn.Sigmoid()
+
+    return act
+
+
 class DannMLPEncoder(nn.Module):
     """MLP embedding encoder for gene expression data.
 
@@ -148,14 +219,7 @@ class DannMLPEncoder(nn.Module):
         layers.append(nn.Linear(enc_hidden_layer_sizes[-1], emb_dim))
 
         if enc_out_act:
-            if enc_out_act == "elu":
-                enc_out_act = nn.ELU()
-            elif enc_out_act == "relu":
-                enc_out_act = nn.ReLU()
-            elif enc_out_act == "tanh":
-                enc_out_act = nn.Tanh()
-            elif enc_out_act == "sigmoid":
-                enc_out_act = nn.Sigmoid()
+            enc_out_act = get_act_from_str(enc_out_act)
 
             layers.append(enc_out_act)
 

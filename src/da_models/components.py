@@ -1,4 +1,7 @@
 """Building blocks for models."""
+from collections.abc import Iterable
+from copy import deepcopy
+
 from torch import nn
 import torch
 import torch.nn.functional as F
@@ -7,6 +10,101 @@ ADDA_ENC_HIDDEN_LAYER_SIZES = (
     1024,
     512,
 )
+
+
+def get_act_from_str(act):
+    """Get activation function module from string.
+
+    If act is not a string, or doesn't match, return act.
+
+    Args:
+        act (str or nn.Module): Activation function.
+
+    Returns:
+        nn.Module: Activation function module or act if not a string.
+
+    """
+    if isinstance(act, str):
+        act = act.lower()
+        if act == "elu":
+            return nn.ELU()
+        if act == "leakyrelu":
+            return nn.LeakyReLU()
+        if act == "relu":
+            return nn.ReLU()
+        if act == "tanh":
+            return nn.Tanh()
+        if act == "sigmoid":
+            return nn.Sigmoid()
+
+    return act
+
+
+def iterify_act(act):
+    if isinstance(act, Iterable) and not isinstance(act, str):
+        for a in act:
+            yield get_act_from_str(a)
+    else:
+        base_act = get_act_from_str(act)
+        while True:
+            yield deepcopy(base_act)
+
+
+class MLP(nn.Module):
+    """MLP embedding encoder for gene expression data.
+
+    Args:
+        inp_dim (int): Number of gene expression features.
+        emb_dim (int): Embedding size.
+
+    """
+
+    def __init__(
+        self,
+        inp_dim,
+        out_dim,
+        hidden_layer_sizes=None,
+        dropout=None,
+        batchnorm=True,
+        batchnorm_output=False,
+        bn_kwargs=None,
+        hidden_act="leakyrelu",
+        output_act=None,
+    ):
+        super().__init__()
+
+        if bn_kwargs is None:
+            bn_kwargs = {}
+
+        layers = []
+        if not hidden_layer_sizes:
+            layers.append(nn.Linear(inp_dim, out_dim))
+        else:
+            act_gen = iterify_act(hidden_act)
+            for i, h in enumerate(hidden_layer_sizes):
+                layers.append(
+                    nn.Linear(inp_dim if i == 0 else hidden_layer_sizes[i - 1], h)
+                )
+                if batchnorm:
+                    layers.append(nn.BatchNorm1d(h, **bn_kwargs))
+                layers.append(next(act_gen))
+                if dropout:
+                    layers.append(nn.Dropout(dropout))
+
+            layers.append(nn.Linear(hidden_layer_sizes[-1], out_dim))
+
+        if batchnorm_output:
+            layers.append(nn.BatchNorm1d(out_dim, **bn_kwargs))
+        if output_act:
+            output_act = get_act_from_str(output_act)
+            layers.append(output_act)
+
+        # layers.append(nn.ELU())
+
+        self.encoder = nn.Sequential(*layers)
+
+    def forward(self, x):
+        return self.encoder(x)
 
 
 class MLPEncoder(nn.Module):
@@ -116,7 +214,7 @@ class ADDAMLPDecoder(nn.Module):
             layers.append(nn.Dropout(dropout))
 
         layers.append(nn.Linear(hidden_layer_sizes[0], inp_dim))
-        
+
         if dec_out_act:
             if dec_out_act == "elu":
                 dec_out_act = nn.ELU()
