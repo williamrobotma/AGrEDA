@@ -22,6 +22,7 @@ fonttools==4.38.0+computecanada
 h5py==3.7.0+computecanada
 ./wheels/harmonypy-0.0.9-py3-none-any.whl
 idna==3.4+computecanada
+./wheels/imbalanced_learn-0.10.1-py3-none-any.whl
 importlib_metadata==5.2.0+computecanada
 importlib_resources==5.10.1+computecanada
 ipykernel==6.15.1+computecanada

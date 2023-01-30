@@ -23,6 +23,9 @@ fi
 if ! [ -f "${install_dir}/wheels/harmonypy-0.0.9-py3-none-any.whl" ]; then
     pip download --no-deps harmonypy==0.0.9 -d "${install_dir}/wheels"
 fi
+if ! [ -f "${install_dir}/wheels/imbalanced_learn-0.10.1-py3-none-any.whl" ]; then
+    pip download --no-deps imbalanced-learn==0.10.1 -d "${install_dir}/wheels"
+fi
 
 cp requirements_cc.txt "${install_dir}/tmp_agreda_requirements_cc.txt"
 sed -i "s;\./;${install_dir}/;" "${install_dir}/tmp_agreda_requirements_cc.txt"
