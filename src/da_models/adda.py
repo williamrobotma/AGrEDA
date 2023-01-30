@@ -97,7 +97,7 @@ class ADDAST(nn.Module):
         )
         self.target_encoder.load_state_dict(self.source_encoder.state_dict())
         self.dis = MLP(
-            self.emb_dim,
+            self.enc_args_kwargs[0][1],
             1,
             hidden_layer_sizes=(512, 1024),
             dropout=0.5,

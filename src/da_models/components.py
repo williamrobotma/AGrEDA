@@ -88,7 +88,7 @@ class MLP(nn.Module):
                 if batchnorm:
                     layers.append(nn.BatchNorm1d(h, **bn_kwargs))
                 layers.append(next(act_gen))
-                if dropout:
+                if dropout or dropout == 0:
                     layers.append(nn.Dropout(dropout))
 
             layers.append(nn.Linear(hidden_layer_sizes[-1], out_dim))
