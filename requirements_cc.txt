@@ -20,7 +20,7 @@ executing==0.9.1+computecanada
 fastjsonschema==2.16.1+computecanada
 fonttools==4.38.0+computecanada
 h5py==3.7.0+computecanada
-harmonypy @ file:///lustre03/project/6061852/williamm/AGrEDA/wheels/harmonypy-0.0.9-py3-none-any.whl
+./wheels/harmonypy-0.0.9-py3-none-any.whl
 idna==3.4+computecanada
 importlib_metadata==5.2.0+computecanada
 importlib_resources==5.10.1+computecanada
@@ -47,7 +47,7 @@ llvmlite==0.39.1+computecanada
 lxml==4.9.1+computecanada
 MarkupSafe==2.1.1+computecanada
 matplotlib==3.5.3+computecanada
-matplotlib-venn @ file:///lustre03/project/6061852/williamm/AGrEDA/wheels/matplotlib-venn-0.11.7.tar.gz
+./wheels/matplotlib-venn-0.11.7.tar.gz
 matplotlib_inline==0.1.3+computecanada
 mistune==0.8.4+computecanada
 natsort==8.2.0+computecanada

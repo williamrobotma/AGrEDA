@@ -2,15 +2,17 @@
 
 #SBATCH --account=rrg-aminemad
 
-#SBATCH --gpus-per-node=1 
-#SBATCH --cpus-per-task=16  # Cores proportional to GPUs: 6 on Cedar, 16 on Graham.
-#SBATCH --mem=64G      
+#SBATCH --ntasks=1
+#SBATCH --gpus-per-task=1 
+#SBATCH --cpus-per-task=10  # Cores proportional to GPUs: 6 on Cedar, 16 on Graham.
+#SBATCH --mem-per-gpu=64G
 #SBATCH --time=24:00:00
+#SBATCH --array=1-12
 
-#SBATCH --output=logs/dann-standard_batchnorm_sameasdann%N-%j.out
-#SBATCH --error=logs/dann-standard_batchnorm_sameasdann%N-%j.err
+#SBATCH --output=logs/ADDA/configs_list%a-%N-%A.out
+#SBATCH --error=logs/ADDA/configs_list%a-%N-%A.err
 
-
+CONFIG_FILE=$(sed -n "${SLURM_ARRAY_TASK_ID}p" configs/ADDA/configs_list.txt)
 export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
 
 module load python/3.8
@@ -38,8 +40,10 @@ pip install --no-index -r requirements_cc.txt
 # jupyter nbconvert --ExecutePreprocessor.timeout=-1 --to notebook --inplace --execute autoenc.ipynb
 # jupyter nbconvert --ExecutePreprocessor.timeout=-1 --to notebook --inplace --execute autoenc_allgenes.ipynb
 # jupyter nbconvert --ExecutePreprocessor.timeout=-1 --to notebook --inplace --execute autoenc_st.ipynb
-# python -u adda.py -f "celldart_bnfix_adam_beta1_5.yml"   --njobs 16
-# python -u eval_config.py -n "ADDA" -f "celldart_bnfix_adam_beta1_5.yml"   --njobs 16
+
+echo "ADDA config file: ${CONFIG_FILE}"
+python -u adda.py -f "${CONFIG_FILE}"  --njobs $SLURM_CPUS_PER_TASK
+python -u eval_config.py -n "ADDA" -f "${CONFIG_FILE}" --njobs $SLURM_CPUS_PER_TASK
 
 # python -u adda.py -f "celldart_bnfix_adam_beta1_9.yml"   --njobs 16
 # python -u eval_config.py -n "ADDA" -f "celldart_bnfix_adam_beta1_9.yml"   --njobs 16

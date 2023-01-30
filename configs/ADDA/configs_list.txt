@@ -1,0 +1,12 @@
+celldart_bnfix_adam_beta1_5.yml
+celldart_bnfix_adam_beta1_9.yml
+celldart_nobnfix_adam_beta1_5.yml
+celldart_nobnfix_adam_beta1_9.yml
+standard_bnfix_adam_beta1_5.yml
+standard_bnfix_adam_beta1_9.yml
+standard_nobnfix_adam_beta1_5.yml
+standard_nobnfix_adam_beta1_9.yml
+unscaled_bnfix_adam_beta1_5.yml
+unscaled_bnfix_adam_beta1_9.yml
+unscaled_nobnfix_adam_beta1_5.yml
+unscaled_nobnfix_adam_beta1_9.yml
