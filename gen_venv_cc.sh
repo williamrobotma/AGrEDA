@@ -5,7 +5,10 @@ venv_folder_name="${2:-.venv}"
 
 install_dir=$(realpath "${install_dir}")
 venv_dir=$(realpath "${install_dir}/${venv_folder_name}")
-start_dir=$PWD
+# start_dir=$PWD
+
+echo "installing in ${install_dir} ..."
+echo "venv path: ${venv_dir}"
 
 module load python/3.8
 if [ -d "${venv_dir}" ]; then
