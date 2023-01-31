@@ -1,0 +1,24 @@
+data_params:
+  all_genes: false
+  data_dir: data
+  n_markers: 20
+  n_mix: 8
+  n_spots: 20000
+  sample_id_n: '151673'
+  scaler_name: standard
+  st_split: false
+  train_using_all_st_samples: false
+model_params:
+  coral_kwargs:
+    emb_dim: 64
+  model_version: v1
+torch_params:
+  manual_seed: 3583
+train_params:
+  batch_size: 1024
+  coral_lambda: 1
+  early_stop_crit_adv: 200
+  epochs: 200
+  min_epochs_adv: 80.0
+  opt_kwargs:
+    lr: 0.0002

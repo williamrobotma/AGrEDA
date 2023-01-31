@@ -35,7 +35,7 @@ from src.utils.data_loading import (
 from src.utils.evaluation import format_iters
 
 # datetime object containing current date and time
-script_start_time = datetime.datetime.now().strftime("%Y-%m-%d_%Hh%Mm%S")
+script_start_time = datetime.datetime.now(datetime.timezone.utc)
 
 
 # %%
