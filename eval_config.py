@@ -6,7 +6,7 @@ import datetime
 from collections import defaultdict
 import warnings
 import argparse
-from joblib import parallel_backend
+from joblib import parallel_backend, effective_n_jobs, Parallel, delayed
 
 
 import pandas as pd
@@ -23,7 +23,8 @@ from sklearn.metrics import RocCurveDisplay
 from sklearn.decomposition import PCA
 from sklearn import model_selection
 from sklearn import metrics
-import umap
+
+# import umap
 
 from imblearn.ensemble import BalancedRandomForestClassifier
 
@@ -33,15 +34,19 @@ import harmonypy as hm
 
 from src.da_models.adda import ADDAST
 from src.da_models.dann import DANN
-from src.da_models.datasets import SpotDataset
+
+# from src.da_models.datasets import SpotDataset
 from src.utils.evaluation import JSD
-from src.utils import data_loading
+
+# from src.utils import data_loading
 from src.utils.data_loading import (
     load_spatial,
     load_sc,
     get_selected_dir,
     get_model_rel_path,
 )
+
+script_start_time = datetime.datetime.now(datetime.timezone.utc)
 
 SCALER_OPTS = ("minmax", "standard", "celldart")
 
@@ -136,6 +141,9 @@ MODEL_NAME = args.modelname
 PRETRAINING = args.pretraining
 
 MILISI = True
+
+print(f"Evaluating {MODEL_NAME} on {device} with {args.njobs} jobs")
+print(f"Loading config {args.config_fname} ... ")
 
 with open(os.path.join("configs", MODEL_NAME, args.config_fname), "r") as f:
     config = yaml.safe_load(f)
@@ -296,6 +304,8 @@ print("Setting up dataloaders:")
 pretrain_folder = os.path.join(model_folder, "pretrain")
 advtrain_folder = os.path.join(model_folder, "advtrain")
 
+pretrain_model_path = os.path.join(pretrain_folder, f"final_model.pth")
+
 
 # %%
 # st_sample_id_l = [SAMPLE_ID_N]
@@ -310,7 +320,9 @@ print("Getting predictions: ")
 pred_sp_d = {}
 
 if data_params["train_using_all_st_samples"]:
-    check_point_da = torch.load(os.path.join(advtrain_folder, f"final_model.pth"))
+    check_point_da = torch.load(
+        os.path.join(advtrain_folder, f"final_model.pth"), map_location=device
+    )
     model = check_point_da["model"]
     model.to(device)
 
@@ -326,7 +338,8 @@ if data_params["train_using_all_st_samples"]:
 else:
     for sample_id in st_sample_id_l:
         check_point_da = torch.load(
-            os.path.join(advtrain_folder, sample_id, f"final_model.pth")
+            os.path.join(advtrain_folder, sample_id, f"final_model.pth"),
+            map_location=device,
         )
         model = check_point_da["model"]
         model.to(device)
@@ -342,7 +355,7 @@ else:
 
 if PRETRAINING:
     pred_sp_noda_d = {}
-    checkpoint_noda = torch.load(os.path.join(pretrain_folder, f"final_model.pth"))
+    checkpoint_noda = torch.load(pretrain_model_path, map_location=device)
     model_noda = checkpoint_noda["model"]
     model_noda.to(device)
 
@@ -382,7 +395,7 @@ Xs = [sc_mix_d["train"], sc_mix_d["val"], sc_mix_d["test"]]
 random_states = np.asarray([225, 53, 92])
 
 if PRETRAINING:
-    checkpoint_noda = torch.load(os.path.join(pretrain_folder, f"final_model.pth"))
+    checkpoint_noda = torch.load(pretrain_model_path, map_location=device)
     model_noda = checkpoint_noda["model"]
     model_noda.to(device)
 
@@ -394,7 +407,8 @@ for sample_id in st_sample_id_l:
     random_states = random_states + 1
 
     check_point_da = torch.load(
-        os.path.join(advtrain_folder, sample_id, f"final_model.pth")
+        os.path.join(advtrain_folder, sample_id, f"final_model.pth"),
+        map_location=device,
     )
     model = check_point_da["model"]
     model.to(device)
@@ -403,7 +417,7 @@ for sample_id in st_sample_id_l:
     model.target_inference()
 
     for i, (split, X, rs) in enumerate(zip(splits, Xs, random_states)):
-        print(split, end=" ")
+        print(split.upper(), end=" |")
         figs = []
         with torch.no_grad():
             X = torch.as_tensor(X).float().to(device)
@@ -477,8 +491,10 @@ for sample_id in st_sample_id_l:
             dpi=300,
         )
         plt.close()
-        with parallel_backend("threading", n_jobs=args.njobs):
+        n_jobs = effective_n_jobs(args.njobs)
+        with parallel_backend("loky", n_jobs=n_jobs):
             if MILISI:
+                print("milisi", end=" ")
                 meta_df = pd.DataFrame(y_dis, columns=["Domain"])
                 miLISI_d["da"][split][sample_id] = np.median(
                     hm.compute_lisi(emb, meta_df, ["Domain"])
@@ -488,7 +504,7 @@ for sample_id in st_sample_id_l:
                     miLISI_d["noda"][split][sample_id] = np.median(
                         hm.compute_lisi(emb_noda, meta_df, ["Domain"])
                     )
-
+        print("rf50", end=" ")
         if PRETRAINING:
             (
                 emb_train,
@@ -519,7 +535,7 @@ for sample_id in st_sample_id_l:
         emb_train_50 = pca.fit_transform(emb_train)
         emb_test_50 = pca.transform(emb_test)
 
-        clf = BalancedRandomForestClassifier(random_state=145, n_jobs=args.njobs)
+        clf = BalancedRandomForestClassifier(random_state=145, n_jobs=n_jobs)
         clf.fit(emb_train_50, y_dis_train)
         y_pred_test = clf.predict(emb_test_50)
 
@@ -533,7 +549,7 @@ for sample_id in st_sample_id_l:
             emb_noda_train_50 = pca.fit_transform(emb_noda_train)
             emb_noda_test_50 = pca.transform(emb_noda_test)
 
-            clf = BalancedRandomForestClassifier(random_state=145, n_jobs=args.njobs)
+            clf = BalancedRandomForestClassifier(random_state=145, n_jobs=n_jobs)
             clf.fit(emb_noda_train_50, y_dis_train)
             y_pred_noda_test = clf.predict(emb_noda_test_50)
 
@@ -543,6 +559,7 @@ for sample_id in st_sample_id_l:
             )
 
             rf50_d["noda"][split][sample_id] = bal_accu_noda_test
+        print("|", end=" ")
     # newline at end of split
     print("")
 
@@ -705,7 +722,8 @@ realspots_d = {"da": {}}
 if PRETRAINING:
     realspots_d["noda"] = {}
 
-for sample_id in st_sample_id_l:
+
+def _plot_samples(sample_id):
     fig, ax = plt.subplots(2, 5, figsize=(20, 8), constrained_layout=True, dpi=10)
 
     for i, num in enumerate(numlist):
@@ -785,6 +803,12 @@ for sample_id in st_sample_id_l:
     plt.close()
 
 
+# for sample_id in st_sample_id_l:
+#     plot_samples(sample_id)
+n_jobs_samples = min(n_jobs, len(st_sample_id_l)) if n_jobs > 0 else n_jobs
+Parallel(n_jobs=n_jobs_samples)(delayed(_plot_samples)(sid) for sid in st_sample_id_l)
+
+
 # %%
 metric_ctp = JSD()
 # metric_ctp = lambda y_pred, y_true: torch.nn.KLDivLoss(reduction="batchmean")(y_pred.log(), y_true)
@@ -799,7 +823,7 @@ for k in jsd_d:
     jsd_d[k] = {"train": {}, "val": {}, "test": {}}
 
 if PRETRAINING:
-    checkpoint_noda = torch.load(os.path.join(pretrain_folder, f"final_model.pth"))
+    checkpoint_noda = torch.load(pretrain_model_path, map_location=device)
     model_noda = checkpoint_noda["model"]
     model_noda.to(device)
 
@@ -808,11 +832,14 @@ if PRETRAINING:
 
 for sample_id in st_sample_id_l:
     if data_params["train_using_all_st_samples"]:
-        check_point_da = torch.load(os.path.join(advtrain_folder, f"final_model.pth"))
+        check_point_da = torch.load(
+            os.path.join(advtrain_folder, f"final_model.pth"), map_location=device
+        )
 
     else:
         check_point_da = torch.load(
-            os.path.join(advtrain_folder, sample_id, f"final_model.pth")
+            os.path.join(advtrain_folder, sample_id, f"final_model.pth"),
+            map_location=device,
         )
 
     model = check_point_da["model"]
@@ -938,3 +965,7 @@ print(results_df)
 # %%
 with open(os.path.join(results_folder, "config.yml"), "w") as f:
     yaml.dump(config, f)
+
+print(
+    "Script run time:", datetime.datetime.now(datetime.timezone.utc) - script_start_time
+)

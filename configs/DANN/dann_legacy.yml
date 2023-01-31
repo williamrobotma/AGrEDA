@@ -3,31 +3,27 @@ data_params:
   data_dir: data
   n_markers: 20
   n_mix: 8
-  n_spots: 100000
+  n_spots: 20000
   sample_id_n: '151673'
   scaler_name: standard
   st_split: false
   train_using_all_st_samples: false
 model_params:
   dann_kwargs:
-    alpha_: 2
+    alpha_: 1
     emb_dim: 64
-    batchnorm: true
-    bn_momentum: 0.01
-    enc_out_act: null
-    dropout: 0.2
-    dis_dropout_factor: 0.5
+    enc_out_act: 'elu'
     enc_hidden_layer_sizes:
-     - 512
-     - 512
+     - 1024
     dis_hidden_layer_sizes:
-     - 512
-     - 512
+     - 1024
     predictor_hidden_layer_sizes:
-     - 512
-  model_version: standard_batchnorm
+     - 128
+    predictor_hidden_act:
+     - null
+  model_version: dann_legacy
 torch_params:
-  manual_seed: 8
+  manual_seed: 425
 train_params:
   adv_opt_kwargs:
     betas:
@@ -35,20 +31,19 @@ train_params:
     - 0.999
     eps: 1.0e-07
     lr: 0.0002
-    weight_decay: 0.01
   batch_size: 512
   early_stop_crit: 100
   early_stop_crit_adv: 500
-  epochs: 200
+  epochs: 500
   initial_train_epochs: 100
   initial_train_lr: 0.001
   lambda: 1
   min_epochs: 40.0
-  min_epochs_adv: 200
+  min_epochs_adv: 0
   plateau_kwargs:
     factor: 0.5
-    min_lr: 2.0e-06
-    patience: 20
+    min_lr: 2.0e-05
+    patience: 50
     verbose: true
   pretraining: false
-  two_step: true
+  two_step: false

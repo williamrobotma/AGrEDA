@@ -66,9 +66,12 @@ class DANN(nn.Module):
         emb_dim,
         ncls_source,
         enc_hidden_layer_sizes=ENC_HIDDEN_LAYER_SIZES,
+        enc_hidden_act="leakyrelu",
         enc_out_act="elu",
         predictor_hidden_layer_sizes=PREDICTOR_HIDDEN_LAYER_SIZES,
+        predictor_hidden_act="leakyrelu",
         dis_hidden_layer_sizes=DIS_HIDDEN_LAYER_SIZES,
+        dis_hidden_act="leakyrelu",
         dropout=0.5,
         dis_dropout_factor=1,
         batchnorm=False,
@@ -89,6 +92,7 @@ class DANN(nn.Module):
             inp_dim,
             emb_dim,
             hidden_layer_sizes=enc_hidden_layer_sizes,
+            hidden_act=enc_hidden_act,
             dropout=dropout,
             output_act=enc_out_act,
             **common_kwargs
@@ -98,6 +102,7 @@ class DANN(nn.Module):
             emb_dim,
             1,
             hidden_layer_sizes=dis_hidden_layer_sizes,
+            hidden_act=dis_hidden_act,
             dropout=dropout * dis_dropout_factor,
             **common_kwargs
         )
@@ -105,6 +110,7 @@ class DANN(nn.Module):
             emb_dim,
             ncls_source,
             hidden_layer_sizes=predictor_hidden_layer_sizes,
+            hidden_act=predictor_hidden_act,
             dropout=dropout,
             output_act=nn.LogSoftmax(dim=1),
             **common_kwargs

@@ -5,9 +5,10 @@
 #  Creating something like CellDART but it actually follows DANN in PyTorch
 
 # %%
+import datetime
 import argparse
 import os
-import datetime
+
 from copy import deepcopy
 import pickle
 import warnings
@@ -70,7 +71,6 @@ args = parser.parse_args()
 CONFIG_FNAME = args.config_fname
 CUDA_INDEX = args.cuda
 NUM_WORKERS = args.njobs
-
 
 # %%
 # torch_params = {}
@@ -1187,3 +1187,7 @@ else:
 # %%
 with open(os.path.join(model_folder, "config.yml"), "w") as f:
     yaml.safe_dump(config, f)
+
+print(
+    "Script run time:", datetime.datetime.now(datetime.timezone.utc) - script_start_time
+)

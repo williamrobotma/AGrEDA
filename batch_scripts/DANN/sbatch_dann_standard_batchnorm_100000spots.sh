@@ -2,11 +2,11 @@
 
 #SBATCH --account=rrg-aminemad
 
-#SBATCH --nodes=1
-#SBATCH --tasks-per-node=1 
-# #SBATCH --gpus-per-node=1 
-#SBATCH --cpus-per-task=40  # Cores proportional to GPUs: 6 on Cedar, 16 on Graham.
-#SBATCH --mem=32G      
+# #SBATCH --nodes=1
+# #SBATCH --tasks-per-node=1 
+#SBATCH --gpus=1 
+#SBATCH --cpus-per-task=10  # Cores proportional to GPUs: 6 on Cedar, 16 on Graham.
+#SBATCH --mem=16G      
 #SBATCH --time=24:00:00
 
 #SBATCH --output=logs/DANN/standard_batchnorm_100000spots%N-%j.out
@@ -33,6 +33,6 @@ pip install --no-index -r requirements_cc.txt
 # ./prep_data.py -s standard --stsplit  --njobs -1 --nspots 100000
 # ./prep_data.py -s standard -a --stsplit --njobs -1 --nspots 100000
 
-python -u dann.py -f "standard_batchnorm_100000spots.yml" --njobs 40
-python -u eval_config.py -n "DANN" -f "standard_batchnorm_100000spots.yml" -p --njobs -1
+python -u dann.py -f "standard_batchnorm_100000spots.yml" --njobs $SLURM_CPUS_PER_TASK
+python -u eval_config.py -n "DANN" -f "standard_batchnorm_100000spots.yml" -p --njobs $SLURM_CPUS_PER_TASK
 # python -u eval.py -n "DANN" -v "Standard1" -p -s standard -c 2 --njobs 32 --seed 25098

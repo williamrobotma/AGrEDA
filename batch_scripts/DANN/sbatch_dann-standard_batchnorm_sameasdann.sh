@@ -9,8 +9,8 @@
 #SBATCH --mem=16G      
 #SBATCH --time=24:00:00
 
-#SBATCH --output=logs/DANN/dann%N-%j.out
-#SBATCH --error=logs/DANN/dann%N-%j.err
+#SBATCH --output=logs/DANN/standard_batchnorm_sameasdann%N-%j.out
+#SBATCH --error=logs/DANN/standard_batchnorm_sameasdann%N-%j.err
 
 
 export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
@@ -33,6 +33,6 @@ pip install --no-index -r requirements_cc.txt
 # ./prep_data.py -s standard --stsplit  --njobs -1 --nspots 100000
 # ./prep_data.py -s standard -a --stsplit --njobs -1 --nspots 100000
 
-python -u dann.py -f "dann.yml" --njobs $SLURM_CPUS_PER_TASK
-python -u eval_config.py -n "DANN" -f "dann.yml" -p --njobs $SLURM_CPUS_PER_TASK
+python -u dann.py -f "standard_batchnorm_sameasdann.yml" --njobs $SLURM_CPUS_PER_TASK
+python -u eval_config.py -n "DANN" -f "standard_batchnorm_sameasdann.yml" -p --njobs $SLURM_CPUS_PER_TASK
 # python -u eval.py -n "DANN" -v "Standard1" -p -s standard -c 2 --njobs 32 --seed 25098
