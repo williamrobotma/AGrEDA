@@ -4,9 +4,9 @@
 
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
-#SBATCH --gpus=1 
+##SBATCH --gpus=1 
 #SBATCH --cpus-per-task=40  # Cores proportional to GPUs: 6 on Cedar, 16 on Graham.
-##SBATCH --mem-per-cpu=256M
+#SBATCH --mem-per-cpu=256M
 #SBATCH --time=0-04:00:00
 #SBATCH --array=1-12
 

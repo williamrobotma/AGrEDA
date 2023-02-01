@@ -4,6 +4,7 @@
 import os
 import datetime
 from collections import defaultdict
+import logging
 import warnings
 import argparse
 from joblib import parallel_backend, effective_n_jobs, Parallel, delayed
@@ -46,7 +47,12 @@ from src.utils.data_loading import (
     get_model_rel_path,
 )
 
+
 script_start_time = datetime.datetime.now(datetime.timezone.utc)
+logging.basicConfig(
+    level=logging.DEBUG, format="%(asctime)s:%(levelname)s:%(name)s:%(message)s"
+)
+logger = logging.getLogger(__name__)
 
 SCALER_OPTS = ("minmax", "standard", "celldart")
 
@@ -492,6 +498,7 @@ for sample_id in st_sample_id_l:
         )
         plt.close()
         n_jobs = effective_n_jobs(args.njobs)
+        logger.debug(f"Using {n_jobs} jobs")
         with parallel_backend("loky", n_jobs=n_jobs):
             if MILISI:
                 print(" milisi", end=" ")
@@ -499,11 +506,14 @@ for sample_id in st_sample_id_l:
                 miLISI_d["da"][split][sample_id] = np.median(
                     hm.compute_lisi(emb, meta_df, ["Domain"])
                 )
+                logger.debug(f"miLISI da: {miLISI_d['da'][split][sample_id]}")
 
                 if PRETRAINING:
                     miLISI_d["noda"][split][sample_id] = np.median(
                         hm.compute_lisi(emb_noda, meta_df, ["Domain"])
                     )
+                    logger.debug(f"miLISI noda: {miLISI_d['da'][split][sample_id]}")
+
         print("rf50", end=" ")
         if PRETRAINING:
             (
@@ -521,6 +531,7 @@ for sample_id in st_sample_id_l:
                 random_state=rs,
                 stratify=y_dis,
             )
+            logger.debug(f"split shapes: {(emb_train.shape, emb_test.shape, emb_noda_train.shape, emb_noda_test.shape, y_dis_train.shape, y_dis_test.shape)}")
         else:
             (
                 emb_train,
@@ -530,30 +541,43 @@ for sample_id in st_sample_id_l:
             ) = model_selection.train_test_split(
                 emb, y_dis, test_size=0.2, random_state=rs, stratify=y_dis
             )
+            logger.debug(f"split shapes: {(emb_train.shape, emb_test.shape, y_dis_train.shape, y_dis_test.shape)}")
 
         pca = PCA(n_components=min(50, emb_train.shape[1]))
+        logger.debug("fitting pca 50")
         emb_train_50 = pca.fit_transform(emb_train)
+        logger.debug("transforming pca 50 test")
         emb_test_50 = pca.transform(emb_test)
 
+        logger.debug("initializie brfc")
         clf = BalancedRandomForestClassifier(random_state=145, n_jobs=n_jobs)
+        logger.debug("fit brfc")
         clf.fit(emb_train_50, y_dis_train)
+        logger.debug("predict brfc")
         y_pred_test = clf.predict(emb_test_50)
 
+        logger.debug("eval brfc")
         # bal_accu_train = metrics.balanced_accuracy_score(y_dis_train, y_pred_train)
         bal_accu_test = metrics.balanced_accuracy_score(y_dis_test, y_pred_test)
 
         rf50_d["da"][split][sample_id] = bal_accu_test
 
         if PRETRAINING:
-            pca = PCA(n_components=50)
+            pca = PCA(n_components=min(50, emb_noda_train.shape[1]))
+            logger.debug("fitting pca 50 noda")
             emb_noda_train_50 = pca.fit_transform(emb_noda_train)
+            logger.debug("transforming pca 50 test noda")
             emb_noda_test_50 = pca.transform(emb_noda_test)
 
-            clf = BalancedRandomForestClassifier(random_state=145, n_jobs=n_jobs)
+            logger.debug("initializie brfc noda")
+            clf = BalancedRandomForestClassifier(random_state=347, n_jobs=n_jobs)
+            logger.debug("fit brfc noda")
             clf.fit(emb_noda_train_50, y_dis_train)
+            logger.debug("predict brfc noda")
             y_pred_noda_test = clf.predict(emb_noda_test_50)
 
             # bal_accu_train = metrics.balanced_accuracy_score(y_dis_train, y_pred_train)
+            logger.debug("eval brfc noda")
             bal_accu_noda_test = metrics.balanced_accuracy_score(
                 y_dis_test, y_pred_noda_test
             )
@@ -789,8 +813,6 @@ def _plot_samples(sample_id):
         else:
             ax.flat[i].set_ylabel("")
 
-
-
     fig.suptitle(sample_id)
     fig.savefig(
         os.path.join(results_folder, f"{sample_id}_roc.png"),
@@ -804,10 +826,14 @@ def _plot_samples(sample_id):
     # if PRETRAINING:
     #     realspots_d["noda"][sample_id] = np.mean(noda_aucs)
     return np.mean(da_aucs), np.mean(noda_aucs) if PRETRAINING else None
+
+
 # for sample_id in st_sample_id_l:
 #     plot_samples(sample_id)
 n_jobs_samples = min(n_jobs, len(st_sample_id_l)) if n_jobs > 0 else n_jobs
-aucs = Parallel(n_jobs=n_jobs_samples)(delayed(_plot_samples)(sid) for sid in st_sample_id_l)
+aucs = Parallel(n_jobs=n_jobs_samples)(
+    delayed(_plot_samples)(sid) for sid in st_sample_id_l
+)
 for sample_id, auc in zip(st_sample_id_l, aucs):
     realspots_d["da"][sample_id] = auc[0]
     if PRETRAINING:
