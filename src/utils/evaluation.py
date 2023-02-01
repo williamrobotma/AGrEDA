@@ -20,6 +20,26 @@ class JSD(nn.Module):
         return 0.5 * (self.kl(m, p) + self.kl(m, q))
 
 
+def coral_loss(source, target):
+    """Compute CORAL loss.
+
+    Args:
+        source (torch.tensor): Source domain features.
+        target (torch.tensor): Target domain features.
+
+    Returns:
+        torch.tensor: CORAL loss.
+
+    """
+    c_diff = torch.cov(source.T) - torch.cov(target.T)
+    loss = torch.sum(torch.mul(c_diff, c_diff))
+    return loss / (4 * source.size(1)**2)
+
+
+
+
+
+
 def format_iters(nested_list, startpoint=False, endpoint=True):
     """Generates x and y values, given a nested list of iterations by epoch.
 

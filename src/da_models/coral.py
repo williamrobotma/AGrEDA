@@ -34,37 +34,40 @@ class CORAL(nn.Module):
     def __init__(
         self,
         inp_dim,
-        emb_dim,
+        # emb_dim,
         ncls_source,
         enc_hidden_layer_sizes=ENC_HIDDEN_LAYER_SIZES,
-        enc_out_act="elu",
-        predictor_hidden_layer_sizes=PREDICTOR_HIDDEN_LAYER_SIZES,
+        # enc_out_act="elu",
+        # predictor_hidden_layer_sizes=PREDICTOR_HIDDEN_LAYER_SIZES,
         **kwargs
     ):
         super().__init__()
         self.encoder = MLP(
             inp_dim,
-            emb_dim,
+            ncls_source,
             hidden_layer_sizes=enc_hidden_layer_sizes,
-            output_act=enc_out_act,
+            output_act=None,
             **kwargs
         )
         self.source_encoder = self.target_encoder = self.encoder
 
-        self.clf = MLP(
-            emb_dim,
-            ncls_source,
-            hidden_layer_sizes=predictor_hidden_layer_sizes,
-            output_act=nn.LogSoftmax(dim=1),
-            **kwargs
-        )
+        # self.clf = MLP(
+        #     emb_dim,
+        #     ncls_source,
+        #     hidden_layer_sizes=predictor_hidden_layer_sizes,
+        #     output_act=None,
+        #     **kwargs
+        # )
 
+        self.output_act = nn.LogSoftmax(dim=1)
 
     def forward(self, x):
         x = self.encoder(x)
-        x = self.clf(x)
+        # x = self.clf(x)
 
-        return x
+        output = self.output_act(x)
+
+        return output, x
 
     def pretraining(self):
         pass

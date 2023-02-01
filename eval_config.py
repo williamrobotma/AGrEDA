@@ -494,7 +494,7 @@ for sample_id in st_sample_id_l:
         n_jobs = effective_n_jobs(args.njobs)
         with parallel_backend("loky", n_jobs=n_jobs):
             if MILISI:
-                print("milisi", end=" ")
+                print(" milisi", end=" ")
                 meta_df = pd.DataFrame(y_dis, columns=["Domain"])
                 miLISI_d["da"][split][sample_id] = np.median(
                     hm.compute_lisi(emb, meta_df, ["Domain"])
@@ -531,7 +531,7 @@ for sample_id in st_sample_id_l:
                 emb, y_dis, test_size=0.2, random_state=rs, stratify=y_dis
             )
 
-        pca = PCA(n_components=50)
+        pca = PCA(n_components=min(50, emb_train.shape[1]))
         emb_train_50 = pca.fit_transform(emb_train)
         emb_test_50 = pca.transform(emb_test)
 
@@ -789,9 +789,7 @@ def _plot_samples(sample_id):
         else:
             ax.flat[i].set_ylabel("")
 
-    realspots_d["da"][sample_id] = np.mean(da_aucs)
-    if PRETRAINING:
-        realspots_d["noda"][sample_id] = np.mean(noda_aucs)
+
 
     fig.suptitle(sample_id)
     fig.savefig(
@@ -802,11 +800,18 @@ def _plot_samples(sample_id):
     # fig.show()
     plt.close()
 
-
+    # realspots_d["da"][sample_id] = np.mean(da_aucs)
+    # if PRETRAINING:
+    #     realspots_d["noda"][sample_id] = np.mean(noda_aucs)
+    return np.mean(da_aucs), np.mean(noda_aucs) if PRETRAINING else None
 # for sample_id in st_sample_id_l:
 #     plot_samples(sample_id)
 n_jobs_samples = min(n_jobs, len(st_sample_id_l)) if n_jobs > 0 else n_jobs
-Parallel(n_jobs=n_jobs_samples)(delayed(_plot_samples)(sid) for sid in st_sample_id_l)
+aucs = Parallel(n_jobs=n_jobs_samples)(delayed(_plot_samples)(sid) for sid in st_sample_id_l)
+for sample_id, auc in zip(st_sample_id_l, aucs):
+    realspots_d["da"][sample_id] = auc[0]
+    if PRETRAINING:
+        realspots_d["noda"][sample_id] = auc[1]
 
 
 # %%

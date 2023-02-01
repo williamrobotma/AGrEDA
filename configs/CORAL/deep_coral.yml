@@ -15,19 +15,21 @@ model_params:
     dropout: 0.5
     enc_hidden_layer_sizes:
     - 1024
-    - 512
+    - 1024
+    - 1024
+    - 256
     - 64
     hidden_act: leakyrelu
-  model_version: v1
+  model_version: deep_coral
 torch_params:
-  manual_seed: 3583
+  manual_seed: 263
 train_params:
   batch_size: 512
   early_stop_crit_adv: 100
-  epochs: 100
-  lambda: 100
+  epochs: 500
+  lambda: 200
   min_epochs_adv: 40.0
   opt_kwargs:
     lr: 0.001
-    weight_decay: 0.3
+    weight_decay: 0.1
   two_step: true

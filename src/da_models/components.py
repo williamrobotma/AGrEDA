@@ -66,6 +66,7 @@ class MLP(nn.Module):
         hidden_layer_sizes=None,
         dropout=None,
         batchnorm=True,
+        batchnorm_after_act=False,
         batchnorm_output=False,
         bn_kwargs=None,
         hidden_act="leakyrelu",
@@ -85,21 +86,25 @@ class MLP(nn.Module):
                 layers.append(
                     nn.Linear(inp_dim if i == 0 else hidden_layer_sizes[i - 1], h)
                 )
-                if batchnorm:
+                if batchnorm and not batchnorm_after_act:
                     layers.append(nn.BatchNorm1d(h, **bn_kwargs))
                 next_act = next(act_gen)
                 if next_act:
                     layers.append(next_act)
+                if batchnorm and batchnorm_after_act:
+                    layers.append(nn.BatchNorm1d(h, **bn_kwargs))
                 if dropout or dropout == 0:
                     layers.append(nn.Dropout(dropout))
 
             layers.append(nn.Linear(hidden_layer_sizes[-1], out_dim))
 
-        if batchnorm_output:
+        if batchnorm_output and not batchnorm_after_act:
             layers.append(nn.BatchNorm1d(out_dim, **bn_kwargs))
         if output_act:
             output_act = get_act_from_str(output_act)
             layers.append(output_act)
+        if batchnorm_output and batchnorm_after_act:
+            layers.append(nn.BatchNorm1d(out_dim, **bn_kwargs))
 
         # layers.append(nn.ELU())
 
