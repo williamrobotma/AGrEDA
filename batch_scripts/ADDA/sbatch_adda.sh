@@ -28,5 +28,5 @@ echo "ADDA config file: ${CONFIG_FILE}"
 # python -u adda.py -f "${CONFIG_FILE}"  --njobs $num_workers
 
 echo "$SLURM_CPUS_PER_TASK"
-python -u eval_config.py -n "ADDA" -f "${CONFIG_FILE}" --njobs $SLURM_CPUS_PER_TASK
+python -u eval_config.py -n "ADDA" -f "${CONFIG_FILE}" --njobs $SLURM_CPUS_PER_TASK -p
 

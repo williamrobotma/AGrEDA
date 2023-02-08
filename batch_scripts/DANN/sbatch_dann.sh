@@ -35,5 +35,5 @@ source .venv/bin/activate
 # ./prep_data.py -s standard -a --stsplit --njobs -1 --nspots 100000
 
 # python -u dann.py -f "dann.yml" --njobs $num_workers
-python -u eval_config.py -n "DANN" -f "dann.yml" -p --njobs $SLURM_CPUS_PER_TASK
+python -u eval_config.py -n "DANN" -f "dann.yml" --njobs $SLURM_CPUS_PER_TASK
 # python -u eval.py -n "DANN" -v "Standard1" -p -s standard -c 2 --njobs 32 --seed 25098
