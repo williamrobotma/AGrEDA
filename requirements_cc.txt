@@ -62,7 +62,8 @@ notebook==6.4.12+computecanada
 notebook_shim==0.1.0+computecanada
 numba==0.56.3+computecanada
 numexpr==2.8.3+computecanada
-numpy==1.23.0+computecanada
+# numpy==1.23.0+computecanada
+numpy==1.21.0+computecanada
 packaging==23.0+computecanada
 pandas==1.5.0+computecanada
 pandocfilters==1.5.0+computecanada

@@ -10,7 +10,7 @@ SLEEP = 5
 def main(args):
     script_dir  = os.path.join(args.basedir, "batch_scripts", args.name)
     os.chdir(args.basedir)
-    for name in glob.glob(os.path.join(script_dir, "*")):
+    for name in glob.glob(os.path.join(script_dir, "*.sh")):
         cmd  = 'sbatch ' + name
         print('Running: ' + cmd)
 
