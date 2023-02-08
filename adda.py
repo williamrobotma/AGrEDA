@@ -64,13 +64,16 @@ parser.add_argument(
     default=None,
     help="gpu index to use",
 )
-args = parser.parse_args()
+
 # %%
-# CONFIG_FNAME = "celldart1_bnfix.yml"
-# NUM_WORKERS = 16
+args = parser.parse_args()
 CONFIG_FNAME = args.config_fname
 CUDA_INDEX = args.cuda
 NUM_WORKERS = args.njobs
+
+# CONFIG_FNAME = "celldart1_bnfix.yml"
+# NUM_WORKERS = 0
+# CUDA_INDEX = None
 
 
 # %%
@@ -154,12 +157,17 @@ MODEL_NAME = "ADDA"
 with open(os.path.join("configs", MODEL_NAME, CONFIG_FNAME), "r") as f:
     config = yaml.safe_load(f)
 
-print(yaml.safe_dump(config))
-
 torch_params = config["torch_params"]
 data_params = config["data_params"]
 model_params = config["model_params"]
 train_params = config["train_params"]
+
+if not "pretraining" in train_params:
+    train_params["pretraining"] = True
+    with open(os.path.join("configs", MODEL_NAME, CONFIG_FNAME), "w") as f:
+        yaml.safe_dump(config, f)
+
+print(yaml.safe_dump(config))
 
 
 # %%

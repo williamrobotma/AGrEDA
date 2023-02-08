@@ -63,7 +63,7 @@ class ADDAST(nn.Module):
             self.source_encoder = MLP(*enc_args, **enc_kwargs)
             self.target_encoder = MLP(*enc_args, **enc_kwargs)
             self.dis = MLP(
-                inp_dim,
+                emb_dim,
                 2,
                 hidden_layer_sizes=(32,),
                 dropout=0.5,

@@ -51,12 +51,16 @@ parser.add_argument(
     default=None,
     help="gpu index to use",
 )
-args = parser.parse_args()
+
 # %%
-# CONFIG_FNAME = "celldart1_bnfix.yml"
+args = parser.parse_args()
 CONFIG_FNAME = args.config_fname
 CUDA_INDEX = args.cuda
 NUM_WORKERS = args.njobs
+
+# CONFIG_FNAME = "celldart1_bnfix.yml"
+# CUDA_INDEX = None
+# NUM_WORKERS = 0
 # %%
 # torch_params = {}
 
@@ -130,12 +134,17 @@ MODEL_NAME = "CellDART"
 with open(os.path.join("configs", MODEL_NAME, CONFIG_FNAME), "r") as f:
     config = yaml.safe_load(f)
 
-print(yaml.safe_dump(config))
-
 torch_params = config["torch_params"]
 data_params = config["data_params"]
 model_params = config["model_params"]
 train_params = config["train_params"]
+
+if not "pretraining" in train_params:
+    train_params["pretraining"] = True
+    with open(os.path.join("configs", MODEL_NAME, CONFIG_FNAME), "w") as f:
+        yaml.safe_dump(config, f)
+
+print(yaml.safe_dump(config))
 
 
 # %%
@@ -494,11 +503,8 @@ with DupStdout().dup_to_file(os.path.join(pretrain_folder, "log.txt"), "w") as f
 
         # Print the results
         outer.update(1)
-        print(
-            f" {epoch:5d}",
-            f"| {loss_history[-1]:<10.8f}",
-            f"| {curr_loss_val:<10.8f}",
-            end=" ",
+        out_string = (
+            f" {epoch:5d} " f"| {loss_history[-1]:<10.8f} " f"| {curr_loss_val:<10.8f} "
         )
 
         # Save the best weights
@@ -507,9 +513,9 @@ with DupStdout().dup_to_file(os.path.join(pretrain_folder, "log.txt"), "w") as f
             torch.save(checkpoint, os.path.join(pretrain_folder, f"best_model.pth"))
             early_stop_count = 0
 
-            print("<-- new best val loss")
-        else:
-            print("")
+            out_string += "<-- new best val loss"
+
+        tqdm.write(out_string)
 
         # Save checkpoint every 10
         if epoch % 10 == 0 or epoch >= train_params["initial_train_epochs"] - 1:
@@ -801,13 +807,8 @@ def train_adversarial(
                 )
 
                 # Print the results
-                print(
-                    "iter:",
-                    iters,
-                    "source loss:",
-                    round(source_loss, 6),
-                    "dis accu:",
-                    round(dis_accu, 6),
+                tqdm.write(
+                    f"iter: {iters} source loss: {source_loss} dis accu: {dis_accu}"
                 )
 
             outer.update(1)

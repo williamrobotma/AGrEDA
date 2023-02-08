@@ -11,7 +11,9 @@ import argparse
 from joblib import parallel_backend, effective_n_jobs, Parallel, delayed
 
 parser = argparse.ArgumentParser(description="Evaluates.")
-parser.add_argument("--pretraining", "-p", action="store_false", help="no pretraining")
+parser.add_argument(
+    "--pretraining", "-p", action="store_true", help="force pretraining"
+)
 parser.add_argument("--modelname", "-n", type=str, default="ADDA", help="model name")
 parser.add_argument("--milisi", "-m", action="store_false", help="no milisi")
 parser.add_argument(
@@ -75,13 +77,12 @@ from src.utils.data_loading import (
 
 script_start_time = datetime.datetime.now(datetime.timezone.utc)
 logging.basicConfig(
-    level=logging.DEBUG, format="%(asctime)s:%(levelname)s:%(name)s:%(message)s"
+    level=logging.WARNING, format="%(asctime)s:%(levelname)s:%(name)s:%(message)s"
 )
 logger = logging.getLogger(__name__)
 
 MODEL_NAME = args.modelname
-PRETRAINING = args.pretraining
-MILISI = True
+MILISI = args.milisi
 
 Ex_to_L_d = {
     1: {5, 6},
@@ -122,14 +123,14 @@ class Evaluator:
         print(f"Loading config {args.config_fname} ... ")
 
         with open(os.path.join("configs", MODEL_NAME, args.config_fname), "r") as f:
-            config = yaml.safe_load(f)
+            self.config = yaml.safe_load(f)
 
-        print(yaml.dump(config))
+        print(yaml.dump(self.config))
 
-        self.torch_params = config["torch_params"]
-        self.data_params = config["data_params"]
-        self.model_params = config["model_params"]
-        self.train_params = config["train_params"]
+        self.torch_params = self.config["torch_params"]
+        self.data_params = self.config["data_params"]
+        self.model_params = self.config["model_params"]
+        self.train_params = self.config["train_params"]
 
         if "manual_seed" in self.torch_params:
             torch_seed_path = str(self.torch_params["manual_seed"])
@@ -154,9 +155,12 @@ class Evaluator:
         # Check to make sure config file matches config file in model folder
         with open(os.path.join(model_folder, "config.yml"), "r") as f:
             config_model_folder = yaml.safe_load(f)
-        if config_model_folder != config:
+        if config_model_folder != self.config:
             raise ValueError("Config file does not match config file in model folder")
 
+        self.pretraining = args.pretraining or self.train_params.get(
+            "pretraining", False
+        )
         self.results_folder = os.path.join("results", model_rel_path)
 
         if not os.path.isdir(self.results_folder):
@@ -204,7 +208,7 @@ class Evaluator:
 
         # %% [markdown]
         #  ## Load Models
-        
+
         self.splits = ("train", "val", "test")
 
     def gen_pca(self, sample_id, split, y_dis, emb, emb_noda=None):
@@ -220,6 +224,7 @@ class Evaluator:
         sns.scatterplot(
             data=pca_da_df, x="PC1", y="PC2", hue="domain", ax=axs[0][0], marker="."
         )
+        axs.flat[0].set_title("DA")
 
         if emb_noda is not None:
             logger.debug("Calculating no DA PCA")
@@ -237,6 +242,7 @@ class Evaluator:
                 ax=axs[0][1],
                 marker=".",
             )
+            axs.flat[1].set_title("No DA")
 
         for ax in axs.flat:
             ax.set_aspect("equal", "box")
@@ -281,13 +287,13 @@ class Evaluator:
 
         if MILISI:
             self.miLISI_d = {"da": {}}
-            if PRETRAINING:
+            if self.pretraining:
                 self.miLISI_d["noda"] = {}
             for split in self.splits:
                 for k in self.miLISI_d:
                     self.miLISI_d[k][split] = {}
 
-        if PRETRAINING:
+        if self.pretraining:
             model_noda = get_model(self.pretrain_model_path)
         else:
             model_noda = None
@@ -311,7 +317,7 @@ class Evaluator:
             source_emb = next(get_embeddings(model, Xs, source_encoder=True))
             target_emb = next(get_embeddings(model, Xt, source_encoder=False))
             emb = np.concatenate([source_emb, target_emb])
-            if PRETRAINING:
+            if self.pretraining:
 
                 emb_gen = get_embeddings(model_noda, (Xs, Xt), source_encoder=True)
                 source_emb_noda = next(emb_gen)
@@ -342,7 +348,7 @@ class Evaluator:
                     )
                     logger.debug(f"miLISI da: {self.miLISI_d['da'][split][sample_id]}")
 
-                    if PRETRAINING:
+                    if self.pretraining:
                         self.miLISI_d["noda"][split][sample_id] = np.median(
                             hm.compute_lisi(emb_noda, meta_df, ["Domain"])
                         )
@@ -351,7 +357,7 @@ class Evaluator:
                         )
 
             print("rf50", end=" ")
-            if PRETRAINING:
+            if self.pretraining:
                 embs = (emb, emb_noda)
             else:
                 embs = (emb,)
@@ -370,7 +376,7 @@ class Evaluator:
             self.rf50_d["da"][split][sample_id] = self.rf50_score(
                 emb_train, emb_test, y_dis_train, y_dis_test
             )
-            if PRETRAINING:
+            if self.pretraining:
                 logger.debug("rf50 noda")
                 emb_noda_train, emb_noda_test = split_data[4:]
                 self.rf50_d["noda"][split][sample_id] = self.rf50_score(
@@ -542,7 +548,7 @@ class Evaluator:
         )
 
         da_aucs = []
-        if PRETRAINING:
+        if self.pretraining:
             noda_aucs = []
         for i, num in enumerate(numlist):
             da_aucs.append(
@@ -556,7 +562,7 @@ class Evaluator:
                     ax.flat[i],
                 )
             )
-            if PRETRAINING:
+            if self.pretraining:
                 noda_aucs.append(
                     self._plot_roc(
                         num,
@@ -600,7 +606,7 @@ class Evaluator:
         # realspots_d["da"][sample_id] = np.mean(da_aucs)
         # if PRETRAINING:
         #     realspots_d["noda"][sample_id] = np.mean(noda_aucs)
-        return np.mean(da_aucs), np.mean(noda_aucs) if PRETRAINING else None
+        return np.mean(da_aucs), np.mean(noda_aucs) if self.pretraining else None
 
     # %%
     def eval_spots(self):
@@ -618,7 +624,7 @@ class Evaluator:
                 input = self.mat_sp_d[sample_id]["test"]
                 pred_sp_d[sample_id] = next(get_predictions(get_model(path), input))
 
-        if PRETRAINING:
+        if self.pretraining:
             inputs = [self.mat_sp_d[sid]["test"] for sid in self.st_sample_id_l]
             outputs = get_predictions(
                 get_model(self.pretrain_model_path), inputs, source_encoder=True
@@ -648,7 +654,7 @@ class Evaluator:
 
         # %%
         realspots_d = {"da": {}}
-        if PRETRAINING:
+        if self.pretraining:
             realspots_d["noda"] = {}
 
         # for sample_id in st_sample_id_l:
@@ -664,19 +670,19 @@ class Evaluator:
         )
         for sample_id, auc in zip(self.st_sample_id_l, aucs):
             realspots_d["da"][sample_id] = auc[0]
-            if PRETRAINING:
+            if self.pretraining:
                 realspots_d["noda"][sample_id] = auc[1]
         self.realspots_d = realspots_d
 
     def eval_sc(self, metric_ctp):
         self.jsd_d = {"da": {}}
-        if PRETRAINING:
+        if self.pretraining:
             self.jsd_d["noda"] = {}
 
         for k in self.jsd_d:
             self.jsd_d[k] = {split: {} for split in self.splits}
 
-        if PRETRAINING:
+        if self.pretraining:
             self._calc_jsd(
                 metric_ctp,
                 self.st_sample_id_l[0],
@@ -704,9 +710,9 @@ class Evaluator:
             if model is None:
                 model = get_model(model_path)
             pred_mix = get_predictions(model, inputs, source_encoder=True)
-            for split, pred in zip(self.split, pred_mix):
+            for split, pred in zip(self.splits, pred_mix):
                 score = metric_ctp(
-                    torch.exp(torch.as_tensor(pred).float()),
+                    torch.as_tensor(pred).float(),
                     torch.as_tensor(self.lab_mix_d[split]).float(),
                 )
                 self.jsd_d[da][split][sample_id] = score.detach().cpu().numpy()
@@ -738,7 +744,7 @@ class Evaluator:
 
         da_dict_keys = ["da"]
         da_df_keys = ["After DA"]
-        if PRETRAINING:
+        if self.pretraining:
             da_dict_keys.insert(0, "noda")
             da_df_keys.insert(0, "Before DA")
 
