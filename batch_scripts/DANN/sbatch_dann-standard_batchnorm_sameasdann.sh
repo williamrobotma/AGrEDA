@@ -24,4 +24,4 @@ num_workers=$(($SLURM_CPUS_PER_TASK/2))
 source .venv/bin/activate
 
 # python -u dann.py -f "standard_batchnorm_sameasdann.yml" --njobs $num_workers
-python -u eval_config.py -n "DANN" -f "standard_batchnorm_sameasdann.yml" -p --njobs $SLURM_CPUS_PER_TASK
+python -u eval_config.py -n "DANN" -f "standard_batchnorm_sameasdann.yml" --njobs $SLURM_CPUS_PER_TASK
