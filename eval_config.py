@@ -26,7 +26,7 @@ parser.add_argument(
 parser.add_argument(
     "--njobs",
     type=int,
-    default=0,
+    default=1,
     help="Number of jobs to use for parallel processing.",
 )
 parser.add_argument(
