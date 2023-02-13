@@ -6,6 +6,7 @@ import pickle
 import os
 import argparse
 from collections import OrderedDict
+import warnings
 
 import anndata as ad
 import h5py
@@ -29,7 +30,7 @@ parser.add_argument(
     "--scaler",
     "-s",
     type=str,
-    default="celldart",
+    default="minmax",
     choices=SCALER_OPTS,
     help="Scaler to use.",
 )
@@ -80,6 +81,8 @@ def get_scaler(scaler_name):
     if scaler_name == "standard":
         return preprocessing.StandardScaler
     if scaler_name == "celldart":
+        warnings.warn("celldart scaler is provided for legacy purposes only. "
+                      "Use minmax instead.")
         return scaler_name
 
     raise ValueError(f"Scaler '{scaler_name}' not recognized.")
