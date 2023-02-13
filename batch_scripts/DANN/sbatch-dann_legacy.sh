@@ -2,12 +2,12 @@
 
 #SBATCH --account=rrg-aminemad
 
-# #SBATCH --nodes=1
-# #SBATCH --tasks-per-node=1 
+#SBATCH --nodes=1
+#SBATCH --tasks-per-node=1 
 #SBATCH --gpus=1 
-#SBATCH --cpus-per-task=16  # Cores proportional to GPUs: 6 on Cedar, 16 on Graham.
-#SBATCH --mem=32G      
-#SBATCH --time=0:20:00
+#SBATCH --cpus-per-task=40  # Cores proportional to GPUs: 6 on Cedar, 16 on Graham.
+#SBATCH --mem=92G      
+#SBATCH --time=2:00:00
 
 #SBATCH --output=logs/DANN/dann_legacy-eval_only%N-%j.out
 # #SBATCH --error=logs/DANN/dann_legacy%N-%j.err

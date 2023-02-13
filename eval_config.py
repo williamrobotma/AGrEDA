@@ -77,7 +77,7 @@ from src.utils.data_loading import (
 
 script_start_time = datetime.datetime.now(datetime.timezone.utc)
 logging.basicConfig(
-    level=logging.WARNING, format="%(asctime)s:%(levelname)s:%(name)s:%(message)s"
+    level=logging.DEBUG, format="%(asctime)s:%(levelname)s:%(name)s:%(message)s"
 )
 logger = logging.getLogger(__name__)
 
