@@ -1,0 +1,10 @@
+.venv/
+__pycache__/
+.git/
+wheels/
+data/sc_dlpfc/*.pkl
+data/sc_dlpfc/*.h5ad
+data/spatialLIBD_data/*.pkl
+data/spatialLIBD/*.h5ad
+data/preprocessed/
+data/pdac/
