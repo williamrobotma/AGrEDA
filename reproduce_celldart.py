@@ -517,22 +517,22 @@ with DupStdout().dup_to_file(os.path.join(pretrain_folder, "log.txt"), "w") as f
 
         tqdm.write(out_string)
 
-        # Save checkpoint every 10
-        if epoch % 10 == 0 or epoch >= train_params["initial_train_epochs"] - 1:
-            torch.save(checkpoint, os.path.join(pretrain_folder, f"checkpt{epoch}.pth"))
+        # # Save checkpoint every 10
+        # if epoch % 10 == 0 or epoch >= train_params["initial_train_epochs"] - 1:
+        #     torch.save(checkpoint, os.path.join(pretrain_folder, f"checkpt{epoch}.pth"))
 
-        # check to see if validation loss has plateau'd
-        if (
-            early_stop_count >= train_params["early_stop_crit"]
-            and epoch >= train_params["min_epochs"] - 1
-        ):
-            print(
-                f"Validation loss plateaued after {early_stop_count} at epoch {epoch}"
-            )
-            torch.save(
-                checkpoint, os.path.join(pretrain_folder, f"earlystop{epoch}.pth")
-            )
-            break
+        # # check to see if validation loss has plateau'd
+        # if (
+        #     early_stop_count >= train_params["early_stop_crit"]
+        #     and epoch >= train_params["min_epochs"] - 1
+        # ):
+        #     print(
+        #         f"Validation loss plateaued after {early_stop_count} at epoch {epoch}"
+        #     )
+        #     torch.save(
+        #         checkpoint, os.path.join(pretrain_folder, f"earlystop{epoch}.pth")
+        #     )
+        #     break
 
         early_stop_count += 1
 
@@ -798,7 +798,7 @@ def train_adversarial(
 
             # Save checkpoint every 100
             if iters % 100 == 99 or iters >= train_params["n_iter"] - 1:
-                torch.save(checkpoint, os.path.join(save_folder, f"checkpt{iters}.pth"))
+                # torch.save(checkpoint, os.path.join(save_folder, f"checkpt{iters}.pth"))
 
                 model.eval()
                 source_loss = compute_acc(dataloader_source_train_eval, model)

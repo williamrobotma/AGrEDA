@@ -512,21 +512,21 @@ with DupStdout().dup_to_file(os.path.join(pretrain_folder, "log.txt"), "w") as f
             print("")
 
         # Save checkpoint every 10
-        if epoch % 10 == 0 or epoch >= train_params["initial_train_epochs"] - 1:
-            torch.save(checkpoint, os.path.join(pretrain_folder, f"checkpt{epoch}.pth"))
+        # if epoch % 10 == 0 or epoch >= train_params["initial_train_epochs"] - 1:
+        #     torch.save(checkpoint, os.path.join(pretrain_folder, f"checkpt{epoch}.pth"))
 
         # check to see if validation loss has plateau'd
-        if (
-            early_stop_count >= train_params["early_stop_crit"]
-            and epoch >= train_params["min_epochs"] - 1
-        ):
-            print(
-                f"Validation loss plateaued after {early_stop_count} at epoch {epoch}"
-            )
-            torch.save(
-                checkpoint, os.path.join(pretrain_folder, f"earlystop{epoch}.pth")
-            )
-            break
+        # if (
+        #     early_stop_count >= train_params["early_stop_crit"]
+        #     and epoch >= train_params["min_epochs"] - 1
+        # ):
+        #     print(
+        #         f"Validation loss plateaued after {early_stop_count} at epoch {epoch}"
+        #     )
+        #     torch.save(
+        #         checkpoint, os.path.join(pretrain_folder, f"earlystop{epoch}.pth")
+        #     )
+        #     break
 
         early_stop_count += 1
 
@@ -963,21 +963,21 @@ def train_adversarial_iters(
             print("")
 
             # Save checkpoint every 10
-            if epoch % 10 == 0 or epoch >= train_params["epochs"] - 1:
-                torch.save(checkpoint, os.path.join(save_folder, f"checkpt{epoch}.pth"))
+            # if epoch % 10 == 0 or epoch >= train_params["epochs"] - 1:
+            #     torch.save(checkpoint, os.path.join(save_folder, f"checkpt{epoch}.pth"))
 
-            # check to see if validation loss has plateau'd
-            if (
-                early_stop_count >= train_params["early_stop_crit_adv"]
-                and epoch > train_params["min_epochs_adv"] - 1
-            ):
-                print(
-                    f"Discriminator loss plateaued after {early_stop_count} at epoch {epoch}"
-                )
-                torch.save(
-                    checkpoint, os.path.join(save_folder, f"earlystop_{epoch}.pth")
-                )
-                break
+            # # check to see if validation loss has plateau'd
+            # if (
+            #     early_stop_count >= train_params["early_stop_crit_adv"]
+            #     and epoch > train_params["min_epochs_adv"] - 1
+            # ):
+            #     print(
+            #         f"Discriminator loss plateaued after {early_stop_count} at epoch {epoch}"
+            #     )
+            #     torch.save(
+            #         checkpoint, os.path.join(save_folder, f"earlystop_{epoch}.pth")
+            #     )
+            #     break
 
             early_stop_count += 1
 

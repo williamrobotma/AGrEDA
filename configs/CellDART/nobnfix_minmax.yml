@@ -5,14 +5,14 @@ data_params:
   n_mix: 8
   n_spots: 20000
   sample_id_n: '151673'
-  scaler_name: celldart
+  scaler_name: minmax
   st_split: false
   train_using_all_st_samples: false
 model_params:
   celldart_kwargs:
     bn_momentum: 0.99
     emb_dim: 64
-  model_version: celldart1_nobnfix
+  model_version: nobnfix_minmax
 torch_params:
   manual_seed: 1205
 train_params:
@@ -25,3 +25,4 @@ train_params:
   min_epochs: 10
   min_epochs_adv: 10
   n_iter: 3000
+  pretraining: true
