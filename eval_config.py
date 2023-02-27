@@ -255,6 +255,7 @@ class Evaluator:
         plt.close()
 
     def rf50_score(self, emb_train, emb_test, y_dis_train, y_dis_test):
+        print("Running RF50")
         logger.debug(f"emb_train dtype: {emb_train.dtype}")
         # pca = PCA(n_components=min(50, emb_train.shape[1]), svd_solver="full")
         logger.debug("fitting pca 50")
