@@ -28,12 +28,13 @@ from src.da_models.datasets import SpotDataset
 from src.da_models.utils import set_requires_grad
 from src.da_models.utils import initialize_weights
 from src.utils.dupstdout import DupStdout
-from src.utils.data_loading import (
-    load_spatial,
-    load_sc,
-    get_selected_dir,
-    get_model_rel_path,
-)
+# from src.utils.data_loading import (
+#     load_spatial,
+#     load_sc,
+#     get_selected_dir,
+#     get_model_rel_path,
+# )
+from src.utils import data_loading
 from src.utils.evaluation import format_iters
 
 script_start_time = datetime.datetime.now(datetime.timezone.utc)
@@ -193,15 +194,18 @@ np.random.seed(torch_seed)
 
 
 # %%
-model_folder = get_model_rel_path(
+model_folder = data_loading.get_model_rel_path(
     MODEL_NAME,
     model_params["model_version"],
-    scaler_name=data_params["scaler_name"],
+    dset=data_params.get("dset", "dlpfc"),
+    sc_id=data_params.get("sc_id", data_loading.DEF_SC_ID),
+    st_id=data_params.get("st_id", data_loading.DEF_ST_ID),
     n_markers=data_params["n_markers"],
     all_genes=data_params["all_genes"],
     n_mix=data_params["n_mix"],
     n_spots=data_params["n_spots"],
     st_split=data_params["st_split"],
+    scaler_name=data_params["scaler_name"],
     torch_seed_path=torch_seed_path,
 )
 model_folder = os.path.join("model", model_folder)
@@ -215,12 +219,19 @@ if not os.path.isdir(model_folder):
 #  # Data load
 
 # %%
-selected_dir = get_selected_dir(
-    data_params["data_dir"], data_params["n_markers"], data_params["all_genes"]
+selected_dir = data_loading.get_selected_dir(
+    data_loading.get_dset_dir(
+        data_params["data_dir"], dset=data_params.get("dset", "dlpfc")
+    ),
+    sc_id=data_params.get("sc_id", data_loading.DEF_SC_ID),
+    st_id=data_params.get("st_id", data_loading.DEF_ST_ID),
+    n_markers=data_params["n_markers"],
+    all_genes=data_params["all_genes"],
 )
 
+
 # Load spatial data
-mat_sp_d, mat_sp_train, st_sample_id_l = load_spatial(
+mat_sp_d, mat_sp_train, st_sample_id_l = data_loading.load_spatial(
     selected_dir,
     data_params["scaler_name"],
     train_using_all_st_samples=data_params["train_using_all_st_samples"],
@@ -228,7 +239,7 @@ mat_sp_d, mat_sp_train, st_sample_id_l = load_spatial(
 )
 
 # Load sc data
-sc_mix_d, lab_mix_d, sc_sub_dict, sc_sub_dict2 = load_sc(
+sc_mix_d, lab_mix_d, sc_sub_dict, sc_sub_dict2 = data_loading.load_sc(
     selected_dir,
     data_params["scaler_name"],
     n_mix=data_params["n_mix"],

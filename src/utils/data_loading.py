@@ -6,18 +6,23 @@ import h5py
 DEFAULT_N_SPOTS = 20000
 DEFAULT_N_MARKERS = 20
 DEFAULT_N_MIX = 8
+DEF_ST_ID = "spatialLIBD"
+DEF_SC_ID = "GSE144136"
 SPLITS = ("train", "val", "test")
 
 
 def get_model_rel_path(
     model_name,
     model_version,
-    scaler_name,
+    dset="dlpfc",
+    sc_id=DEF_SC_ID,
+    st_id=DEF_ST_ID,
     n_markers=DEFAULT_N_MARKERS,
     all_genes=False,
     n_mix=DEFAULT_N_MIX,
     n_spots=DEFAULT_N_SPOTS,
     st_split=False,
+    scaler_name="minmax",
     torch_seed_path="random",
 ):
     """Get path relative to data or results directory for a given run.
@@ -39,20 +44,29 @@ def get_model_rel_path(
         str: Path relative to data or results directory.
 
     """
-    markers_str = "all" if all_genes else f"{n_markers}markers"
+    # markers_str = "all" if all_genes else f"{n_markers}markers"
+    selected_rel_path = get_selected_rel_path(sc_id, st_id, n_markers, all_genes)
     data_str = f"{n_mix}mix_{n_spots}spots"
     if st_split:
         data_str += "_stsplit"
     return os.path.join(
-        model_name, markers_str, scaler_name, data_str, model_version, torch_seed_path
+        model_name, dset, selected_rel_path, data_str, scaler_name, model_version, torch_seed_path
     )
 
 
-def get_selected_dir(data_dir, n_markers=DEFAULT_N_MARKERS, all_genes=False):
-    if all_genes:
-        return os.path.join(data_dir, "preprocessed", "all")
-    else:
-        return os.path.join(data_dir, "preprocessed", f"{n_markers}markers")
+def get_dset_dir(data_dir, dset="dlpfc"):
+    return os.path.join(data_dir, dset)
+
+
+def get_selected_dir(dset_dir, sc_id=DEF_SC_ID, st_id=DEF_ST_ID, n_markers=DEFAULT_N_MARKERS, all_genes=False):
+    selected_rel_path = get_selected_rel_path(sc_id, st_id, n_markers, all_genes)
+    return os.path.join(dset_dir, "preprocessed", selected_rel_path)
+
+def get_selected_rel_path(sc_id, st_id, n_markers, all_genes):
+    intersec_name = f"{sc_id}_{st_id}"
+    n_markers_str = "all" if all_genes else f"{n_markers}markers"
+    selected_rel_path = os.path.join(intersec_name, n_markers_str)
+    return selected_rel_path
 
 
 def load_spatial(selected_dir, scaler_name, **kwargs):
