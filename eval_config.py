@@ -2,13 +2,16 @@
 """Runs evaluation on models."""
 # %%
 import argparse
+import math
 import datetime
 import logging
 import os
 import shutil
 import warnings
+
 from collections import defaultdict
 from multiprocessing import Pool, TimeoutError
+import pickle
 
 import harmonypy as hm
 import matplotlib as mpl
@@ -116,12 +119,15 @@ class Evaluator:
         model_rel_path = data_loading.get_model_rel_path(
             MODEL_NAME,
             self.model_params["model_version"],
-            scaler_name=self.data_params["scaler_name"],
+            dset=self.data_params.get("dset", "dlpfc"),
+            sc_id=self.data_params.get("sc_id", data_loading.DEF_SC_ID),
+            st_id=self.data_params.get("st_id", data_loading.DEF_ST_ID),
             n_markers=self.data_params["n_markers"],
             all_genes=self.data_params["all_genes"],
             n_mix=self.data_params["n_mix"],
             n_spots=self.data_params["n_spots"],
             st_split=self.data_params["st_split"],
+            scaler_name=self.data_params["scaler_name"],
             torch_seed_path=torch_seed_path,
         )
 
@@ -157,15 +163,23 @@ class Evaluator:
         #   # Data load
 
         self.selected_dir = data_loading.get_selected_dir(
-            self.data_params["data_dir"],
-            self.data_params["n_markers"],
-            self.data_params["all_genes"],
+            data_loading.get_dset_dir(
+                self.data_params["data_dir"], dset=self.data_params.get("dset", "dlpfc")
+            ),
+            sc_id=self.data_params.get("sc_id", data_loading.DEF_SC_ID),
+            st_id=self.data_params.get("st_id", data_loading.DEF_ST_ID),
+            n_markers=self.data_params["n_markers"],
+            all_genes=self.data_params["all_genes"],
         )
 
         # %%
         print("Loading Data")
         # Load spatial data
-        self.mat_sp_d, self.mat_sp_train, self.st_sample_id_l = data_loading.load_spatial(
+        (
+            self.mat_sp_d,
+            self.mat_sp_train,
+            self.st_sample_id_l,
+        ) = data_loading.load_spatial(
             self.selected_dir,
             self.data_params["scaler_name"],
             train_using_all_st_samples=self.data_params["train_using_all_st_samples"],
@@ -247,6 +261,7 @@ class Evaluator:
         plt.close()
 
     def rf50_score(self, emb_train, emb_test, y_dis_train, y_dis_test):
+        print("Running RF50")
         logger.debug(f"emb_train dtype: {emb_train.dtype}")
         # pca = PCA(n_components=min(50, emb_train.shape[1]), svd_solver="full")
         logger.debug("fitting pca 50")
@@ -385,8 +400,17 @@ class Evaluator:
 
     def _plot_cellfraction(self, visnum, adata, pred_sp, ax=None):
         """Plot predicted cell fraction for a given visnum"""
-        logging.debug(f"plotting cell fraction for {self.sc_sub_dict[visnum]}")
-        adata.obs["Pred_label"] = pred_sp[:, visnum]
+        try:
+            cell_name = self.sc_sub_dict[visnum]
+        except TypeError:
+            cell_name = "Other"
+        logging.debug(f"plotting cell fraction for {cell_name}")
+        y_pred = pred_sp[:, visnum].squeeze()
+        # print(y_pred.shape)
+        if y_pred.ndim > 1:
+            y_pred = y_pred.sum(axis=1)
+        # print(y_pred.shape)
+        adata.obs["Pred_label"] = y_pred
         # vmin = 0
         # vmax = np.amax(pred_sp)
 
@@ -395,10 +419,10 @@ class Evaluator:
             img_key="hires",
             color="Pred_label",
             palette="Set1",
-            size=1.5,
+            # size=1.5,
             legend_loc=None,
-            title=f"{self.sc_sub_dict[visnum]}",
-            spot_size=100,
+            title=cell_name,
+            spot_size=1 if self.data_params.get("dset") == "pdac" else 150,
             show=False,
             # vmin=vmin,
             # vmax=vmax,
@@ -416,6 +440,7 @@ class Evaluator:
         ax=None,
     ):
         """Plot ROC for a given visnum"""
+
         logging.debug(f"plotting ROC for {self.sc_sub_dict[visnum]} and {name}")
         Ex_l = [t[2] for t in num_name_exN_l]
         num_to_ex_d = dict(zip(numlist, Ex_l))
@@ -435,7 +460,61 @@ class Evaluator:
 
         return metrics.roc_auc_score(y_true, y_pred)
 
-    def _plot_layers(self, adata_spatialLIBD, adata_spatialLIBD_d):
+    def _plot_roc_pdac(self, visnum, adata, pred_sp, name, st_to_sc_celltype, ax=None):
+        """Plot ROC for a given visnum"""
+        try:
+            cell_name = self.sc_sub_dict[visnum]
+        except TypeError:
+            cell_name = "Other"
+        logging.debug(f"plotting ROC for {cell_name} and {name}")
+
+        # num_to_ex_d = dict(zip(numlist, Ex_l))
+
+        def st_sc_bin(x):
+            if cell_name in st_to_sc_celltype.get(x, set()):
+                return 1
+            return 0
+
+        y_pred = pred_sp[:, visnum].squeeze()
+        if y_pred.ndim > 1:
+            y_pred = y_pred.sum(axis=1)
+        y_true = adata.obs["cell_subclass"].map(st_sc_bin).fillna(0)
+        # print(y_true)
+        # print(y_true.isna().sum())
+        RocCurveDisplay.from_predictions(y_true=y_true, y_pred=y_pred, name=name, ax=ax)
+
+        try:
+            return metrics.roc_auc_score(y_true, y_pred)
+        except ValueError:
+            return np.nan
+
+    def _plot_layers(self, adata_st, adata_st_d):
+
+        cmap = mpl.cm.get_cmap("Accent_r")
+
+        color_range = list(
+            np.linspace(
+                0.125,
+                1,
+                len(adata_st.obs.spatialLIBD.cat.categories),
+                endpoint=True,
+            )
+        )
+        colors = [cmap(x) for x in color_range]
+
+        color_dict = defaultdict(lambda: "lightgrey")
+        for cat, color in zip(adata_st.obs.spatialLIBD.cat.categories, colors):
+            color_dict[cat] = color
+
+        color_dict["NA"] = "lightgrey"
+
+        self._plot_spatial(
+            adata_st_d, color_dict, color="spatialLIBD", fname="layers.png"
+        )
+
+    def _plot_spatial(
+        self, adata_st_d, color_dict, color="spatialLIBD", fname="layers.png"
+    ):
         fig, ax = plt.subplots(
             nrows=1,
             ncols=len(self.st_sample_id_l),
@@ -444,25 +523,6 @@ class Evaluator:
             constrained_layout=True,
             dpi=50,
         )
-
-        cmap = mpl.cm.get_cmap("Accent_r")
-
-        color_range = list(
-            np.linspace(
-                0.125,
-                1,
-                len(adata_spatialLIBD.obs.spatialLIBD.cat.categories),
-                endpoint=True,
-            )
-        )
-        colors = [cmap(x) for x in color_range]
-
-        color_dict = defaultdict(lambda: "lightgrey")
-        for cat, color in zip(adata_spatialLIBD.obs.spatialLIBD.cat.categories, colors):
-            color_dict[cat] = color
-
-        color_dict["NA"] = "lightgrey"
-
         legend_elements = [
             plt.Line2D(
                 [0],
@@ -483,15 +543,15 @@ class Evaluator:
 
         for i, sample_id in enumerate(self.st_sample_id_l):
             sc.pl.spatial(
-                adata_spatialLIBD_d[sample_id],
+                adata_st_d[sample_id],
                 img_key=None,
-                color="spatialLIBD",
+                color=color,
                 palette=color_dict,
                 size=1,
                 title=sample_id,
                 legend_loc=4,
                 na_color="lightgrey",
-                spot_size=100,
+                spot_size=1 if self.data_params.get("dset") == "pdac" else 100,
                 show=False,
                 ax=ax[0][i],
             )
@@ -502,19 +562,151 @@ class Evaluator:
 
         # fig.legend(loc=7)
         fig.savefig(
-            os.path.join(self.results_folder, "layers.png"),
+            os.path.join(self.results_folder, fname),
             bbox_inches="tight",
             dpi=300,
         )
         plt.close()
 
-    def _plot_samples(
-        self,
-        sample_id,
-        adata_spatialLIBD_d,
-        pred_sp_d,
-        pred_sp_noda_d=None,
-    ):
+    def _plot_samples_pdac(self, sample_id, adata_st, pred_sp, pred_sp_noda=None):
+        logging.debug(f"Plotting {sample_id}")
+
+        sc_to_st_celltype = {
+            "Ductal": "Duct epithelium",
+            "Cancer clone": "Cancer region",
+            # 'mDCs': 45,
+            # 'Macrophages': 40,
+            # 'T cells & NK cells': 40,
+            # 'Tuft cells': 32,
+            # 'Monocytes': 18,
+            # 'RBCs': 15,
+            # 'Mast cells': 14,
+            "Acinar cells": "Pancreatic tissue",
+            "Endocrine cells": "Pancreatic tissue",
+            # 'pDCs': 13,
+            "Endothelial cells": "Interstitium",
+        }
+
+        celltypes = list(sc_to_st_celltype.keys()) + ["Other"]
+        n_celltypes = len(celltypes)
+        n_rows = int(math.ceil(n_celltypes / 5))
+
+        numlist = [self.sc_sub_dict2.get(t) for t in celltypes[:-1]]
+        numlist.append(
+            [v for k, v in self.sc_sub_dict2.items() if k not in celltypes[:-1]]
+        )
+        # cluster_assignments = [
+        #     "Cancer region",
+        #     "Pancreatic tissue",
+        #     "Interstitium",
+        #     "Duct epithelium",
+        #     "Stroma",
+        # ]
+        logging.debug(f"Plotting Cell Fractions")
+        fig, ax = plt.subplots(
+            n_rows, 5, figsize=(20, 4 * n_rows), constrained_layout=True, dpi=10
+        )
+        for i, num in enumerate(numlist):
+            self._plot_cellfraction(num, adata_st, pred_sp, ax.flat[i])
+            ax.flat[i].axis("equal")
+            ax.flat[i].set_xlabel("")
+            ax.flat[i].set_ylabel("")
+        for i in range(n_celltypes, n_rows * 5):
+            ax.flat[i].axis("off")
+        fig.suptitle(sample_id)
+
+        logging.debug(f"Saving Cell Fractions Figure")
+        fig.savefig(
+            os.path.join(self.results_folder, f"{sample_id}_cellfraction.png"),
+            bbox_inches="tight",
+            dpi=300,
+        )
+        # fig.show()
+        plt.close()
+
+        logging.debug(f"Plotting ROC")
+
+        st_to_sc_celltype = {}
+        for k, v in sc_to_st_celltype.items():
+            if v not in st_to_sc_celltype:
+                st_to_sc_celltype[v] = set()
+            st_to_sc_celltype[v].add(k)
+
+        n_rows = int(math.ceil(len(sc_to_st_celltype) / 5))
+        fig, ax = plt.subplots(
+            n_rows,
+            5,
+            figsize=(20, 4 * n_rows),
+            constrained_layout=True,
+            sharex=True,
+            sharey=True,
+            dpi=10,
+        )
+
+        da_aucs = []
+        if self.pretraining:
+            noda_aucs = []
+        for i, num in enumerate(numlist[:-1]):
+            da_aucs.append(
+                self._plot_roc_pdac(
+                    num,
+                    adata_st,
+                    pred_sp,
+                    MODEL_NAME,
+                    st_to_sc_celltype,
+                    ax.flat[i],
+                )
+            )
+            if self.pretraining:
+                noda_aucs.append(
+                    self._plot_roc_pdac(
+                        num,
+                        adata_st,
+                        pred_sp_noda,
+                        f"{MODEL_NAME}_wo_da",
+                        st_to_sc_celltype,
+                        ax.flat[i],
+                    )
+                )
+
+            ax.flat[i].plot(
+                [0, 1], [0, 1], transform=ax.flat[i].transAxes, ls="--", color="k"
+            )
+            ax.flat[i].set_aspect("equal")
+            ax.flat[i].set_xlim([0, 1])
+            ax.flat[i].set_ylim([0, 1])
+            try:
+                cell_name = self.sc_sub_dict[num]
+            except TypeError:
+                cell_name = "Other"
+            ax.flat[i].set_title(cell_name)
+
+            if i >= len(numlist) - 5:
+                ax.flat[i].set_xlabel("FPR")
+            else:
+                ax.flat[i].set_xlabel("")
+            if i % 5 == 0:
+                ax.flat[i].set_ylabel("TPR")
+            else:
+                ax.flat[i].set_ylabel("")
+        for i in range(len(numlist[:-1]), n_rows * 5):
+            ax.flat[i].axis("off")
+        fig.suptitle(sample_id)
+        logging.debug(f"Saving ROC Figure")
+        fig.savefig(
+            os.path.join(self.results_folder, f"{sample_id}_roc.png"),
+            bbox_inches="tight",
+            dpi=300,
+        )
+        # fig.show()
+        plt.close()
+
+        # realspots_d["da"][sample_id] = np.mean(da_aucs)
+        # if PRETRAINING:
+        #     realspots_d["noda"][sample_id] = np.mean(noda_aucs)
+        return np.nanmean(da_aucs), np.nanmean(noda_aucs) if self.pretraining else None
+
+    def _plot_samples(self, sample_id, adata_st_d, pred_sp_d, pred_sp_noda_d=None):
         logging.debug(f"Plotting {sample_id}")
         fig, ax = plt.subplots(2, 5, figsize=(20, 8), constrained_layout=True, dpi=10)
         num_name_exN_l = []
@@ -522,20 +714,13 @@ class Evaluator:
             if "Ex" in v:
                 num_name_exN_l.append((k, v, int(v.split("_")[1])))
         num_name_exN_l.sort(key=lambda a: a[2])
-        num_name_exN_l
 
-        # %%
-
-        # %%
         numlist = [t[0] for t in num_name_exN_l]
 
         logging.debug(f"Plotting Cell Fractions")
         for i, num in enumerate(numlist):
             self._plot_cellfraction(
-                num,
-                adata_spatialLIBD_d[sample_id],
-                pred_sp_d[sample_id],
-                ax.flat[i],
+                num, adata_st_d[sample_id], pred_sp_d[sample_id], ax.flat[i]
             )
             ax.flat[i].axis("equal")
             ax.flat[i].set_xlabel("")
@@ -569,7 +754,7 @@ class Evaluator:
             da_aucs.append(
                 self._plot_roc(
                     num,
-                    adata_spatialLIBD_d[sample_id],
+                    adata_st_d[sample_id],
                     pred_sp_d[sample_id],
                     MODEL_NAME,
                     num_name_exN_l,
@@ -581,7 +766,7 @@ class Evaluator:
                 noda_aucs.append(
                     self._plot_roc(
                         num,
-                        adata_spatialLIBD_d[sample_id],
+                        adata_st_d[sample_id],
                         pred_sp_noda_d[sample_id],
                         f"{MODEL_NAME}_wo_da",
                         num_name_exN_l,
@@ -625,7 +810,7 @@ class Evaluator:
         # realspots_d["da"][sample_id] = np.mean(da_aucs)
         # if PRETRAINING:
         #     realspots_d["noda"][sample_id] = np.mean(noda_aucs)
-        return np.mean(da_aucs), np.mean(noda_aucs) if self.pretraining else None
+        return np.nanmean(da_aucs), np.nanmean(noda_aucs) if self.pretraining else None
 
     # %%
     def eval_spots(self):
@@ -652,43 +837,70 @@ class Evaluator:
         else:
             pred_sp_noda_d = None
         # %%
-        adata_spatialLIBD = sc.read_h5ad(os.path.join(self.selected_dir, "adata_spatialLIBD.h5ad"))
+        adata_st = sc.read_h5ad(os.path.join(self.selected_dir, "st.h5ad"))
 
-        adata_spatialLIBD_d = {}
+        adata_st_d = {}
         print("Loading ST adata: ")
         for sample_id in self.st_sample_id_l:
-            adata_spatialLIBD_d[sample_id] = adata_spatialLIBD[
-                adata_spatialLIBD.obs.sample_id == sample_id
-            ]
-            adata_spatialLIBD_d[sample_id].obsm["spatial"] = (
-                adata_spatialLIBD_d[sample_id].obs[["X", "Y"]].values
+            adata_st_d[sample_id] = adata_st[adata_st.obs.sample_id == sample_id]
+            adata_st_d[sample_id].obsm["spatial"] = (
+                adata_st_d[sample_id].obs[["X", "Y"]].values
             )
-
-        # %%
-
-        # %%
-        self._plot_layers(adata_spatialLIBD, adata_spatialLIBD_d)
-
-        # %%
         realspots_d = {"da": {}}
         if self.pretraining:
             realspots_d["noda"] = {}
-
-        # for sample_id in st_sample_id_l:
-        #     plot_samples(sample_id)
-        print("Plotting Samples")
-        n_jobs_samples = min(effective_n_jobs(args.njobs), len(self.st_sample_id_l))
-        logging.debug(f"n_jobs_samples: {n_jobs_samples}")
-        aucs = Parallel(n_jobs=n_jobs_samples, verbose=100)(
-            delayed(self._plot_samples)(sid, adata_spatialLIBD_d, pred_sp_d, pred_sp_noda_d)
-            for sid in self.st_sample_id_l
-        )
+        if self.data_params.get("dset") == "pdac":
+            aucs = self.eval_pdac_spots(pred_sp_d, pred_sp_noda_d, adata_st_d)
+        else:
+            aucs = self.eval_dlpfc_spots(
+                pred_sp_d, pred_sp_noda_d, adata_st, adata_st_d
+            )
 
         for sample_id, auc in zip(self.st_sample_id_l, aucs):
             realspots_d["da"][sample_id] = auc[0]
             if self.pretraining:
                 realspots_d["noda"][sample_id] = auc[1]
         self.realspots_d = realspots_d
+
+    def eval_dlpfc_spots(self, pred_sp_d, pred_sp_noda_d, adata_st, adata_st_d):
+        self._plot_layers(adata_st, adata_st_d)
+
+        print("Plotting Samples")
+        n_jobs_samples = min(effective_n_jobs(args.njobs), len(self.st_sample_id_l))
+        logging.debug(f"n_jobs_samples: {n_jobs_samples}")
+        aucs = Parallel(n_jobs=n_jobs_samples, verbose=100)(
+            delayed(self._plot_samples)(sid, adata_st_d, pred_sp_d, pred_sp_noda_d)
+            for sid in self.st_sample_id_l
+        )
+        return aucs
+
+    def eval_pdac_spots(self, pred_sp_d, pred_sp_noda_d, adata_st_d):
+        raw_pdac_dir = os.path.join(self.data_params["data_dir"], "pdac", "st_adata")
+        ctr_fname = f"{self.data_params['st_id']}-cluster_to_rgb.pkl"
+        with open(os.path.join(raw_pdac_dir, ctr_fname), "rb") as f:
+            cluster_to_rgb = pickle.load(f)
+
+        # cto_fname = f"{self.data_params['st_id']}-cluster_to_ordinal.json"
+        # with open(os.path.join(raw_pdac_dir, cto_fname), "r") as f:
+        #     cluster_to_ordinal = json.load(f)
+        # cluster_to_ordinal = {int(k): v for k, v in cluster_to_ordinal.items()}
+        self._plot_spatial(
+            adata_st_d, cluster_to_rgb, color="cell_subclass", fname="st_cell_types.png"
+        )
+
+        print("Plotting Samples")
+        n_jobs_samples = min(effective_n_jobs(args.njobs), len(self.st_sample_id_l))
+        logging.debug(f"n_jobs_samples: {n_jobs_samples}")
+        aucs = Parallel(n_jobs=n_jobs_samples, verbose=100)(
+            delayed(self._plot_samples_pdac)(
+                sid,
+                adata_st_d[sid],
+                pred_sp_d[sid],
+                pred_sp_noda_d[sid] if pred_sp_noda_d else None,
+            )
+            for sid in self.st_sample_id_l
+        )
+        return aucs
 
     def eval_sc(self, metric_ctp):
         self.jsd_d = {"da": {}}
@@ -747,10 +959,15 @@ class Evaluator:
         return
 
     def produce_results(self):
+        if self.data_params.get("dset") == "pdac":
+            real_spot_header = "Real Spots (Mean AUC celltype)"
+        else:
+            real_spot_header = "Real Spots (Mean AUC Ex1-10)"
+
         df_keys = [
             "Pseudospots (JS Divergence)",
             "RF50",
-            "Real Spots (Mean AUC Ex1-10)",
+            real_spot_header,
         ]
 
         if MILISI:

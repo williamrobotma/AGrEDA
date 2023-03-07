@@ -7,6 +7,7 @@ import os
 import argparse
 from collections import OrderedDict
 import warnings
+import logging
 
 import anndata as ad
 import h5py
@@ -18,52 +19,62 @@ from src.utils import data_loading, data_processing, misc
 
 SPLIT_RATIOS = (0.8, 0.1, 0.1)
 DATA_DIR = "./data"
-SPATIALLIBD_DIR = os.path.join(DATA_DIR, "spatialLIBD")
-SC_DLPFC_PATH = os.path.join(DATA_DIR, "sc_dlpfc", "adata_sc_dlpfc.h5ad")
+# SPATIALLIBD_BASEPATH = "spatialLIBD"
+# SC_DLPFC_PATH = os.path.join(DATA_DIR, "sc_dlpfc", "adata_sc_dlpfc.h5ad")
+
 
 SCALER_OPTS = ("minmax", "standard", "celldart")
 
+logger = logging.getLogger(__name__)
 
-parser = argparse.ArgumentParser(description="Preps the data into sets.")
+# %%
+def main(args):
+    dset_dir = data_loading.get_dset_dir(DATA_DIR, args.dset)
+    selected_dir = data_loading.get_selected_dir(
+        dset_dir,
+        sc_id=args.sc_id,
+        st_id=args.st_id,
+        n_markers=args.nmarkers,
+        all_genes=args.allgenes,
+    )
 
-parser.add_argument(
-    "--scaler",
-    "-s",
-    type=str,
-    default="minmax",
-    choices=SCALER_OPTS,
-    help="Scaler to use.",
-)
-parser.add_argument("--stsplit", action="store_true", help="Whether to split ST data.")
-parser.add_argument(
-    "--allgenes", "-a", action="store_true", help="Turn off marker selection."
-)
-parser.add_argument(
-    "--nmarkers",
-    type=int,
-    default=data_loading.DEFAULT_N_MARKERS,
-    help="Number of top markers in sc training data to used. Ignored if --allgenes flag is used.",
-)
-parser.add_argument(
-    "--nmix",
-    type=int,
-    default=data_loading.DEFAULT_N_MIX,
-    help="number of sc samples to use to generate pseudospots.",
-)
-parser.add_argument(
-    "--nspots",
-    type=int,
-    default=data_loading.DEFAULT_N_SPOTS,
-    help="Number of training pseudospots to use.",
-)
-parser.add_argument(
-    "--njobs",
-    type=int,
-    default=-1,
-    help="Number of jobs to use for parallel processing.",
-)
+    print("Selecting subset genes and splitting single-cell data")
+    print("-" * 80)
+    select_genes_and_split(
+        dset_dir,
+        sc_id=args.sc_id,
+        st_id=args.st_id,
+        n_markers=args.nmarkers,
+        all_genes=args.allgenes,
+        rng=462,
+    )
 
-args = parser.parse_args()
+    print("Generating Pseudospots")
+    print("-" * 80)
+    sc_mix_d, lab_mix_d = gen_pseudo_spots(
+        selected_dir, n_mix=args.nmix, n_spots=args.nspots, rng=623, n_jobs=args.njobs
+    )
+
+    print("Log scaling pseudospots")
+    print("-" * 80)
+    log_scale_pseudospots(
+        selected_dir,
+        args.scaler,
+        n_mix=args.nmix,
+        n_spots=args.nspots,
+        sc_mix_d=sc_mix_d,
+        lab_mix_d=lab_mix_d,
+    )
+
+    print("Log scaling and maybe splitting spatial data")
+    print("-" * 80)
+    split_st(selected_dir, stsplit=args.stsplit, rng=16)
+    log_scale_st(selected_dir, scaler_name=args.scaler, stsplit=args.stsplit)
+
+    print("Log scaling all spatial data...")
+    print("-" * 80)
+    # if TRAIN_USING_ALL_ST_SAMPLES:
+    log_scale_all_st(selected_dir, args.scaler)
 
 
 def scale(scaler, *unscaled):
@@ -81,8 +92,10 @@ def get_scaler(scaler_name):
     if scaler_name == "standard":
         return preprocessing.StandardScaler
     if scaler_name == "celldart":
-        warnings.warn("celldart scaler is provided for legacy purposes only. "
-                      "Use minmax instead.")
+        warnings.warn(
+            "celldart scaler is provided for legacy purposes only. "
+            "Use minmax instead."
+        )
         return scaler_name
 
     raise ValueError(f"Scaler '{scaler_name}' not recognized.")
@@ -98,37 +111,38 @@ def check_selected_split_exists(selected_dir):
         bool: Whether selected and split data exists.
 
     """
-    # df genelists
-    if not os.path.isfile(os.path.join(selected_dir, "df_genelists.pkl")):
-        return False
-
-    if not os.path.isfile(os.path.join(selected_dir, "venn.png")):
-        return False
 
     # label numbers
     if not os.path.isfile(os.path.join(selected_dir, f"lab_sc_num.hdf5")):
         return False
 
+    # df genelists
+    if not os.path.isfile(os.path.join(selected_dir, f"df_genelists.pkl")):
+        return False
+
+    if not os.path.isfile(os.path.join(selected_dir, f"venn.png")):
+        return False
+
     # sc adatas
-    if not os.path.isfile(os.path.join(selected_dir, "adata_sc_dlpfc.h5ad")):
+    if not os.path.isfile(os.path.join(selected_dir, f"sc.h5ad")):
         return False
-    if not os.path.isfile(os.path.join(selected_dir, "adata_sc_dlpfc_train.h5ad")):
+    if not os.path.isfile(os.path.join(selected_dir, f"sc_train.h5ad")):
         return False
-    if not os.path.isfile(os.path.join(selected_dir, "adata_sc_dlpfc_val.h5ad")):
+    if not os.path.isfile(os.path.join(selected_dir, f"sc_val.h5ad")):
         return False
-    if not os.path.isfile(os.path.join(selected_dir, "adata_sc_dlpfc_test.h5ad")):
+    if not os.path.isfile(os.path.join(selected_dir, f"sc_test.h5ad")):
         return False
 
     # st adata
-    if not os.path.isfile(os.path.join(selected_dir, "adata_spatialLIBD.h5ad")):
+    if not os.path.isfile(os.path.join(selected_dir, f"st.h5ad")):
         return False
 
     # dicts and helpers
-    if not os.path.isfile(os.path.join(selected_dir, "sc_sub_dict.pkl")):
+    if not os.path.isfile(os.path.join(selected_dir, f"sc_sub_dict.pkl")):
         return False
-    if not os.path.isfile(os.path.join(selected_dir, "sc_sub_dict2.pkl")):
+    if not os.path.isfile(os.path.join(selected_dir, f"sc_sub_dict2.pkl")):
         return False
-    if not os.path.isfile(os.path.join(selected_dir, "st_sample_id_l.pkl")):
+    if not os.path.isfile(os.path.join(selected_dir, f"st_sample_id_l.pkl")):
         return False
 
     # All files present
@@ -136,10 +150,11 @@ def check_selected_split_exists(selected_dir):
 
 
 def select_genes_and_split(
+    dset_dir,
+    sc_id=data_loading.DEF_SC_ID,
+    st_id=data_loading.DEF_ST_ID,
     n_markers=data_loading.DEFAULT_N_MARKERS,
-    allgenes=False,
-    spatiallibd_dir=SPATIALLIBD_DIR,
-    sc_dlpfc_path=SC_DLPFC_PATH,
+    all_genes=False,
     rng=None,
 ):
     """Select genes and split sc data into train, val, and test sets
@@ -156,7 +171,9 @@ def select_genes_and_split(
     """
     rng_integers = misc.check_integer_rng(rng)
 
-    selected_dir = data_loading.get_selected_dir(DATA_DIR, n_markers, allgenes)
+    selected_dir = data_loading.get_selected_dir(
+        dset_dir, sc_id=sc_id, st_id=st_id, n_markers=n_markers, all_genes=all_genes
+    )
 
     if check_selected_split_exists(selected_dir):
         print("Selected and split data already exists. Skipping.")
@@ -165,58 +182,56 @@ def select_genes_and_split(
     if not os.path.isdir(selected_dir):
         os.makedirs(selected_dir)
 
-    print("Loading SpatialLIBD Data")
+    print("Loading ST Data")
 
-    adata_dir = os.path.join(spatiallibd_dir, "adata")
+    st_dir = os.path.join(dset_dir, "st_adata")
 
-    adata_spatiallibd_d = OrderedDict()
+    adata_st_d = OrderedDict()
 
-    for name in sorted(glob.glob(os.path.join(adata_dir, "adata_spatialLIBD-*.h5ad"))):
+    for name in sorted(glob.glob(os.path.join(st_dir, f"{st_id}-*.h5ad"))):
         sample_id = name.partition("-")[2].rpartition(".")[0]
-        adata_spatiallibd_d[sample_id] = sc.read_h5ad(name)
+        adata_st_d[sample_id] = sc.read_h5ad(name)
 
-    adata_spatiallibd = ad.concat(
-        adata_spatiallibd_d.values(), label="sample_id", keys=adata_spatiallibd_d.keys()
-    )
-    adata_spatiallibd.obs_names_make_unique()
-    sc.pp.normalize_total(adata_spatiallibd, inplace=True, target_sum=1e4)
-    adata_spatiallibd.var_names_make_unique()
+    adata_st = ad.concat(adata_st_d.values(), label="sample_id", keys=adata_st_d.keys())
+    adata_st.obs_names_make_unique()
+    sc.pp.normalize_total(adata_st, inplace=True, target_sum=1e4)
+    adata_st.var_names_make_unique()
 
-    st_sample_id_l = adata_spatiallibd.obs["sample_id"].unique()
+    st_sample_id_l = adata_st.obs["sample_id"].unique()
 
     print("Loading Single Cell Data")
-
-    adata_sc_dlpfc = sc.read_h5ad(sc_dlpfc_path)
-    sc.pp.normalize_total(adata_sc_dlpfc, inplace=True, target_sum=1e4)
-    adata_sc_dlpfc.var_names_make_unique()
+    sc_path = os.path.join(dset_dir, "sc_adata", f"{sc_id}.h5ad")
+    adata_sc = sc.read_h5ad(sc_path)
+    sc.pp.normalize_total(adata_sc, inplace=True, target_sum=1e4)
+    adata_sc.var_names_make_unique()
 
     print("Splitting single cell data")
     # df_sc = adata_sc_dlpfc.to_df()
     # df_sc.index = pd.MultiIndex.from_frame(adata_sc_dlpfc.obs.reset_index())
 
     # lab_sc_sub = df_sc.index.get_level_values("cell_subclass")
-    lab_sc_sub = adata_sc_dlpfc.obs["cell_subclass"]
-
+    lab_sc_sub = adata_sc.obs["cell_subclass"]
+    logger.debug(f"lab_sc_sub counts: {lab_sc_sub.value_counts()}")
     (
-        adata_sc_dlpfc_train,
-        adata_sc_dlpfc_eval,
+        adata_sc_train,
+        adata_sc_eval,
         lab_sc_sub_train,
         lab_sc_sub_eval,
     ) = model_selection.train_test_split(
-        adata_sc_dlpfc,
+        adata_sc,
         lab_sc_sub,
         test_size=0.2,
         random_state=rng_integers(2**32),
         stratify=lab_sc_sub,
     )
-
+    logger.debug(f"lab_sc_sub_eval counts: {lab_sc_sub_eval.value_counts()}")
     (
-        adata_sc_dlpfc_val,
-        adata_sc_dlpfc_test,
+        adata_sc_val,
+        adata_sc_test,
         lab_sc_sub_val,
         lab_sc_sub_test,
     ) = model_selection.train_test_split(
-        adata_sc_dlpfc_eval,
+        adata_sc_eval,
         lab_sc_sub_eval,
         test_size=0.5,
         random_state=rng_integers(2**32),
@@ -225,13 +240,13 @@ def select_genes_and_split(
 
     print("Selecting genes")
     (
-        (adata_sc_dlpfc_train, adata_spatiallibd),
+        (adata_sc_train, adata_st),
         df_genelists,
         (fig, ax),
     ) = data_processing.select_marker_genes(
-        adata_sc_dlpfc_train,
-        adata_spatiallibd,
-        n_markers=None if allgenes else n_markers,
+        adata_sc_train,
+        adata_st,
+        n_markers=None if all_genes else n_markers,
         genelists_path=os.path.join(selected_dir, "df_genelists.pkl"),
     )
 
@@ -249,9 +264,9 @@ def select_genes_and_split(
     lab_sc_num_train = [sc_sub_dict2[ii] for ii in lab_sc_sub_train]
     lab_sc_num_train = np.asarray(lab_sc_num_train, dtype="int")
 
-    adata_sc_dlpfc = adata_sc_dlpfc[:, adata_sc_dlpfc_train.var.index]
-    adata_sc_dlpfc_val = adata_sc_dlpfc_val[:, adata_sc_dlpfc_train.var.index]
-    adata_sc_dlpfc_test = adata_sc_dlpfc_test[:, adata_sc_dlpfc_train.var.index]
+    adata_sc = adata_sc[:, adata_sc_train.var.index]
+    adata_sc_val = adata_sc_val[:, adata_sc_train.var.index]
+    adata_sc_test = adata_sc_test[:, adata_sc_train.var.index]
 
     print("Saving sc labels")
     with h5py.File(os.path.join(selected_dir, f"lab_sc_num.hdf5"), "w") as f:
@@ -260,14 +275,14 @@ def select_genes_and_split(
         f.create_dataset("test", data=lab_sc_num_test)
 
     print("Saving sc adatas")
-    adata_sc_dlpfc.write(os.path.join(selected_dir, "adata_sc_dlpfc.h5ad"))
-    adata_sc_dlpfc_train.write(os.path.join(selected_dir, "adata_sc_dlpfc_train.h5ad"))
-    adata_sc_dlpfc_val.write(os.path.join(selected_dir, "adata_sc_dlpfc_val.h5ad"))
-    adata_sc_dlpfc_test.write(os.path.join(selected_dir, "adata_sc_dlpfc_test.h5ad"))
+    adata_sc.write(os.path.join(selected_dir, "sc.h5ad"))
+    adata_sc_train.write(os.path.join(selected_dir, "sc_train.h5ad"))
+    adata_sc_val.write(os.path.join(selected_dir, "sc_val.h5ad"))
+    adata_sc_test.write(os.path.join(selected_dir, "sc_test.h5ad"))
 
     print("Saving st adata")
 
-    adata_spatiallibd.write(os.path.join(selected_dir, "adata_spatialLIBD.h5ad"))
+    adata_st.write(os.path.join(selected_dir, "st.h5ad"))
 
     print("Saving dicts and helpers")
     with open(os.path.join(selected_dir, "sc_sub_dict.pkl"), "wb") as f:
@@ -285,6 +300,7 @@ def gen_pseudo_spots(
     n_mix=data_loading.DEFAULT_N_MIX,
     n_spots=data_loading.DEFAULT_N_SPOTS,
     rng=None,
+    n_jobs=1,
 ):
     """Generate pseudo spots for the spatial data.
 
@@ -318,11 +334,9 @@ def gen_pseudo_spots(
     if not os.path.exists(unscaled_data_dir):
         os.makedirs(unscaled_data_dir)
 
-    adata_sc_dlpfc_d = {}
+    adata_sc_d = {}
     for split in data_loading.SPLITS:
-        adata_sc_dlpfc_d[split] = sc.read_h5ad(
-            os.path.join(selected_dir, f"adata_sc_dlpfc_{split}.h5ad")
-        )
+        adata_sc_d[split] = sc.read_h5ad(os.path.join(selected_dir, f"sc_{split}.h5ad"))
 
     lab_sc_num_d = {}
     with h5py.File(os.path.join(selected_dir, f"lab_sc_num.hdf5"), "r") as f:
@@ -335,12 +349,12 @@ def gen_pseudo_spots(
     total_spots = n_spots / SPLIT_RATIOS[data_loading.SPLITS.index("train")]
     for split, ratio in zip(data_loading.SPLITS, SPLIT_RATIOS):
         sc_mix_d[split], lab_mix_d[split] = data_processing.random_mix(
-            adata_sc_dlpfc_d[split].X.toarray(),
+            adata_sc_d[split].X.toarray(),
             lab_sc_num_d[split],
             nmix=n_mix,
             n_samples=round(total_spots * ratio),
             seed=rng_integers(2**32),
-            n_jobs=args.njobs,
+            n_jobs=n_jobs,
         )
 
     unscaled_data_dir = os.path.join(selected_dir, "unscaled")
@@ -426,16 +440,12 @@ def split_st(selected_dir, stsplit=False, rng=None):
     if not os.path.exists(unscaled_data_dir):
         os.makedirs(unscaled_data_dir)
 
-    adata_spatiallibd = sc.read_h5ad(
-        os.path.join(selected_dir, "adata_spatialLIBD.h5ad")
-    )
+    adata_st = sc.read_h5ad(os.path.join(selected_dir, "st.h5ad"))
     st_sample_id_l = data_loading.load_st_sample_names(selected_dir)
 
     with h5py.File(out_path, "w") as f:
         for sample_id in st_sample_id_l:
-            x_st_train = adata_spatiallibd[
-                adata_spatiallibd.obs.sample_id == sample_id
-            ].X.toarray()
+            x_st_train = adata_st[adata_st.obs.sample_id == sample_id].X.toarray()
             grp_samp = f.create_group(sample_id)
             if stsplit:
                 x_st_train, x_st_val = model_selection.train_test_split(
@@ -505,9 +515,7 @@ def log_scale_all_st(selected_dir, scaler_name):
     """
     scaler = get_scaler(scaler_name)
 
-    mat_sp_train_all = sc.read_h5ad(
-        os.path.join(selected_dir, "adata_spatialLIBD.h5ad")
-    ).X.toarray()
+    mat_sp_train_all = sc.read_h5ad(os.path.join(selected_dir, "st.h5ad")).X.toarray()
 
     mat_sp_train_all = next(scale(scaler, mat_sp_train_all))
 
@@ -522,47 +530,71 @@ def log_scale_all_st(selected_dir, scaler_name):
         f.create_dataset("all", data=mat_sp_train_all)
 
 
-# %%
-def main():
-    selected_dir = data_loading.get_selected_dir(DATA_DIR, args.nmarkers, args.allgenes)
-
-    print("Selecting subset genes and splitting single-cell data")
-    print("-" * 80)
-    select_genes_and_split(
-        n_markers=args.nmarkers,
-        allgenes=args.allgenes,
-        spatiallibd_dir=SPATIALLIBD_DIR,
-        sc_dlpfc_path=SC_DLPFC_PATH,
-        rng=462,
-    )
-
-    print("Generating Pseudospots")
-    print("-" * 80)
-    sc_mix_d, lab_mix_d = gen_pseudo_spots(
-        selected_dir, n_mix=args.nmix, n_spots=args.nspots, rng=623
-    )
-
-    print("Log scaling pseudospots")
-    print("-" * 80)
-    log_scale_pseudospots(
-        selected_dir,
-        args.scaler,
-        n_mix=args.nmix,
-        n_spots=args.nspots,
-        sc_mix_d=sc_mix_d,
-        lab_mix_d=lab_mix_d,
-    )
-
-    print("Log scaling and maybe splitting spatial data")
-    print("-" * 80)
-    split_st(selected_dir, stsplit=args.stsplit, rng=16)
-    log_scale_st(selected_dir, scaler_name=args.scaler, stsplit=args.stsplit)
-
-    print("Log scaling all spatial data...")
-    print("-" * 80)
-    # if TRAIN_USING_ALL_ST_SAMPLES:
-    log_scale_all_st(selected_dir, args.scaler)
-
-
 if __name__ == "__main__":
-    main()
+    # logging.basicConfig(
+    #     level=logging.DEBUG, format="%(asctime)s:%(levelname)s:%(name)s:%(message)s"
+    # )
+
+    parser = argparse.ArgumentParser(description="Preps the data into sets.")
+
+    parser.add_argument(
+        "--scaler",
+        "-s",
+        type=str,
+        default="minmax",
+        choices=SCALER_OPTS,
+        help="Scaler to use.",
+    )
+    parser.add_argument(
+        "--stsplit", action="store_true", help="Whether to split ST data."
+    )
+    parser.add_argument(
+        "--allgenes", "-a", action="store_true", help="Turn off marker selection."
+    )
+    parser.add_argument(
+        "--nmarkers",
+        type=int,
+        default=data_loading.DEFAULT_N_MARKERS,
+        help="Number of top markers in sc training data to used. Ignored if --allgenes flag is used.",
+    )
+    parser.add_argument(
+        "--nmix",
+        type=int,
+        default=data_loading.DEFAULT_N_MIX,
+        help="number of sc samples to use to generate pseudospots.",
+    )
+    parser.add_argument(
+        "--nspots",
+        type=int,
+        default=data_loading.DEFAULT_N_SPOTS,
+        help="Number of training pseudospots to use.",
+    )
+    parser.add_argument(
+        "--njobs",
+        type=int,
+        default=-1,
+        help="Number of jobs to use for parallel processing.",
+    )
+    parser.add_argument(
+        "--dset",
+        "-d",
+        type=str,
+        default="dlpfc",
+        help="dataset to use. Default: dlpfc.",
+    )
+    parser.add_argument(
+        "--st_id",
+        type=str,
+        default="spatialLIBD",
+        help="st set to use. Default: spatialLIBD.",
+    )
+    parser.add_argument(
+        "--sc_id",
+        type=str,
+        default="GSE144136",
+        help="sc set to use. Default: GSE144136.",
+    )
+
+    args = parser.parse_args()
+
+    main(args)
