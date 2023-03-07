@@ -1,87 +1,61 @@
 #!/usr/bin/env python3
 """Runs evaluation on models."""
 # %%
-# import json
-import math
-import os
-import datetime
-from collections import defaultdict
-import logging
-from multiprocessing import Pool, TimeoutError
-import warnings
 import argparse
-from joblib import parallel_backend, effective_n_jobs, Parallel, delayed
+import math
+import datetime
+import logging
+import os
+import shutil
+import warnings
+
+from collections import defaultdict
+from multiprocessing import Pool, TimeoutError
 import pickle
 
-parser = argparse.ArgumentParser(description="Evaluates.")
-parser.add_argument(
-    "--pretraining", "-p", action="store_true", help="force pretraining"
-)
-parser.add_argument("--modelname", "-n", type=str, default="ADDA", help="model name")
-parser.add_argument("--milisi", "-m", action="store_false", help="no milisi")
-parser.add_argument(
-    "--config_fname",
-    "-f",
-    type=str,
-    help="Name of the config file to use",
-)
-# parser.add_argument("--modelversion", "-v", type=str, default="TESTING", help="model ver")
-parser.add_argument(
-    "--njobs",
-    type=int,
-    default=1,
-    help="Number of jobs to use for parallel processing.",
-)
-parser.add_argument(
-    "--cuda",
-    "-c",
-    default=None,
-    help="gpu index to use",
-)
-# parser.add_argument("--seed", default="random", help="seed used for training")
-args = parser.parse_args()
-
-import pandas as pd
-import numpy as np
-import matplotlib.pyplot as plt
-import matplotlib as mpl
-import seaborn as sns
-import yaml
-
-import scanpy as sc
-
-from sklearn.metrics import RocCurveDisplay
-
-from sklearn.decomposition import PCA
-from sklearn import model_selection
-from sklearn import metrics
-
-# import umap
-
-from imblearn.ensemble import BalancedRandomForestClassifier
-
-
-import torch
 import harmonypy as hm
+import matplotlib as mpl
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+import scanpy as sc
+import seaborn as sns
+import torch
+import yaml
+from imblearn.ensemble import BalancedRandomForestClassifier
+from joblib import Parallel, delayed, effective_n_jobs, parallel_backend
+from sklearn import metrics, model_selection
+from sklearn.decomposition import PCA
+from sklearn.metrics import RocCurveDisplay
 
 from src.da_models.adda import ADDAST
 from src.da_models.dann import DANN
+from src.utils import data_loading
 
 # from src.da_models.datasets import SpotDataset
 from src.utils.evaluation import JSD
+from src.utils.output_utils import TempFolderHolder
 
-from src.utils import data_loading
+parser = argparse.ArgumentParser(description="Evaluates.")
+parser.add_argument("--pretraining", "-p", action="store_true", help="force pretraining")
+parser.add_argument("--modelname", "-n", type=str, default="ADDA", help="model name")
+parser.add_argument("--milisi", "-m", action="store_false", help="no milisi")
+parser.add_argument("--config_fname", "-f", type=str, help="Name of the config file to use")
+parser.add_argument(
+    "--njobs", type=int, default=1, help="Number of jobs to use for parallel processing."
+)
+parser.add_argument("--cuda", "-c", default=None, help="GPU index to use")
+parser.add_argument("--tmpdir", "-d", default=None, help="optional temporary results directory")
+args = parser.parse_args()
 
-# from src.utils.data_loading import (
-#     load_spatial,
-#     load_sc,
-#     get_selected_dir,
-#     get_model_rel_path,
-# )
+
+# import umap
+
 
 script_start_time = datetime.datetime.now(datetime.timezone.utc)
 logging.basicConfig(
-    level=logging.DEBUG, format="%(asctime)s:%(levelname)s:%(name)s:%(message)s"
+    level=logging.DEBUG,
+    format="%(asctime)s:%(levelname)s:%(name)s:%(message)s",
 )
 logger = logging.getLogger(__name__)
 
@@ -158,6 +132,12 @@ class Evaluator:
         )
 
         model_folder = os.path.join("model", model_rel_path)
+        if args.tmpdir:
+            real_model_folder = model_folder
+            model_folder = os.path.join(args.tmpdir, "model")
+            # if not os.path.isdir(model_folder):
+            #     os.makedirs(model_folder)
+            shutil.copytree(real_model_folder, model_folder, dirs_exist_ok=True)
 
         # Check to make sure config file matches config file in model folder
         with open(os.path.join(model_folder, "config.yml"), "r") as f:
@@ -165,13 +145,14 @@ class Evaluator:
         if config_model_folder != self.config:
             raise ValueError("Config file does not match config file in model folder")
 
-        self.pretraining = args.pretraining or self.train_params.get(
-            "pretraining", False
-        )
-        self.results_folder = os.path.join("results", model_rel_path)
+        self.pretraining = args.pretraining or self.train_params.get("pretraining", False)
+        results_folder = os.path.join("results", model_rel_path)
 
-        if not os.path.isdir(self.results_folder):
-            os.makedirs(self.results_folder)
+        self.temp_folder_holder = TempFolderHolder()
+        temp_results_folder = os.path.join(args.tmpdir, "results")
+        self.results_folder = self.temp_folder_holder.set_output_folder(
+            temp_results_folder, results_folder
+        )
 
         # %%
         # sc.logging.print_versions()
@@ -242,7 +223,12 @@ class Evaluator:
 
         pca_da_df["domain"] = ["source" if x == 0 else "target" for x in y_dis]
         sns.scatterplot(
-            data=pca_da_df, x="PC1", y="PC2", hue="domain", ax=axs[0][0], marker="."
+            data=pca_da_df,
+            x="PC1",
+            y="PC2",
+            hue="domain",
+            ax=axs[0][0],
+            marker=".",
         )
         axs.flat[0].set_title("DA")
 
@@ -326,9 +312,7 @@ class Evaluator:
             self._eval_embeddings_1samp(sample_id, random_states, model_noda=model_noda)
 
     def _eval_embeddings_1samp(self, sample_id, random_states, model_noda=None):
-        model = get_model(
-            os.path.join(self.advtrain_folder, sample_id, f"final_model.pth")
-        )
+        model = get_model(os.path.join(self.advtrain_folder, sample_id, f"final_model.pth"))
         n_jobs = effective_n_jobs(args.njobs)
 
         for split, rs in zip(self.splits, random_states):
@@ -358,24 +342,7 @@ class Evaluator:
             self.gen_pca(sample_id, split, y_dis, emb, emb_noda=emb_noda)
 
             if MILISI:
-                logger.debug(
-                    f"Using {n_jobs} jobs with parallel backend \"{'threading'}\""
-                )
-                with parallel_backend("threading", n_jobs=n_jobs):
-                    print(" milisi", end=" ")
-                    meta_df = pd.DataFrame(y_dis, columns=["Domain"])
-                    self.miLISI_d["da"][split][sample_id] = np.median(
-                        hm.compute_lisi(emb, meta_df, ["Domain"])
-                    )
-                    logger.debug(f"miLISI da: {self.miLISI_d['da'][split][sample_id]}")
-
-                    if self.pretraining:
-                        self.miLISI_d["noda"][split][sample_id] = np.median(
-                            hm.compute_lisi(emb_noda, meta_df, ["Domain"])
-                        )
-                        logger.debug(
-                            f"miLISI noda: {self.miLISI_d['da'][split][sample_id]}"
-                        )
+                self._run_milisi(sample_id, n_jobs, split, emb, emb_noda, y_dis)
 
             print("rf50", end=" ")
             if self.pretraining:
@@ -409,6 +376,28 @@ class Evaluator:
 
         print("")
 
+    def _run_milisi(self, sample_id, n_jobs, split, emb, emb_noda, y_dis):
+        logger.debug(f"Using {n_jobs} jobs with parallel backend \"{'threading'}\"")
+
+        print(" milisi", end=" ")
+        meta_df = pd.DataFrame(y_dis, columns=["Domain"])
+        score = self._milisi_parallel(n_jobs, emb, meta_df)
+
+        self.miLISI_d["da"][split][sample_id] = np.median(score)
+        logger.debug(f"miLISI da: {self.miLISI_d['da'][split][sample_id]}")
+
+        if self.pretraining:
+            score = self._milisi_parallel(n_jobs, emb_noda, meta_df)
+            self.miLISI_d["noda"][split][sample_id] = np.median(score)
+            logger.debug(f"miLISI noda: {self.miLISI_d['da'][split][sample_id]}")
+
+    def _milisi_parallel(self, n_jobs, emb, meta_df):
+        if n_jobs > 1:
+            with parallel_backend("threading", n_jobs=n_jobs):
+                return hm.compute_lisi(emb, meta_df, ["Domain"])
+
+        return hm.compute_lisi(emb, meta_df, ["Domain"])
+
     def _plot_cellfraction(self, visnum, adata, pred_sp, ax=None):
         """Plot predicted cell fraction for a given visnum"""
         try:
@@ -440,7 +429,16 @@ class Evaluator:
             ax=ax,
         )
 
-    def _plot_roc(self, visnum, adata, pred_sp, name, num_name_exN_l, numlist, ax=None):
+    def _plot_roc(
+        self,
+        visnum,
+        adata,
+        pred_sp,
+        name,
+        num_name_exN_l,
+        numlist,
+        ax=None,
+    ):
         """Plot ROC for a given visnum"""
 
         logging.debug(f"plotting ROC for {self.sc_sub_dict[visnum]} and {name}")
@@ -537,7 +535,11 @@ class Evaluator:
             )
             for color in color_dict
         ]
-        fig.legend(bbox_to_anchor=(0, 0.5), handles=legend_elements, loc="center right")
+        fig.legend(
+            bbox_to_anchor=(0, 0.5),
+            handles=legend_elements,
+            loc="center right",
+        )
 
         for i, sample_id in enumerate(self.st_sample_id_l):
             sc.pl.spatial(
@@ -774,7 +776,11 @@ class Evaluator:
                 )
 
             ax.flat[i].plot(
-                [0, 1], [0, 1], transform=ax.flat[i].transAxes, ls="--", color="k"
+                [0, 1],
+                [0, 1],
+                transform=ax.flat[i].transAxes,
+                ls="--",
+                color="k",
             )
             ax.flat[i].set_aspect("equal")
             ax.flat[i].set_xlim([0, 1])
@@ -894,15 +900,6 @@ class Evaluator:
             )
             for sid in self.st_sample_id_l
         )
-        # aucs = [
-        #     self._plot_samples_pdac(
-        #         sid,
-        #         adata_st_d[sid],
-        #         pred_sp_d[sid],
-        #         pred_sp_noda_d[sid] if pred_sp_noda_d else None,
-        #     )
-        #     for sid in self.st_sample_id_l
-        # ]
         return aucs
 
     def eval_sc(self, metric_ctp):
@@ -929,9 +926,7 @@ class Evaluator:
             if self.data_params["train_using_all_st_samples"]:
                 model_path = os.path.join(self.advtrain_folder, f"final_model.pth")
             else:
-                model_path = os.path.join(
-                    self.advtrain_folder, sample_id, f"final_model.pth"
-                )
+                model_path = os.path.join(self.advtrain_folder, sample_id, f"final_model.pth")
 
             self._calc_jsd(metric_ctp, sample_id, model_path=model_path, da="da")
 
@@ -985,8 +980,7 @@ class Evaluator:
             da_df_keys.insert(0, "Before DA")
 
         results_df = [
-            pd.concat(list(self.gen_l_dfs(da)), axis=1, keys=df_keys)
-            for da in da_dict_keys
+            pd.concat(list(self.gen_l_dfs(da)), axis=1, keys=df_keys) for da in da_dict_keys
         ]
         results_df = pd.concat(results_df, axis=0, keys=da_df_keys)
 
@@ -996,6 +990,8 @@ class Evaluator:
         # %%
         with open(os.path.join(self.results_folder, "config.yml"), "w") as f:
             yaml.dump(self.config, f)
+
+        self.temp_folder_holder.copy_out()
 
 
 # %%
@@ -1101,6 +1097,4 @@ def fit_pca(X, *args, **kwargs):
 if __name__ == "__main__":
     main()
 
-print(
-    "Script run time:", datetime.datetime.now(datetime.timezone.utc) - script_start_time
-)
+print("Script run time:", datetime.datetime.now(datetime.timezone.utc) - script_start_time)

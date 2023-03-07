@@ -1,64 +1,45 @@
 #!/usr/bin/env python3
+"""Reproduce CellDART for ST"""
 
 # %% [markdown]
 #  # Reproduce CellDART
 
 # %%
 import argparse
-import os
 import datetime
-from itertools import chain
-from copy import deepcopy
+import os
 import warnings
+from copy import deepcopy
+from itertools import chain
 
-from tqdm.autonotebook import tqdm
-
-import yaml
 import numpy as np
-
 import torch
+import yaml
 from torch import nn
+from tqdm.autonotebook import tqdm
 
 from src.da_models.adda import ADDAST
 from src.da_models.datasets import SpotDataset
 from src.da_models.utils import set_requires_grad
-from src.utils.dupstdout import DupStdout
-
-# from src.utils.data_loading import (
-#     load_spatial,
-#     load_sc,
-#     get_selected_dir,
-#     get_model_rel_path,
-# )
 from src.utils import data_loading
+from src.utils.output_utils import DupStdout, TempFolderHolder
 
 script_start_time = datetime.datetime.now(datetime.timezone.utc)
 
 parser = argparse.ArgumentParser(description="Reproduce CellDART for ST")
+parser.add_argument("--config_fname", "-f", type=str, help="Name of the config file to use")
 parser.add_argument(
-    "--config_fname",
-    "-f",
-    type=str,
-    help="Name of the config file to use",
+    "--num_workers", type=int, default=0, help="Number of workers to use for dataloaders."
 )
-parser.add_argument(
-    "--njobs",
-    type=int,
-    default=0,
-    help="Number of jobs to use for parallel processing.",
-)
-parser.add_argument(
-    "--cuda",
-    "-c",
-    default=None,
-    help="gpu index to use",
-)
+parser.add_argument("--cuda", "-c", default=None, help="gpu index to use")
+parser.add_argument("--tmpdir", "-d", default=None, help="optional temporary model directory")
 
 # %%
 args = parser.parse_args()
 CONFIG_FNAME = args.config_fname
 CUDA_INDEX = args.cuda
-NUM_WORKERS = args.njobs
+NUM_WORKERS = args.num_workers
+TMP_DIR = args.tmpdir
 
 # CONFIG_FNAME = "celldart1_bnfix.yml"
 # CUDA_INDEX = None
@@ -187,9 +168,8 @@ model_folder = data_loading.get_model_rel_path(
 )
 model_folder = os.path.join("model", model_folder)
 
-if not os.path.isdir(model_folder):
-    os.makedirs(model_folder)
-    print(model_folder)
+temp_folder_holder = TempFolderHolder()
+model_folder = temp_folder_holder.set_output_folder(TMP_DIR, model_folder)
 
 
 # %% [markdown]
@@ -232,9 +212,7 @@ sc_mix_d, lab_mix_d, sc_sub_dict, sc_sub_dict2 = data_loading.load_sc(
 
 # %%
 ### source dataloaders
-source_train_set = SpotDataset(
-    deepcopy(sc_mix_d["train"]), deepcopy(lab_mix_d["train"])
-)
+source_train_set = SpotDataset(deepcopy(sc_mix_d["train"]), deepcopy(lab_mix_d["train"]))
 source_val_set = SpotDataset(deepcopy(sc_mix_d["val"]), deepcopy(lab_mix_d["val"]))
 source_test_set = SpotDataset(deepcopy(sc_mix_d["test"]), deepcopy(lab_mix_d["test"]))
 
@@ -319,13 +297,9 @@ if data_params["st_split"]:
     dataloader_target_val_d = {}
     dataloader_target_test_d = {}
     for sample_id in st_sample_id_l:
-        target_train_set_d[sample_id] = SpotDataset(
-            deepcopy(mat_sp_d[sample_id]["train"])
-        )
+        target_train_set_d[sample_id] = SpotDataset(deepcopy(mat_sp_d[sample_id]["train"]))
         target_val_set_d[sample_id] = SpotDataset(deepcopy(mat_sp_d[sample_id]["val"]))
-        target_test_set_d[sample_id] = SpotDataset(
-            deepcopy(mat_sp_d[sample_id]["test"])
-        )
+        target_test_set_d[sample_id] = SpotDataset(deepcopy(mat_sp_d[sample_id]["test"]))
 
         dataloader_target_train_d[sample_id] = torch.utils.data.DataLoader(
             target_train_set_d[sample_id],
@@ -353,9 +327,7 @@ else:
     target_test_set_d = {}
     dataloader_target_test_d = {}
     for sample_id in st_sample_id_l:
-        target_train_set_d[sample_id] = SpotDataset(
-            deepcopy(mat_sp_d[sample_id]["train"])
-        )
+        target_train_set_d[sample_id] = SpotDataset(deepcopy(mat_sp_d[sample_id]["train"]))
         dataloader_target_train_d[sample_id] = torch.utils.data.DataLoader(
             target_train_set_d[sample_id],
             batch_size=train_params["batch_size"],
@@ -364,9 +336,7 @@ else:
             pin_memory=False,
         )
 
-        target_test_set_d[sample_id] = SpotDataset(
-            deepcopy(mat_sp_d[sample_id]["test"])
-        )
+        target_test_set_d[sample_id] = SpotDataset(deepcopy(mat_sp_d[sample_id]["test"]))
         dataloader_target_test_d[sample_id] = torch.utils.data.DataLoader(
             target_test_set_d[sample_id],
             batch_size=train_params["batch_size"],
@@ -413,9 +383,7 @@ if not os.path.isdir(pretrain_folder):
 
 
 # %%
-pre_optimizer = torch.optim.Adam(
-    model.parameters(), lr=0.001, betas=(0.9, 0.999), eps=1e-07
-)
+pre_optimizer = torch.optim.Adam(model.parameters(), lr=0.001, betas=(0.9, 0.999), eps=1e-07)
 
 criterion_clf = nn.KLDivLoss(reduction="batchmean")
 
@@ -514,9 +482,7 @@ with DupStdout().dup_to_file(os.path.join(pretrain_folder, "log.txt"), "w") as f
 
         # Print the results
         outer.update(1)
-        out_string = (
-            f" {epoch:5d} " f"| {loss_history[-1]:<10.8f} " f"| {curr_loss_val:<10.8f} "
-        )
+        out_string = f" {epoch:5d} " f"| {loss_history[-1]:<10.8f} " f"| {curr_loss_val:<10.8f} "
 
         # Save the best weights
         if curr_loss_val < best_loss_val:
@@ -575,9 +541,7 @@ def batch_generator(data, batch_size):
     """
     all_examples_indices = len(data[0])
     while True:
-        mini_batch_indices = np.random.choice(
-            all_examples_indices, size=batch_size, replace=False
-        )
+        mini_batch_indices = np.random.choice(all_examples_indices, size=batch_size, replace=False)
         tbr = [k[mini_batch_indices] for k in data]
         yield tbr
 
@@ -595,9 +559,7 @@ def discrim_loss_accu(x, y_dis, model):
 
     loss = criterion_dis(y_pred, y_dis)
 
-    accu = torch.mean(
-        (torch.flatten(torch.argmax(y_pred, dim=1)) == y_dis).to(torch.float32)
-    ).cpu()
+    accu = torch.mean((torch.flatten(torch.argmax(y_pred, dim=1)) == y_dis).to(torch.float32)).cpu()
 
     return loss, accu
 
@@ -616,9 +578,7 @@ def compute_acc_dis(dataloader_source, dataloader_target, model):
         for y_val, dl in zip([1, 0], [dataloader_target, dataloader_source]):
             for _, (x, _) in enumerate(dl):
 
-                y_dis = torch.full(
-                    (x.shape[0],), y_val, device=device, dtype=torch.long
-                )
+                y_dis = torch.full((x.shape[0],), y_val, device=device, dtype=torch.long)
 
                 loss, accu = discrim_loss_accu(x, y_dis, model)
 
@@ -747,9 +707,7 @@ def train_adversarial(
             loss_dis = criterion_dis(y_dis_pred, y_dis_flipped)
 
             # Set true = predicted for target samples since we don't know what it is
-            y_clf_true = torch.cat(
-                (y_true, torch.zeros_like(y_clf_pred[y_true.shape[0] :]))
-            )
+            y_clf_true = torch.cat((y_true, torch.zeros_like(y_clf_pred[y_true.shape[0] :])))
 
             # Loss fn does mean over all samples including target
             loss_clf = criterion_clf_nored(y_clf_pred, y_clf_true)
@@ -818,9 +776,7 @@ def train_adversarial(
                 )
 
                 # Print the results
-                tqdm.write(
-                    f"iter: {iters} source loss: {source_loss} dis accu: {dis_accu}"
-                )
+                tqdm.write(f"iter: {iters} source loss: {source_loss} dis accu: {dis_accu}")
 
             outer.update(1)
 
@@ -877,3 +833,5 @@ else:
 # %%
 with open(os.path.join(model_folder, "config.yml"), "w") as f:
     yaml.safe_dump(config, f)
+
+temp_folder_holder.copy_out()

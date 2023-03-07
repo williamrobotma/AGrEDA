@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+"""Creating something like CellDART but just using coral loss"""
 
 # %% [markdown]
 #   # CORAL for ST
@@ -8,35 +9,26 @@
 
 # %%
 import argparse
-import os
 import datetime
-from copy import deepcopy
+import os
 import pickle
 import warnings
+from copy import deepcopy
 
-from tqdm.autonotebook import tqdm
 import matplotlib.pyplot as plt
 import numpy as np
-import yaml
-
-
 import torch
-from torch.nn import functional as F
+import yaml
 from torch import nn
+from torch.nn import functional as F
+from tqdm.autonotebook import tqdm
 
 from src.da_models.coral import CORAL
 from src.da_models.datasets import SpotDataset
 from src.da_models.utils import initialize_weights
-from src.utils.dupstdout import DupStdout
-
-# from src.utils.data_loading import (
-#     load_spatial,
-#     load_sc,
-#     get_selected_dir,
-#     get_model_rel_path,
-# )
 from src.utils import data_loading
-from src.utils.evaluation import format_iters, coral_loss
+from src.utils.evaluation import coral_loss, format_iters
+from src.utils.output_utils import DupStdout, TempFolderHolder
 
 # datetime object containing current date and time
 script_start_time = datetime.datetime.now(datetime.timezone.utc)
@@ -44,29 +36,14 @@ script_start_time = datetime.datetime.now(datetime.timezone.utc)
 
 # %%
 parser = argparse.ArgumentParser(
-    description=(
-        "Creating something like CellDART "
-        "but it actually follows Adda in PyTorch as a first step"
-    )
+    description="Creating something like CellDART but just using coral loss"
 )
+parser.add_argument("--config_fname", "-f", type=str, help="Name of the config file to use")
 parser.add_argument(
-    "--config_fname",
-    "-f",
-    type=str,
-    help="Name of the config file to use",
+    "--num_workers", type=int, default=0, help="Number of workers to use for dataloaders."
 )
-parser.add_argument(
-    "--njobs",
-    type=int,
-    default=0,
-    help="Number of jobs to use for parallel processing.",
-)
-parser.add_argument(
-    "--cuda",
-    "-c",
-    default=None,
-    help="gpu index to use",
-)
+parser.add_argument("--cuda", "-c", default=None, help="gpu index to use")
+parser.add_argument("--tmpdir", "-d", default=None, help="optional temporary model directory")
 
 
 # %%
@@ -77,7 +54,8 @@ parser.add_argument(
 args = parser.parse_args()
 CONFIG_FNAME = args.config_fname
 CUDA_INDEX = args.cuda
-NUM_WORKERS = args.njobs
+NUM_WORKERS = args.num_workers
+TMP_DIR = args.tmpdir
 
 
 # %%
@@ -216,9 +194,9 @@ model_folder = data_loading.get_model_rel_path(
 )
 model_folder = os.path.join("model", model_folder)
 
-if not os.path.isdir(model_folder):
-    os.makedirs(model_folder)
-    print(model_folder)
+
+temp_folder_holder = TempFolderHolder()
+model_folder = temp_folder_holder.set_output_folder(TMP_DIR, model_folder)
 
 
 # %% [markdown]
@@ -336,9 +314,7 @@ else:
             pin_memory=False,
         )
 
-        target_test_set_d[sample_id] = SpotDataset(
-            deepcopy(mat_sp_d[sample_id]["test"])
-        )
+        target_test_set_d[sample_id] = SpotDataset(deepcopy(mat_sp_d[sample_id]["test"]))
         dataloader_target_test_d[sample_id] = torch.utils.data.DataLoader(
             target_test_set_d[sample_id],
             batch_size=train_params["batch_size"],
@@ -461,13 +437,9 @@ if train_params.get("pretraining", False):
     early_stop_count = 0
 
     # Train
-    with DupStdout().dup_to_file(
-        os.path.join(pretrain_folder, "log.txt"), "w"
-    ) as f_log:
+    with DupStdout().dup_to_file(os.path.join(pretrain_folder, "log.txt"), "w") as f_log:
         print("Start pretrain...")
-        outer = tqdm(
-            total=train_params["initial_train_epochs"], desc="Epochs", position=0
-        )
+        outer = tqdm(total=train_params["initial_train_epochs"], desc="Epochs", position=0)
         inner = tqdm(total=len(dataloader_source_train), desc=f"Batch", position=1)
 
         tqdm.write(" Epoch | Train Loss | Val Loss   | Next LR    ")
@@ -527,21 +499,15 @@ if train_params.get("pretraining", False):
 
             # Save checkpoint every 10
             if epoch % 10 == 0 or epoch >= train_params["initial_train_epochs"] - 1:
-                torch.save(
-                    checkpoint, os.path.join(pretrain_folder, f"checkpt{epoch}.pth")
-                )
+                torch.save(checkpoint, os.path.join(pretrain_folder, f"checkpt{epoch}.pth"))
 
             # check to see if validation loss has plateau'd
             if (
                 early_stop_count >= train_params["early_stop_crit"]
                 and epoch >= train_params["min_epochs"] - 1
             ):
-                tqdm.write(
-                    f"Validation loss plateaued after {early_stop_count} at epoch {epoch}"
-                )
-                torch.save(
-                    checkpoint, os.path.join(pretrain_folder, f"earlystop{epoch}.pth")
-                )
+                tqdm.write(f"Validation loss plateaued after {early_stop_count} at epoch {epoch}")
+                torch.save(checkpoint, os.path.join(pretrain_folder, f"earlystop{epoch}.pth"))
                 break
 
             early_stop_count += 1
@@ -585,9 +551,7 @@ if train_params.get("pretraining", False):
     axs[0].legend()
 
     # lr history
-    iters_by_epoch, lr_history_running_flat = format_iters(
-        lr_history_running, startpoint=True
-    )
+    iters_by_epoch, lr_history_running_flat = format_iters(lr_history_running, startpoint=True)
     axs[1].plot(iters_by_epoch, lr_history_running_flat)
     axs[1].axvline(best_checkpoint["epoch"], ymax=2, clip_on=False, color="tab:green")
 
@@ -647,12 +611,8 @@ def model_adv_loss(
             y_pred_source, logits_target = model(x_source)
     else:
         y_pred, logits = model(torch.cat([x_source, x_target], dim=0))
-        y_pred_source, y_pred_target = torch.split(
-            y_pred, [len(x_source), len(x_target)]
-        )
-        logits_source, logits_target = torch.split(
-            logits, [len(x_source), len(x_target)]
-        )
+        y_pred_source, y_pred_target = torch.split(y_pred, [len(x_source), len(x_target)])
+        logits_source, logits_target = torch.split(logits, [len(x_source), len(x_target)])
 
     loss_clf = criterion_clf(y_pred_source, y_source)
     loss_dis = criterion_dis(logits_source, logits_target)
@@ -753,9 +713,7 @@ def run_epoch(
         x_target = x_target.to(torch.float32).to(device)
         y_source = y_source.to(torch.float32).to(device)
 
-        loss, loss_dis, loss_clf = model_adv_loss(
-            x_source, x_target, y_source, model, **kwargs
-        )
+        loss, loss_dis, loss_clf = model_adv_loss(x_source, x_target, y_source, model, **kwargs)
 
         results_running["dis"]["loss"].append(loss_dis.item())
         results_running["clf"]["loss"].append(loss_clf.item())
@@ -823,15 +781,9 @@ def train_adversarial_iters(
         outer = tqdm(total=train_params["epochs"], desc="Epochs", position=0)
         inner1 = tqdm(total=max_len_dataloader, desc=f"Batch", position=1)
 
-        tqdm.write(
-            " Epoch || KLDiv.          || Coral           || Overall         || Next LR    "
-        )
-        tqdm.write(
-            "       || Train  | Val.   || Train  | Val.   || Train  | Val.   ||            "
-        )
-        tqdm.write(
-            "------------------------------------------------------------------------------"
-        )
+        tqdm.write(" Epoch || KLDiv.          || Coral           || Overall         || Next LR    ")
+        tqdm.write("       || Train  | Val.   || Train  | Val.   || Train  | Val.   ||            ")
+        tqdm.write("------------------------------------------------------------------------------")
         checkpoint = {
             "epoch": -1,
             "model": model,
@@ -871,9 +823,7 @@ def train_adversarial_iters(
 
             model.eval()
             with torch.no_grad():
-                results_val = run_epoch(
-                    dataloader_source_val, dataloader_target_train, model
-                )
+                results_val = run_epoch(dataloader_source_val, dataloader_target_train, model)
             for goal_k in results_val:
                 for metric_k in results_val[goal_k]:
                     results_history_val[goal_k][metric_k].append(
@@ -1062,9 +1012,7 @@ if data_params["train_using_all_st_samples"]:
     )
     model.apply(initialize_weights)
     if train_params.get("pretraining", False):
-        best_pre_checkpoint = torch.load(
-            os.path.join(pretrain_folder, f"final_model.pth")
-        )
+        best_pre_checkpoint = torch.load(os.path.join(pretrain_folder, f"final_model.pth"))
         model.load_state_dict(best_pre_checkpoint["model"].state_dict())
     model.to(device)
 
@@ -1094,9 +1042,7 @@ else:
         model.apply(initialize_weights)
 
         if train_params.get("pretraining", False):
-            best_pre_checkpoint = torch.load(
-                os.path.join(pretrain_folder, f"final_model.pth")
-            )
+            best_pre_checkpoint = torch.load(os.path.join(pretrain_folder, f"final_model.pth"))
             model.load_state_dict(best_pre_checkpoint["model"].state_dict())
         model.to(device)
 
@@ -1117,378 +1063,7 @@ else:
 with open(os.path.join(model_folder, "config.yml"), "w") as f:
     yaml.safe_dump(config, f)
 
+temp_folder_holder.copy_out()
 
 # %%
-print(
-    "Script run time:", datetime.datetime.now(datetime.timezone.utc) - script_start_time
-)
-
-
-# %% [markdown]
-#  ## Evaluation of latent space
-
-# %%
-# from sklearn.decomposition import PCA
-# from sklearn import model_selection
-# from sklearn.ensemble import RandomForestClassifier
-
-
-# for sample_id in st_sample_id_l:
-#     best_checkpoint = torch.load(
-#         os.path.join(advtrain_folder, sample_id, f"final_model.pth")
-#     )
-#     model = best_checkpoint["model"]
-#     model.to(device)
-
-#     model.eval()
-#     model.target_inference()
-
-#     with torch.no_grad():
-#         source_emb = model.source_encoder(torch.Tensor(sc_mix_train_s).to(device))
-#         target_emb = model.target_encoder(
-#             torch.Tensor(mat_sp_test_s_d[sample_id]).to(device)
-#         )
-
-#         y_dis = torch.cat(
-#             [
-#                 torch.zeros(source_emb.shape[0], device=device, dtype=torch.long),
-#                 torch.ones(target_emb.shape[0], device=device, dtype=torch.long),
-#             ]
-#         )
-
-#         emb = torch.cat([source_emb, target_emb])
-
-#         emb = emb.detach().cpu().numpy()
-#         y_dis = y_dis.detach().cpu().numpy()
-
-#     (emb_train, emb_test, y_dis_train, y_dis_test,) = model_selection.train_test_split(
-#         emb,
-#         y_dis,
-#         test_size=0.2,
-#         random_state=225,
-#         stratify=y_dis,
-#     )
-
-#     pca = PCA(n_components=50)
-#     pca.fit(emb_train)
-
-#     emb_train_50 = pca.transform(emb_train)
-#     emb_test_50 = pca.transform(emb_test)
-
-#     clf = RandomForestClassifier(random_state=145, n_jobs=-1)
-#     clf.fit(emb_train_50, y_dis_train)
-#     accu_train = clf.score(emb_train_50, y_dis_train)
-#     accu_test = clf.score(emb_test_50, y_dis_test)
-#     class_proportions = np.mean(y_dis)
-
-#     print(
-#         "Training accuracy: {}, Test accuracy: {}, Class proportions: {}".format(
-#             accu_train, accu_test, class_proportions
-#         )
-#     )
-
-
-# %% [markdown]
-#   # 4. Predict cell fraction of spots and visualization
-
-# %%
-# pred_sp_d, pred_sp_noda_d = {}, {}
-# if TRAIN_USING_ALL_ST_SAMPLES:
-#     best_checkpoint = torch.load(os.path.join(advtrain_folder, f"final_model.pth"))
-#     model = best_checkpoint["model"]
-#     model.to(device)
-
-#     model.eval()
-#     model.target_inference()
-#     with torch.no_grad():
-#         for sample_id in st_sample_id_l:
-#             pred_sp_d[sample_id] = (
-#                 torch.exp(
-#                     model(torch.Tensor(mat_sp_test_s_d[sample_id]).to(device))
-#                 )
-#                 .detach()
-#                 .cpu()
-#                 .numpy()
-#             )
-
-# else:
-#     for sample_id in st_sample_id_l:
-#         best_checkpoint = torch.load(
-#             os.path.join(advtrain_folder, sample_id, f"final_model.pth")
-#         )
-#         model = best_checkpoint["model"]
-#         model.to(device)
-
-#         model.eval()
-#         model.target_inference()
-
-#         with torch.no_grad():
-#             pred_sp_d[sample_id] = (
-#                 torch.exp(
-#                     model(torch.Tensor(mat_sp_test_s_d[sample_id]).to(device))
-#                 )
-#                 .detach()
-#                 .cpu()
-#                 .numpy()
-#             )
-
-
-# best_checkpoint = torch.load(os.path.join(pretrain_folder, f"best_model.pth"))
-# model = best_checkpoint["model"]
-# model.to(device)
-
-# model.eval()
-# model.set_encoder("source")
-
-# with torch.no_grad():
-#     for sample_id in st_sample_id_l:
-#         pred_sp_noda_d[sample_id] = (
-#             torch.exp(model(torch.Tensor(mat_sp_test_s_d[sample_id]).to(device)))
-#             .detach()
-#             .cpu()
-#             .numpy()
-#         )
-
-
-# %%
-# adata_spatialLIBD = sc.read_h5ad(
-#     os.path.join(PROCESSED_DATA_DIR, "adata_spatialLIBD.h5ad")
-# )
-
-# adata_spatialLIBD_d = {}
-# for sample_id in st_sample_id_l:
-#     adata_spatialLIBD_d[sample_id] = adata_spatialLIBD[
-#         adata_spatialLIBD.obs.sample_id == sample_id
-#     ]
-#     adata_spatialLIBD_d[sample_id].obsm["spatial"] = (
-#         adata_spatialLIBD_d[sample_id].obs[["X", "Y"]].values
-#     )
-
-
-# %%
-# num_name_exN_l = []
-# for k, v in sc_sub_dict.items():
-#     if "Ex" in v:
-#         num_name_exN_l.append((k, v, int(v.split("_")[1])))
-# num_name_exN_l.sort(key=lambda a: a[2])
-# num_name_exN_l
-
-
-# %%
-# Ex_to_L_d = {
-#     1: {5, 6},
-#     2: {5},
-#     3: {4, 5},
-#     4: {6},
-#     5: {5},
-#     6: {4, 5, 6},
-#     7: {4, 5, 6},
-#     8: {5, 6},
-#     9: {5, 6},
-#     10: {2, 3, 4},
-# }
-
-
-# %%
-# numlist = [t[0] for t in num_name_exN_l]
-# Ex_l = [t[2] for t in num_name_exN_l]
-# num_to_ex_d = dict(zip(numlist, Ex_l))
-
-
-# %%
-# def plot_cellfraction(visnum, adata, pred_sp, ax=None):
-#     """Plot predicted cell fraction for a given visnum"""
-#     adata.obs["Pred_label"] = pred_sp[:, visnum]
-#     # vmin = 0
-#     # vmax = np.amax(pred_sp)
-
-#     sc.pl.spatial(
-#         adata,
-#         img_key="hires",
-#         color="Pred_label",
-#         palette="Set1",
-#         size=1.5,
-#         legend_loc=None,
-#         title=f"{sc_sub_dict[visnum]}",
-#         spot_size=100,
-#         show=False,
-#         # vmin=vmin,
-#         # vmax=vmax,
-#         ax=ax,
-#     )
-
-
-# %%
-# def plot_roc(visnum, adata, pred_sp, name, ax=None):
-#     """Plot ROC for a given visnum"""
-
-#     def layer_to_layer_number(x):
-#         for char in x:
-#             if char.isdigit():
-#                 if int(char) in Ex_to_L_d[num_to_ex_d[visnum]]:
-#                     return 1
-#         return 0
-
-#     y_pred = pred_sp[:, visnum]
-#     y_true = adata.obs["spatialLIBD"].map(layer_to_layer_number).fillna(0)
-#     # print(y_true)
-#     # print(y_true.isna().sum())
-#     RocCurveDisplay.from_predictions(y_true=y_true, y_pred=y_pred, name=name, ax=ax)
-
-
-# %%
-# fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(5, 5), constrained_layout=True)
-
-# sc.pl.spatial(
-#     adata_spatialLIBD_d[SAMPLE_ID_N],
-#     img_key=None,
-#     color="spatialLIBD",
-#     palette="Accent_r",
-#     size=1.5,
-#     title=SAMPLE_ID_N,
-#     # legend_loc = 4,
-#     spot_size=100,
-#     show=False,
-#     ax=ax,
-# )
-
-# ax.axis("equal")
-# ax.set_xlabel("")
-# ax.set_ylabel("")
-
-# fig.show()
-
-
-# %%
-# fig, ax = plt.subplots(2, 5, figsize=(20, 8), constrained_layout=True)
-
-# for i, num in enumerate(numlist):
-#     plot_cellfraction(
-#         num, adata_spatialLIBD_d[SAMPLE_ID_N], pred_sp_d[SAMPLE_ID_N], ax.flat[i]
-#     )
-#     ax.flat[i].axis("equal")
-#     ax.flat[i].set_xlabel("")
-#     ax.flat[i].set_ylabel("")
-
-# fig.show()
-
-# fig, ax = plt.subplots(
-#     2, 5, figsize=(20, 8), constrained_layout=True, sharex=True, sharey=True
-# )
-
-# for i, num in enumerate(numlist):
-#     plot_roc(
-#         num,
-#         adata_spatialLIBD_d[SAMPLE_ID_N],
-#         pred_sp_d[SAMPLE_ID_N],
-#         "ADDA",
-#         ax.flat[i],
-#     )
-#     plot_roc(
-#         num,
-#         adata_spatialLIBD_d[SAMPLE_ID_N],
-#         pred_sp_noda_d[SAMPLE_ID_N],
-#         "NN_wo_da",
-#         ax.flat[i],
-#     )
-#     ax.flat[i].plot([0, 1], [0, 1], transform=ax.flat[i].transAxes, ls="--", color="k")
-#     ax.flat[i].set_aspect("equal")
-#     ax.flat[i].set_xlim([0, 1])
-#     ax.flat[i].set_ylim([0, 1])
-
-#     ax.flat[i].set_title(f"{sc_sub_dict[num]}")
-
-#     if i >= len(numlist) - 5:
-#         ax.flat[i].set_xlabel("FPR")
-#     else:
-#         ax.flat[i].set_xlabel("")
-#     if i % 5 == 0:
-#         ax.flat[i].set_ylabel("TPR")
-#     else:
-#         ax.flat[i].set_ylabel("")
-
-# fig.show()
-
-
-# %%
-# if TRAIN_USING_ALL_ST_SAMPLES:
-#     best_checkpoint = torch.load(os.path.join(advtrain_folder, f"final_model.pth"))
-# else:
-#     best_checkpoint = torch.load(
-#         os.path.join(advtrain_folder, SAMPLE_ID_N, f"final_model.pth")
-#     )
-
-# model = best_checkpoint["model"]
-# model.to(device)
-
-# model.eval()
-# model.set_encoder("source")
-
-# with torch.no_grad():
-#     pred_mix = (
-#         torch.exp(model(torch.Tensor(sc_mix_test_s).to(device)))
-#         .detach()
-#         .cpu()
-#         .numpy()
-#     )
-
-# cell_type_nums = sc_sub_dict.keys()
-# nrows = ceil(len(cell_type_nums) / 5)
-
-# line_kws = {"color": "tab:orange"}
-# scatter_kws = {"s": 5}
-
-# props = dict(facecolor="w", alpha=0.5)
-
-# fig, ax = plt.subplots(
-#     nrows,
-#     5,
-#     figsize=(25, 5 * nrows),
-#     constrained_layout=True,
-#     sharex=False,
-#     sharey=True,
-# )
-# for i, visnum in enumerate(cell_type_nums):
-#     sns.regplot(
-#         x=pred_mix[:, visnum],
-#         y=lab_mix_test[:, visnum],
-#         line_kws=line_kws,
-#         scatter_kws=scatter_kws,
-#         ax=ax.flat[i],
-#     ).set_title(sc_sub_dict[visnum])
-
-#     ax.flat[i].set_aspect("equal")
-#     ax.flat[i].set_xlabel("Predicted Proportion")
-
-#     if i % 5 == 0:
-#         ax.flat[i].set_ylabel("True Proportion")
-#     else:
-#         ax.flat[i].set_ylabel("")
-#     ax.flat[i].set_xlim([0, 1])
-#     ax.flat[i].set_ylim([0, 1])
-
-#     textstr = (
-#         f"MSE: {mean_squared_error(pred_mix[:,visnum], lab_mix_test[:,visnum]):.5f}"
-#     )
-
-#     # place a text box in upper left in axes coords
-#     ax.flat[i].text(
-#         0.95,
-#         0.05,
-#         textstr,
-#         transform=ax.flat[i].transAxes,
-#         verticalalignment="bottom",
-#         horizontalalignment="right",
-#         bbox=props,
-#     )
-
-# for i in range(len(cell_type_nums), nrows * 5):
-#     ax.flat[i].axis("off")
-
-# plt.show()
-
-
-# %%
-
-
-# %%
+print("Script run time:", datetime.datetime.now(datetime.timezone.utc) - script_start_time)

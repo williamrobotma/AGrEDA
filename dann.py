@@ -1,40 +1,34 @@
+#!/usr/bin/env python3
+"""Creating something like CellDART but it actually follows DANN in PyTorch"""
+
 # %% [markdown]
 #  # DANN for ST
 
 # %% [markdown]
 #  Creating something like CellDART but it actually follows DANN in PyTorch
 
+import argparse
+
 # %%
 import datetime
-import argparse
 import os
-
-from copy import deepcopy
 import pickle
 import warnings
+from copy import deepcopy
 
-from tqdm.autonotebook import tqdm
 import matplotlib.pyplot as plt
-
 import numpy as np
-import yaml
-
-
 import torch
+import yaml
 from torch import nn
+from tqdm.autonotebook import tqdm
 
 from src.da_models.dann import DANN
 from src.da_models.datasets import SpotDataset
 from src.da_models.utils import initialize_weights, set_requires_grad
-from src.utils.dupstdout import DupStdout
-# from src.utils.data_loading import (
-#     load_spatial,
-#     load_sc,
-#     get_selected_dir,
-#     get_model_rel_path,
-# )
 from src.utils import data_loading
 from src.utils.evaluation import format_iters
+from src.utils.output_utils import DupStdout, TempFolderHolder
 
 # datetime object containing current date and time
 script_start_time = datetime.datetime.now(datetime.timezone.utc)
@@ -42,36 +36,25 @@ script_start_time = datetime.datetime.now(datetime.timezone.utc)
 
 # %%
 parser = argparse.ArgumentParser(
-    description=(
-        "Creating something like CellDART but it actually follows DANN in PyTorch"
-    )
+    description=("Creating something like CellDART but it actually follows DANN in PyTorch")
 )
+parser.add_argument("--config_fname", "-f", type=str, help="Name of the config file to use")
 parser.add_argument(
-    "--config_fname",
-    "-f",
-    type=str,
-    help="Name of the config file to use",
+    "--num_workers", type=int, default=0, help="Number of workers to use for dataloaders."
 )
-parser.add_argument(
-    "--njobs",
-    type=int,
-    default=0,
-    help="Number of jobs to use for parallel processing.",
-)
-parser.add_argument(
-    "--cuda",
-    "-c",
-    default=None,
-    help="gpu index to use",
-)
-args = parser.parse_args()
+parser.add_argument("--cuda", "-c", default=None, help="gpu index to use")
+parser.add_argument("--tmpdir", "-d", default=None, help="optional temporary model directory")
+
 # %%
 # CUDA_INDEX = 2
 # NUM_WORKERS = 4
 # CONFIG_FNAME = "dann.yml"
+
+args = parser.parse_args()
 CONFIG_FNAME = args.config_fname
 CUDA_INDEX = args.cuda
-NUM_WORKERS = args.njobs
+NUM_WORKERS = args.num_workers
+TMP_DIR = args.tmpdir
 
 # %%
 # torch_params = {}
@@ -213,9 +196,8 @@ model_folder = data_loading.get_model_rel_path(
 )
 model_folder = os.path.join("model", model_folder)
 
-if not os.path.isdir(model_folder):
-    os.makedirs(model_folder)
-    print(model_folder)
+temp_folder_holder = TempFolderHolder()
+model_folder = temp_folder_holder.set_output_folder(TMP_DIR, model_folder)
 
 
 # %% [markdown]
@@ -332,9 +314,7 @@ else:
             pin_memory=False,
         )
 
-        target_test_set_d[sample_id] = SpotDataset(
-            deepcopy(mat_sp_d[sample_id]["test"])
-        )
+        target_test_set_d[sample_id] = SpotDataset(deepcopy(mat_sp_d[sample_id]["test"]))
         dataloader_target_test_d[sample_id] = torch.utils.data.DataLoader(
             target_test_set_d[sample_id],
             batch_size=train_params["batch_size"],
@@ -424,13 +404,9 @@ if train_params["pretraining"]:
     early_stop_count = 0
 
     # Train
-    with DupStdout().dup_to_file(
-        os.path.join(pretrain_folder, "log.txt"), "w"
-    ) as f_log:
+    with DupStdout().dup_to_file(os.path.join(pretrain_folder, "log.txt"), "w") as f_log:
         print("Start pretrain...")
-        outer = tqdm(
-            total=train_params["initial_train_epochs"], desc="Epochs", position=0
-        )
+        outer = tqdm(total=train_params["initial_train_epochs"], desc="Epochs", position=0)
         inner = tqdm(total=len(dataloader_source_train), desc=f"Batch", position=1)
 
         tqdm.write(" Epoch | Train Loss | Val Loss   | Next LR    ")
@@ -459,9 +435,7 @@ if train_params["pretraining"]:
                 pre_optimizer.zero_grad()
                 loss = model_loss(*batch, model)
                 loss_running.append(loss.item())
-                mean_weights.append(
-                    len(batch)
-                )  # we will weight average by batch size later
+                mean_weights.append(len(batch))  # we will weight average by batch size later
 
                 # scaler.scale(loss).backward()
                 # scaler.step(optimizer)
@@ -505,21 +479,15 @@ if train_params["pretraining"]:
 
             # Save checkpoint every 10
             if epoch % 10 == 0 or epoch >= train_params["initial_train_epochs"] - 1:
-                torch.save(
-                    checkpoint, os.path.join(pretrain_folder, f"checkpt{epoch}.pth")
-                )
+                torch.save(checkpoint, os.path.join(pretrain_folder, f"checkpt{epoch}.pth"))
 
             # check to see if validation loss has plateau'd
             if (
                 early_stop_count >= train_params["early_stop_crit"]
                 and epoch >= train_params["min_epochs"] - 1
             ):
-                tqdm.write(
-                    f"Validation loss plateaued after {early_stop_count} at epoch {epoch}"
-                )
-                torch.save(
-                    checkpoint, os.path.join(pretrain_folder, f"earlystop{epoch}.pth")
-                )
+                tqdm.write(f"Validation loss plateaued after {early_stop_count} at epoch {epoch}")
+                torch.save(checkpoint, os.path.join(pretrain_folder, f"earlystop{epoch}.pth"))
                 break
 
             early_stop_count += 1
@@ -563,9 +531,7 @@ if train_params["pretraining"]:
     axs[0].legend()
 
     # lr history
-    iters_by_epoch, lr_history_running_flat = format_iters(
-        lr_history_running, startpoint=True
-    )
+    iters_by_epoch, lr_history_running_flat = format_iters(lr_history_running, startpoint=True)
     axs[1].plot(iters_by_epoch, lr_history_running_flat)
     axs[1].axvline(best_checkpoint["epoch"], ymax=2, clip_on=False, color="tab:green")
 
@@ -659,10 +625,7 @@ def logits_to_accu(y_pred, y_true):
 def target_step(x_target, model, optimizer):
     if optimizer is not None:
         clf_rq_bak = dict(
-            (
-                (name, param.requires_grad)
-                for name, param in model.clf.named_parameters()
-            )
+            ((name, param.requires_grad) for name, param in model.clf.named_parameters())
         )
         set_requires_grad(model.clf, False)
 
@@ -694,18 +657,14 @@ def update_weights(optimizer, loss):
 
 
 def target_pass(x_target, model):
-    y_dis_target = torch.ones(
-        x_target.shape[0], device=device, dtype=x_target.dtype
-    ).view(-1, 1)
+    y_dis_target = torch.ones(x_target.shape[0], device=device, dtype=x_target.dtype).view(-1, 1)
     _, y_dis_target_pred = model(x_target, clf=False)
     loss_dis_target = criterion_dis(y_dis_target_pred, y_dis_target)
     return y_dis_target, y_dis_target_pred, loss_dis_target
 
 
 def source_pass(x_source, y_source, model):
-    y_dis_source = torch.zeros(
-        x_source.shape[0], device=device, dtype=x_source.dtype
-    ).view(-1, 1)
+    y_dis_source = torch.zeros(x_source.shape[0], device=device, dtype=x_source.dtype).view(-1, 1)
     y_clf, y_dis_source_pred = model(x_source, clf=True)
     loss_clf = criterion_clf(y_clf, y_source)
     loss_dis_source = criterion_dis(y_dis_source_pred, y_dis_source)
@@ -888,15 +847,11 @@ def train_adversarial_iters(
 
             for k in results_history_source_val:
                 results_history_source_val[k].append(
-                    np.average(
-                        source_results_val[k], weights=source_results_val["weights"]
-                    )
+                    np.average(source_results_val[k], weights=source_results_val["weights"])
                 )
             for k in results_history_target_val:
                 results_history_target_val[k].append(
-                    np.average(
-                        target_results_val[k], weights=target_results_val["weights"]
-                    )
+                    np.average(target_results_val[k], weights=target_results_val["weights"])
                 )
 
             # Print the results
@@ -964,9 +919,7 @@ def train_adversarial_iters(
 
             # Only update if dis is stable
             # or if haven't found a stable epoch yet and haven't reached min epochs
-            if dis_stable or (
-                epoch < train_params["min_epochs_adv"] and not dis_stable_found
-            ):
+            if dis_stable or (epoch < train_params["min_epochs_adv"] and not dis_stable_found):
                 scheduler.step(results_history_source_val["clf_loss"][-1])
                 # tqdm.write(scheduler.best)
             else:
@@ -1137,9 +1090,7 @@ if data_params["train_using_all_st_samples"]:
     )
     model.apply(initialize_weights)
     if train_params["pretraining"]:
-        best_pre_checkpoint = torch.load(
-            os.path.join(pretrain_folder, f"final_model.pth")
-        )
+        best_pre_checkpoint = torch.load(os.path.join(pretrain_folder, f"final_model.pth"))
         model.load_state_dict(best_pre_checkpoint["model"].state_dict())
     model.to(device)
 
@@ -1171,9 +1122,7 @@ else:
         model.apply(initialize_weights)
 
         if train_params["pretraining"]:
-            best_pre_checkpoint = torch.load(
-                os.path.join(pretrain_folder, f"final_model.pth")
-            )
+            best_pre_checkpoint = torch.load(os.path.join(pretrain_folder, f"final_model.pth"))
             model.load_state_dict(best_pre_checkpoint["model"].state_dict())
         model.to(device)
 
@@ -1198,6 +1147,6 @@ else:
 with open(os.path.join(model_folder, "config.yml"), "w") as f:
     yaml.safe_dump(config, f)
 
-print(
-    "Script run time:", datetime.datetime.now(datetime.timezone.utc) - script_start_time
-)
+temp_folder_holder.copy_out()
+
+print("Script run time:", datetime.datetime.now(datetime.timezone.utc) - script_start_time)

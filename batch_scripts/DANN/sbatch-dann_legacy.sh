@@ -2,15 +2,17 @@
 
 #SBATCH --account=rrg-aminemad
 
-#SBATCH --nodes=1
-#SBATCH --tasks-per-node=1 
+
+# #SBATCH --nodes=1
+# #SBATCH --tasks-per-node=1
+#SBATCH --ntasks=1
 #SBATCH --gpus=1 
-#SBATCH --cpus-per-task=40  # Cores proportional to GPUs: 6 on Cedar, 16 on Graham.
-#SBATCH --mem=92G      
+#SBATCH --cpus-per-task=1  # Cores proportional to GPUs: 6 on Cedar, 16 on Graham.
+#SBATCH --mem=32G      
 #SBATCH --time=2:00:00
 
-#SBATCH --output=logs/DANN/dann_legacy-eval_only%N-%j.out
-# #SBATCH --error=logs/DANN/dann_legacy%N-%j.err
+#SBATCH --output=logs/DANN/dann_legacy-eval_only_buildenv%N-%j.out
+# #SBATCH --error=logs/DANN/dann_legacy-eval_only%N-%j.err
 
 
 export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
@@ -35,5 +37,7 @@ source .venv/bin/activate
 # ./prep_data.py -s standard -a --stsplit --njobs -1 --nspots 100000
 
 # python -u dann.py -f "dann_legacy.yml" --njobs $num_workers
-python -u eval_config.py -n "DANN" -f "dann_legacy.yml" --njobs $SLURM_CPUS_PER_TASK
+# python -m trace --trace eval_config.py -n "DANN" -f "dann_legacy.yml" --njobs $SLURM_CPUS_PER_TASK
+python -u eval_config.py -n "DANN" -f "dann_legacy.yml" --njobs $SLURM_CPUS_PER_TASK -d "$SLURM_TMPDIR/compute_node_temp"
+# python eval_config.py -n "DANN" -f "dann_legacy.yml" --njobs $SLURM_CPUS_PER_TASK
 # python -u eval.py -n "DANN" -v "Standard1" -p -s standard -c 2 --njobs 32 --seed 25098
