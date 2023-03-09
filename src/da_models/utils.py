@@ -1,4 +1,7 @@
 """Model utility functions."""
+import warnings
+
+import torch
 from torch import nn
 
 
@@ -24,3 +27,12 @@ def initialize_weights(m):
     elif isinstance(m, nn.Linear):
         nn.init.kaiming_uniform_(m.weight.data)
         nn.init.constant_(m.bias.data, 0)
+
+
+def get_torch_device(cuda_index=None):
+    if not torch.cuda.is_available():
+        warnings.warn("Using CPU", category=UserWarning, stacklevel=2)
+        return torch.device("cpu")
+    if cuda_index is not None:
+        return torch.device(f"cuda:{cuda_index}")
+    return torch.device("cuda")

@@ -8,7 +8,6 @@
 import argparse
 import datetime
 import os
-import warnings
 from copy import deepcopy
 from itertools import chain
 
@@ -20,7 +19,7 @@ from tqdm.autonotebook import tqdm
 
 from src.da_models.adda import ADDAST
 from src.da_models.datasets import SpotDataset
-from src.da_models.utils import set_requires_grad
+from src.da_models.utils import get_torch_device, set_requires_grad
 from src.utils import data_loading
 from src.utils.output_utils import DupStdout, TempFolderHolder
 
@@ -33,6 +32,7 @@ parser.add_argument(
 )
 parser.add_argument("--cuda", "-c", default=None, help="gpu index to use")
 parser.add_argument("--tmpdir", "-d", default=None, help="optional temporary model directory")
+parser.add_argument("--log_fname", "-l", default=None, help="optional log file name")
 
 # %%
 args = parser.parse_args()
@@ -40,6 +40,7 @@ CONFIG_FNAME = args.config_fname
 CUDA_INDEX = args.cuda
 NUM_WORKERS = args.num_workers
 TMP_DIR = args.tmpdir
+LOG_FNAME = args.log_fname
 
 # CONFIG_FNAME = "celldart1_bnfix.yml"
 # CUDA_INDEX = None
@@ -127,25 +128,15 @@ if not "pretraining" in train_params:
     with open(os.path.join("configs", MODEL_NAME, CONFIG_FNAME), "w") as f:
         yaml.safe_dump(config, f)
 
-print(yaml.safe_dump(config))
+tqdm.write(yaml.safe_dump(config))
 
 
 # %%
-if CUDA_INDEX is not None:
-    device = torch.device(f"cuda:{CUDA_INDEX}" if torch.cuda.is_available() else "cpu")
-else:
-    device = torch.device(f"cuda" if torch.cuda.is_available() else "cpu")
-if device == "cpu":
-    warnings.warn("Using CPU", stacklevel=2)
+device = get_torch_device(CUDA_INDEX)
 
 # %%
-if "manual_seed" in torch_params:
-    torch_seed = torch_params["manual_seed"]
-    torch_seed_path = str(torch_params["manual_seed"])
-else:
-    torch_seed = int(script_start_time.timestamp())
-    # torch_seed_path = script_start_time.strftime("%Y-%m-%d_%Hh%Mm%Ss")
-    torch_seed_path = "random"
+torch_seed = torch_params.get("manual_seed", int(script_start_time.timestamp()))
+torch_seed_path = str(torch_seed) if "manual_seed" in torch_params else "random"
 
 torch.manual_seed(torch_seed)
 np.random.seed(torch_seed)
@@ -155,16 +146,8 @@ np.random.seed(torch_seed)
 model_folder = data_loading.get_model_rel_path(
     MODEL_NAME,
     model_params["model_version"],
-    dset=data_params.get("dset", "dlpfc"),
-    sc_id=data_params.get("sc_id", data_loading.DEF_SC_ID),
-    st_id=data_params.get("st_id", data_loading.DEF_ST_ID),
-    n_markers=data_params["n_markers"],
-    all_genes=data_params["all_genes"],
-    n_mix=data_params["n_mix"],
-    n_spots=data_params["n_spots"],
-    st_split=data_params["st_split"],
-    scaler_name=data_params["scaler_name"],
     torch_seed_path=torch_seed_path,
+    **data_params,
 )
 model_folder = os.path.join("model", model_folder)
 
@@ -179,29 +162,17 @@ model_folder = temp_folder_holder.set_output_folder(TMP_DIR, model_folder)
 # %%
 selected_dir = data_loading.get_selected_dir(
     data_loading.get_dset_dir(
-        data_params["data_dir"], dset=data_params.get("dset", "dlpfc")
+        data_params["data_dir"],
+        dset=data_params.get("dset", "dlpfc"),
     ),
-    sc_id=data_params.get("sc_id", data_loading.DEF_SC_ID),
-    st_id=data_params.get("st_id", data_loading.DEF_ST_ID),
-    n_markers=data_params["n_markers"],
-    all_genes=data_params["all_genes"],
+    **data_params,
 )
 
 # Load spatial data
-mat_sp_d, mat_sp_train, st_sample_id_l = data_loading.load_spatial(
-    selected_dir,
-    data_params["scaler_name"],
-    train_using_all_st_samples=data_params["train_using_all_st_samples"],
-    st_split=data_params["st_split"],
-)
+mat_sp_d, mat_sp_train, st_sample_id_l = data_loading.load_spatial(selected_dir, **data_params)
 
 # Load sc data
-sc_mix_d, lab_mix_d, sc_sub_dict, sc_sub_dict2 = data_loading.load_sc(
-    selected_dir,
-    data_params["scaler_name"],
-    n_mix=data_params["n_mix"],
-    n_spots=data_params["n_spots"],
-)
+sc_mix_d, lab_mix_d, sc_sub_dict, sc_sub_dict2 = data_loading.load_sc(selected_dir, **data_params)
 
 
 # %% [markdown]
@@ -216,76 +187,23 @@ source_train_set = SpotDataset(deepcopy(sc_mix_d["train"]), deepcopy(lab_mix_d["
 source_val_set = SpotDataset(deepcopy(sc_mix_d["val"]), deepcopy(lab_mix_d["val"]))
 source_test_set = SpotDataset(deepcopy(sc_mix_d["test"]), deepcopy(lab_mix_d["test"]))
 
+source_dataloader_kwargs = dict(
+    num_workers=NUM_WORKERS, pin_memory=True, batch_size=train_params["batch_size"]
+)
+
 dataloader_source_train = torch.utils.data.DataLoader(
-    source_train_set,
-    batch_size=train_params["batch_size"],
-    shuffle=True,
-    num_workers=NUM_WORKERS,
-    pin_memory=True,
+    source_train_set, shuffle=True, **source_dataloader_kwargs
 )
 dataloader_source_val = torch.utils.data.DataLoader(
-    source_val_set,
-    batch_size=train_params["batch_size"],
-    shuffle=False,
-    num_workers=NUM_WORKERS,
-    pin_memory=False,
+    source_val_set, shuffle=False, **source_dataloader_kwargs
 )
 dataloader_source_test = torch.utils.data.DataLoader(
-    source_test_set,
-    batch_size=train_params["batch_size"],
-    shuffle=False,
-    num_workers=NUM_WORKERS,
-    pin_memory=False,
+    source_test_set, shuffle=False, **source_dataloader_kwargs
 )
 
-# ### target dataloaders
-# target_test_set_d = {}
-# for sample_id in st_sample_id_l:
-#     target_test_set_d[sample_id] = SpotDataset(deepcopy(mat_sp_d["test"][sample_id]))
-
-# dataloader_target_test_d = {}
-# for sample_id in st_sample_id_l:
-#     dataloader_target_test_d[sample_id] = torch.utils.data.DataLoader(
-#         target_test_set_d[sample_id],
-#         batch_size=BATCH_SIZE,
-#         shuffle=False,
-#         num_workers=NUM_WORKERS,
-#         pin_memory=False,
-#     )
-
-# if TRAIN_USING_ALL_ST_SAMPLES:
-#     target_train_set = SpotDataset(deepcopy(mat_sp_train_s))
-#     dataloader_target_train = torch.utils.data.DataLoader(
-#         target_train_set,
-#         batch_size=BATCH_SIZE,
-#         shuffle=True,
-#         num_workers=NUM_WORKERS,
-#         pin_memory=True,
-#     )
-# else:
-#     target_train_set_d = {}
-#     dataloader_target_train_d = {}
-#     for sample_id in st_sample_id_l:
-#         target_train_set_d[sample_id] = SpotDataset(
-#             deepcopy(mat_sp_d["train"][sample_id])
-#         )
-#         dataloader_target_train_d[sample_id] = torch.utils.data.DataLoader(
-#             target_train_set_d[sample_id],
-#             batch_size=BATCH_SIZE,
-#             shuffle=True,
-#             num_workers=NUM_WORKERS,
-#             pin_memory=True,
-#         )
-
-# if TRAIN_USING_ALL_ST_SAMPLES:
-#     target_train_set = SpotDataset(deepcopy(mat_sp_train))
-#     dataloader_target_train = torch.utils.data.DataLoader(
-#         target_train_set,
-#         batch_size=BATCH_SIZE,
-#         shuffle=True,
-#         num_workers=NUM_WORKERS,
-#         pin_memory=True,
-#     )
+target_dataloader_kwargs = dict(
+    num_workers=NUM_WORKERS, pin_memory=False, batch_size=train_params["batch_size"]
+)
 
 ### target dataloaders
 target_train_set_d = {}
@@ -303,24 +221,18 @@ if data_params["st_split"]:
 
         dataloader_target_train_d[sample_id] = torch.utils.data.DataLoader(
             target_train_set_d[sample_id],
-            batch_size=train_params["batch_size"],
             shuffle=True,
-            num_workers=NUM_WORKERS,
-            pin_memory=False,
+            **target_dataloader_kwargs,
         )
         dataloader_target_val_d[sample_id] = torch.utils.data.DataLoader(
             target_val_set_d[sample_id],
-            batch_size=train_params["batch_size"],
             shuffle=False,
-            num_workers=NUM_WORKERS,
-            pin_memory=False,
+            **target_dataloader_kwargs,
         )
         dataloader_target_test_d[sample_id] = torch.utils.data.DataLoader(
             target_test_set_d[sample_id],
-            batch_size=train_params["batch_size"],
             shuffle=False,
-            num_workers=NUM_WORKERS,
-            pin_memory=False,
+            **target_dataloader_kwargs,
         )
 
 else:
@@ -330,30 +242,22 @@ else:
         target_train_set_d[sample_id] = SpotDataset(deepcopy(mat_sp_d[sample_id]["train"]))
         dataloader_target_train_d[sample_id] = torch.utils.data.DataLoader(
             target_train_set_d[sample_id],
-            batch_size=train_params["batch_size"],
             shuffle=True,
-            num_workers=NUM_WORKERS,
-            pin_memory=False,
+            **target_dataloader_kwargs,
         )
 
         target_test_set_d[sample_id] = SpotDataset(deepcopy(mat_sp_d[sample_id]["test"]))
         dataloader_target_test_d[sample_id] = torch.utils.data.DataLoader(
             target_test_set_d[sample_id],
-            batch_size=train_params["batch_size"],
-            shuffle=False,
-            num_workers=NUM_WORKERS,
-            pin_memory=False,
+            shuffle=True,
+            **target_dataloader_kwargs,
         )
 
 
 if data_params["train_using_all_st_samples"]:
     target_train_set = SpotDataset(mat_sp_train)
     dataloader_target_train = torch.utils.data.DataLoader(
-        target_train_set,
-        batch_size=train_params["batch_size"],
-        shuffle=True,
-        num_workers=NUM_WORKERS,
-        pin_memory=True,
+        target_train_set, shuffle=False, **target_dataloader_kwargs
     )
 
 
@@ -369,7 +273,7 @@ model = ADDAST(
 
 ## CellDART uses just one encoder!
 model.target_encoder = model.source_encoder
-print(model.to(device))
+tqdm.write(repr(model.to(device)))
 
 
 # %% [markdown]
@@ -387,14 +291,15 @@ pre_optimizer = torch.optim.Adam(model.parameters(), lr=0.001, betas=(0.9, 0.999
 
 criterion_clf = nn.KLDivLoss(reduction="batchmean")
 
+to_inp_kwargs = dict(device=device, dtype=torch.float32, non_blocking=True)
+
 
 # %%
 def model_loss(x, y_true, model):
-    x = x.to(torch.float32).to(device)
-    y_true = y_true.to(torch.float32).to(device)
+    x = x.to(**to_inp_kwargs)
+    y_true = y_true.to(**to_inp_kwargs)
 
     y_pred = model(x)
-
     loss = criterion_clf(y_pred, y_true)
 
     return loss
@@ -444,15 +349,15 @@ loss_history_running = []
 best_loss_val = np.inf
 early_stop_count = 0
 
-
-with DupStdout().dup_to_file(os.path.join(pretrain_folder, "log.txt"), "w") as f_log:
+log_file_path = os.path.join(pretrain_folder, LOG_FNAME) if LOG_FNAME else None
+with DupStdout().dup_to_file(log_file_path, "w") as dup_stdout:
     # Train
-    print("Start pretrain...")
-    outer = tqdm(total=train_params["initial_train_epochs"], desc="Epochs", position=0)
-    inner = tqdm(total=len(dataloader_source_train), desc=f"Batch", position=1)
+    tqdm.write("Start pretrain...", file=dup_stdout)
+    outer = tqdm(total=train_params["initial_train_epochs"], desc="Epochs")
+    inner = tqdm(total=len(dataloader_source_train), desc=f"Batch")
 
-    print(" Epoch | Train Loss | Val Loss   ")
-    print("---------------------------------")
+    tqdm.write(" Epoch | Train Loss | Val Loss   ", file=dup_stdout)
+    tqdm.write("---------------------------------", file=dup_stdout)
     checkpoint = {
         "epoch": -1,
         "model": model,
@@ -468,7 +373,10 @@ with DupStdout().dup_to_file(os.path.join(pretrain_folder, "log.txt"), "w") as f
         model.train()
 
         loss_running, mean_weights = run_pretrain_epoch(
-            model, dataloader_source_train, optimizer=pre_optimizer, inner=inner
+            model,
+            dataloader_source_train,
+            optimizer=pre_optimizer,
+            inner=inner,
         )
 
         loss_history.append(np.average(loss_running, weights=mean_weights))
@@ -482,7 +390,7 @@ with DupStdout().dup_to_file(os.path.join(pretrain_folder, "log.txt"), "w") as f
 
         # Print the results
         outer.update(1)
-        out_string = f" {epoch:5d} " f"| {loss_history[-1]:<10.8f} " f"| {curr_loss_val:<10.8f} "
+        out_string = f" {epoch:5d} | {loss_history[-1]:<10.8f} | {curr_loss_val:<10.8f} "
 
         # Save the best weights
         if curr_loss_val < best_loss_val:
@@ -492,7 +400,7 @@ with DupStdout().dup_to_file(os.path.join(pretrain_folder, "log.txt"), "w") as f
 
             out_string += "<-- new best val loss"
 
-        tqdm.write(out_string)
+        tqdm.write(out_string, file=dup_stdout)
 
         # # Save checkpoint every 10
         # if epoch % 10 == 0 or epoch >= train_params["initial_train_epochs"] - 1:
@@ -517,7 +425,9 @@ with DupStdout().dup_to_file(os.path.join(pretrain_folder, "log.txt"), "w") as f
     with torch.no_grad():
         curr_loss_train = compute_acc(dataloader_source_train, model)
 
-    print(f"Final train loss: {curr_loss_train}")
+    tqdm.write(f"Final train loss: {curr_loss_train}", file=dup_stdout)
+    outer.close()
+    inner.close()
     # Save final model
     torch.save(checkpoint, os.path.join(pretrain_folder, f"final_model.pth"))
 
@@ -541,7 +451,11 @@ def batch_generator(data, batch_size):
     """
     all_examples_indices = len(data[0])
     while True:
-        mini_batch_indices = np.random.choice(all_examples_indices, size=batch_size, replace=False)
+        mini_batch_indices = np.random.choice(
+            all_examples_indices,
+            size=batch_size,
+            replace=False,
+        )
         tbr = [k[mini_batch_indices] for k in data]
         yield tbr
 
@@ -552,7 +466,7 @@ criterion_clf_nored = nn.KLDivLoss(reduction="none")
 
 
 def discrim_loss_accu(x, y_dis, model):
-    x = x.to(torch.float32).to(device)
+    x = x.to(**to_inp_kwargs)
 
     emb = model.source_encoder(x)
     y_pred = model.dis(emb)
@@ -610,7 +524,8 @@ def train_adversarial(
     model.set_encoder("source")
 
     S_batches = batch_generator(
-        [sc_mix_train_s.copy(), lab_mix_train_s.copy()], train_params["batch_size"]
+        [sc_mix_train_s.copy(), lab_mix_train_s.copy()],
+        train_params["batch_size"],
     )
     T_batches = batch_generator(
         [mat_sp_train_s.copy(), np.ones(shape=(len(mat_sp_train_s), 2))],
@@ -637,10 +552,11 @@ def train_adversarial(
 
     # Initialize lists to store loss and accuracy values
     loss_history_running = []
-    with DupStdout().dup_to_file(os.path.join(save_folder, "log.txt"), "w") as f_log:
+    log_file_path = os.path.join(save_folder, LOG_FNAME) if LOG_FNAME else None
+    with DupStdout().dup_to_file(log_file_path, "w") as dup_stdout:
         # Train
-        print("Start adversarial training...")
-        outer = tqdm(total=train_params["n_iter"], desc="Iterations", position=0)
+        tqdm.write("Start adversarial training...", file=dup_stdout)
+        outer = tqdm(total=train_params["n_iter"], desc="Iterations")
 
         checkpoint = {
             "epoch": -1,
@@ -674,14 +590,9 @@ def train_adversarial(
             dis_weights = new_dis_weights
 
             x_source, x_target, y_true, = (
-                torch.Tensor(x_source),
-                torch.Tensor(x_target),
-                torch.Tensor(y_true),
-            )
-            x_source, x_target, y_true, = (
-                x_source.to(device),
-                x_target.to(device),
-                y_true.to(device),
+                torch.as_tensor(x_source, dtype=torch.float32, device=device),
+                torch.as_tensor(x_target, dtype=torch.float32, device=device),
+                torch.as_tensor(y_true, dtype=torch.float32, device=device),
             )
 
             x = torch.cat((x_source, x_target))
@@ -712,8 +623,11 @@ def train_adversarial(
             # Loss fn does mean over all samples including target
             loss_clf = criterion_clf_nored(y_clf_pred, y_clf_true)
             clf_sample_weights = torch.cat(
-                (torch.ones((x_source.shape[0],)), torch.zeros((x_target.shape[0],)))
-            ).to(device)
+                (
+                    torch.ones((x_source.shape[0],), device=device),
+                    torch.zeros((x_target.shape[0],), device=device),
+                )
+            )
             # batchmean with sample weights
             loss_clf = (loss_clf.sum(dim=1) * clf_sample_weights).mean()
 
@@ -772,13 +686,20 @@ def train_adversarial(
                 model.eval()
                 source_loss = compute_acc(dataloader_source_train_eval, model)
                 _, dis_accu = compute_acc_dis(
-                    dataloader_source_train_eval, dataloader_target_train_eval, model
+                    dataloader_source_train_eval,
+                    dataloader_target_train_eval,
+                    model,
                 )
 
                 # Print the results
-                tqdm.write(f"iter: {iters} source loss: {source_loss} dis accu: {dis_accu}")
+                tqdm.write(
+                    f"iter: {iters} source loss: {source_loss} dis accu: {dis_accu}",
+                    file=dup_stdout,
+                )
 
             outer.update(1)
+
+        outer.close()
 
     torch.save(checkpoint, os.path.join(save_folder, f"final_model.pth"))
 
@@ -789,7 +710,7 @@ def train_adversarial(
 
 # %%
 if data_params["train_using_all_st_samples"]:
-    print(f"Adversarial training for all ST slides")
+    tqdm.write(f"Adversarial training for all ST slides")
     save_folder = advtrain_folder
 
     best_checkpoint = torch.load(os.path.join(pretrain_folder, f"final_model.pth"))
@@ -809,7 +730,7 @@ if data_params["train_using_all_st_samples"]:
 
 else:
     for sample_id in st_sample_id_l:
-        print(f"Adversarial training for ST slide {sample_id}: ")
+        tqdm.write(f"Adversarial training for ST slide {sample_id}: ")
 
         save_folder = os.path.join(advtrain_folder, sample_id)
         if not os.path.isdir(save_folder):

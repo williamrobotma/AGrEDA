@@ -1,7 +1,7 @@
 """Evaluation tools"""
 import itertools
 
-import matplotlib.pyplot as plt
+# import matplotlib.pyplot as plt
 import numpy as np
 import torch
 from torch import nn
@@ -33,11 +33,63 @@ def coral_loss(source, target):
     """
     c_diff = torch.cov(source.T) - torch.cov(target.T)
     loss = torch.sum(torch.mul(c_diff, c_diff))
-    return loss / (4 * source.size(1)**2)
+    return loss / (4 * source.size(1) ** 2)
 
 
+def recurse_mean_dict(d, d_mean):
+    """Recursively mean the values of dict `d` of lists and append into dict
+    `d_mean` of lists.
+
+    `d_mean` must be initialized with the same structure as `d`.
+
+    Args:
+        d (dict): nested dictionary of lists
+        d_mean (dict): nested dictionary of lists, initialized the same as d.
+
+    """
+    for k, v in d.items():
+        if isinstance(v, dict):
+            recurse_mean_dict(v, d_mean[k])
+        else:
+            d_mean[k].append(np.mean(v))
 
 
+def recurse_avg_dict(d, d_avg):
+    """Recursively average the values of dict `d` of lists and append into dict
+    `d_avg` of lists.
+
+    `d_avg` must be initialized with the same structure as `d`. Base-level dicts
+    must contain a list with key "weights".
+
+    Args:
+        d (dict): nested dict of lists
+        d_avg (dict): nested dict of lists, initialized the same as d.
+
+    """
+    for k, v in d.items():
+        if isinstance(v, dict):
+            recurse_avg_dict(v, d_avg[k])
+        else:
+            d_avg[k].append(np.average(v, weights=d["weights"]))
+
+
+def recurse_running_dict(d, d_hist):
+    """Recursively append the values of a dict `d` into dict `d_hist` of lists.
+
+    `d_hist` will contain lists. The output dict must be initialized with the
+    same structure as `d`, but with lists instead of values.
+
+    Args:
+        d (dict): nested dict of lists
+        d_hist (dict): nested dict of lists, initialized the same as d but with
+            lists.
+
+    """
+    for k, v in d.items():
+        if isinstance(v, dict):
+            recurse_running_dict(v, d_hist[k])
+        else:
+            d_hist[k].append(v)
 
 
 def format_iters(nested_list, startpoint=False, endpoint=True):
@@ -69,9 +121,7 @@ def format_iters(nested_list, startpoint=False, endpoint=True):
     else:
         for i, l in enumerate(nested_list):
             if not endpoint and i == len(nested_list) - 1:
-                x_i = np.linspace(
-                    i, i - 1, len(l + 1), endpoint=False, dtype=np.float32
-                )
+                x_i = np.linspace(i, i - 1, len(l + 1), endpoint=False, dtype=np.float32)
                 x_i = x_i[1:]
             else:
                 x_i = np.linspace(i, i - 1, len(l), endpoint=False, dtype=np.float32)

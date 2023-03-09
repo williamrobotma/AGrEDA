@@ -13,7 +13,6 @@ import argparse
 import datetime
 import os
 import pickle
-import warnings
 from copy import deepcopy
 
 import matplotlib.pyplot as plt
@@ -25,9 +24,8 @@ from tqdm.autonotebook import tqdm
 
 from src.da_models.dann import DANN
 from src.da_models.datasets import SpotDataset
-from src.da_models.utils import initialize_weights, set_requires_grad
-from src.utils import data_loading
-from src.utils.evaluation import format_iters
+from src.da_models.utils import get_torch_device, initialize_weights, set_requires_grad
+from src.utils import data_loading, evaluation
 from src.utils.output_utils import DupStdout, TempFolderHolder
 
 # datetime object containing current date and time
@@ -44,6 +42,7 @@ parser.add_argument(
 )
 parser.add_argument("--cuda", "-c", default=None, help="gpu index to use")
 parser.add_argument("--tmpdir", "-d", default=None, help="optional temporary model directory")
+parser.add_argument("--log_fname", "-l", default=None, help="optional log file name")
 
 # %%
 # CUDA_INDEX = 2
@@ -55,6 +54,7 @@ CONFIG_FNAME = args.config_fname
 CUDA_INDEX = args.cuda
 NUM_WORKERS = args.num_workers
 TMP_DIR = args.tmpdir
+LOG_FNAME = args.log_fname
 
 # %%
 # torch_params = {}
@@ -158,22 +158,12 @@ train_params = config["train_params"]
 
 
 # %%
-if CUDA_INDEX is not None:
-    device = torch.device(f"cuda:{CUDA_INDEX}" if torch.cuda.is_available() else "cpu")
-else:
-    device = torch.device(f"cuda" if torch.cuda.is_available() else "cpu")
-if device == "cpu":
-    warnings.warn("Using CPU", stacklevel=2)
+device = get_torch_device(CUDA_INDEX)
 
 
 # %%
-if "manual_seed" in torch_params:
-    torch_seed = torch_params["manual_seed"]
-    torch_seed_path = str(torch_params["manual_seed"])
-else:
-    torch_seed = int(script_start_time.timestamp())
-    # torch_seed_path = script_start_time.strftime("%Y-%m-%d_%Hh%Mm%Ss")
-    torch_seed_path = "random"
+torch_seed = torch_params.get("manual_seed", int(script_start_time.timestamp()))
+torch_seed_path = str(torch_seed) if "manual_seed" in torch_params else "random"
 
 torch.manual_seed(torch_seed)
 np.random.seed(torch_seed)
@@ -183,16 +173,8 @@ np.random.seed(torch_seed)
 model_folder = data_loading.get_model_rel_path(
     MODEL_NAME,
     model_params["model_version"],
-    dset=data_params.get("dset", "dlpfc"),
-    sc_id=data_params.get("sc_id", data_loading.DEF_SC_ID),
-    st_id=data_params.get("st_id", data_loading.DEF_ST_ID),
-    n_markers=data_params["n_markers"],
-    all_genes=data_params["all_genes"],
-    n_mix=data_params["n_mix"],
-    n_spots=data_params["n_spots"],
-    st_split=data_params["st_split"],
-    scaler_name=data_params["scaler_name"],
     torch_seed_path=torch_seed_path,
+    **data_params,
 )
 model_folder = os.path.join("model", model_folder)
 
@@ -206,29 +188,17 @@ model_folder = temp_folder_holder.set_output_folder(TMP_DIR, model_folder)
 # %%
 selected_dir = data_loading.get_selected_dir(
     data_loading.get_dset_dir(
-        data_params["data_dir"], dset=data_params.get("dset", "dlpfc")
+        data_params["data_dir"],
+        dset=data_params.get("dset", "dlpfc"),
     ),
-    sc_id=data_params.get("sc_id", data_loading.DEF_SC_ID),
-    st_id=data_params.get("st_id", data_loading.DEF_ST_ID),
-    n_markers=data_params["n_markers"],
-    all_genes=data_params["all_genes"],
+    **data_params,
 )
 
 # Load spatial data
-mat_sp_d, mat_sp_train, st_sample_id_l = data_loading.load_spatial(
-    selected_dir,
-    data_params["scaler_name"],
-    train_using_all_st_samples=data_params["train_using_all_st_samples"],
-    st_split=data_params["st_split"],
-)
+mat_sp_d, mat_sp_train, st_sample_id_l = data_loading.load_spatial(selected_dir, **data_params)
 
 # Load sc data
-sc_mix_d, lab_mix_d, sc_sub_dict, sc_sub_dict2 = data_loading.load_sc(
-    selected_dir,
-    data_params["scaler_name"],
-    n_mix=data_params["n_mix"],
-    n_spots=data_params["n_spots"],
-)
+sc_mix_d, lab_mix_d, sc_sub_dict, sc_sub_dict2 = data_loading.load_sc(selected_dir, **data_params)
 
 
 # %% [markdown]
@@ -243,29 +213,23 @@ source_train_set = SpotDataset(sc_mix_d["train"], lab_mix_d["train"])
 source_val_set = SpotDataset(sc_mix_d["val"], lab_mix_d["val"])
 source_test_set = SpotDataset(sc_mix_d["test"], lab_mix_d["test"])
 
+source_dataloader_kwargs = dict(
+    num_workers=NUM_WORKERS, pin_memory=True, batch_size=train_params["batch_size"]
+)
+
 dataloader_source_train = torch.utils.data.DataLoader(
-    source_train_set,
-    batch_size=train_params["batch_size"],
-    shuffle=True,
-    num_workers=NUM_WORKERS,
-    pin_memory=False,
+    source_train_set, shuffle=True, **source_dataloader_kwargs
 )
 dataloader_source_val = torch.utils.data.DataLoader(
-    source_val_set,
-    batch_size=train_params["batch_size"],
-    shuffle=False,
-    num_workers=NUM_WORKERS,
-    pin_memory=False,
+    source_val_set, shuffle=False, **source_dataloader_kwargs
 )
 dataloader_source_test = torch.utils.data.DataLoader(
-    source_test_set,
-    batch_size=train_params["batch_size"],
-    shuffle=False,
-    num_workers=NUM_WORKERS,
-    pin_memory=False,
+    source_test_set, shuffle=False, **source_dataloader_kwargs
 )
 
 ### target dataloaders
+target_dataloader_kwargs = source_dataloader_kwargs
+
 target_train_set_d = {}
 dataloader_target_train_d = {}
 if data_params["st_split"]:
@@ -281,24 +245,18 @@ if data_params["st_split"]:
 
         dataloader_target_train_d[sample_id] = torch.utils.data.DataLoader(
             target_train_set_d[sample_id],
-            batch_size=train_params["batch_size"],
             shuffle=True,
-            num_workers=NUM_WORKERS,
-            pin_memory=False,
+            **target_dataloader_kwargs,
         )
         dataloader_target_val_d[sample_id] = torch.utils.data.DataLoader(
             target_val_set_d[sample_id],
-            batch_size=train_params["batch_size"],
             shuffle=False,
-            num_workers=NUM_WORKERS,
-            pin_memory=False,
+            **target_dataloader_kwargs,
         )
         dataloader_target_test_d[sample_id] = torch.utils.data.DataLoader(
             target_test_set_d[sample_id],
-            batch_size=train_params["batch_size"],
             shuffle=False,
-            num_workers=NUM_WORKERS,
-            pin_memory=False,
+            **target_dataloader_kwargs,
         )
 
 else:
@@ -308,19 +266,15 @@ else:
         target_train_set_d[sample_id] = SpotDataset(mat_sp_d[sample_id]["train"])
         dataloader_target_train_d[sample_id] = torch.utils.data.DataLoader(
             target_train_set_d[sample_id],
-            batch_size=train_params["batch_size"],
             shuffle=True,
-            num_workers=NUM_WORKERS,
-            pin_memory=False,
+            **target_dataloader_kwargs,
         )
 
         target_test_set_d[sample_id] = SpotDataset(deepcopy(mat_sp_d[sample_id]["test"]))
         dataloader_target_test_d[sample_id] = torch.utils.data.DataLoader(
             target_test_set_d[sample_id],
-            batch_size=train_params["batch_size"],
             shuffle=False,
-            num_workers=NUM_WORKERS,
-            pin_memory=False,
+            **target_dataloader_kwargs,
         )
 
 
@@ -330,11 +284,12 @@ else:
 # %%
 criterion_clf = nn.KLDivLoss(reduction="batchmean")
 
+to_inp_kwargs = dict(device=device, dtype=torch.float32, non_blocking=True)
 
 # %%
 def model_loss(x, y_true, model):
-    x = x.to(torch.float32).to(device)
-    y_true = y_true.to(torch.float32).to(device)
+    x = x.to(**to_inp_kwargs)
+    y_true = y_true.to(**to_inp_kwargs)
 
     y_pred, _ = model(x)
 
@@ -404,10 +359,11 @@ if train_params["pretraining"]:
     early_stop_count = 0
 
     # Train
-    with DupStdout().dup_to_file(os.path.join(pretrain_folder, "log.txt"), "w") as f_log:
-        print("Start pretrain...")
-        outer = tqdm(total=train_params["initial_train_epochs"], desc="Epochs", position=0)
-        inner = tqdm(total=len(dataloader_source_train), desc=f"Batch", position=1)
+    log_file_path = os.path.join(pretrain_folder, LOG_FNAME) if LOG_FNAME else None
+    with DupStdout().dup_to_file(log_file_path, "w") as dup_stdout:
+        tqdm.write("Start pretrain...")
+        outer = tqdm(total=train_params["initial_train_epochs"], desc="Epochs")
+        inner = tqdm(total=len(dataloader_source_train), desc=f"Batch")
 
         tqdm.write(" Epoch | Train Loss | Val Loss   | Next LR    ")
         tqdm.write("----------------------------------------------")
@@ -491,7 +447,8 @@ if train_params["pretraining"]:
                 break
 
             early_stop_count += 1
-
+    inner.close()
+    outer.close()
     lr_history_running[-1].append(pre_scheduler.get_last_lr()[-1])
 
     # Save final model
@@ -509,7 +466,11 @@ if train_params["pretraining"]:
 
     fig, axs = plt.subplots(2, 1, sharex=True, figsize=(6, 4), layout="constrained")
 
-    axs[0].plot(*format_iters(loss_history_running), label="Training", linewidth=0.5)
+    axs[0].plot(
+        *evaluation.format_iters(loss_history_running),
+        label="Training",
+        linewidth=0.5,
+    )
     axs[0].plot(loss_history_val, label="Validation")
     axs[0].axvline(best_epoch, color="tab:green")
 
@@ -531,7 +492,9 @@ if train_params["pretraining"]:
     axs[0].legend()
 
     # lr history
-    iters_by_epoch, lr_history_running_flat = format_iters(lr_history_running, startpoint=True)
+    iters_by_epoch, lr_history_running_flat = evaluation.format_iters(
+        lr_history_running, startpoint=True
+    )
     axs[1].plot(iters_by_epoch, lr_history_running_flat)
     axs[1].axvline(best_checkpoint["epoch"], ymax=2, clip_on=False, color="tab:green")
 
@@ -706,9 +669,9 @@ def run_epoch(
             t_iter = iter(dataloader_target)
             x_target, _ = next(t_iter)
 
-        x_source = x_source.to(torch.float32).to(device)
-        x_target = x_target.to(torch.float32).to(device)
-        y_source = y_source.to(torch.float32).to(device)
+        x_source = x_source.to(**to_inp_kwargs)
+        x_target = x_target.to(**to_inp_kwargs)
+        y_source = y_source.to(**to_inp_kwargs)
 
         (
             (loss_dis_source, loss_dis_target, loss_clf),
@@ -783,9 +746,10 @@ def train_adversarial_iters(
     best_loss_val_unstable = np.inf
     dis_stable_found = False
     early_stop_count = 0
-    with DupStdout().dup_to_file(os.path.join(save_folder, "log.txt"), "w") as f_log:
+    log_file_path = os.path.join(save_folder, LOG_FNAME) if LOG_FNAME else None
+    with DupStdout().dup_to_file(log_file_path, "w") as dup_stdout:
         # Train
-        print("Start adversarial training...")
+        tqdm.write("Start adversarial training...")
         outer = tqdm(total=train_params["epochs"], desc="Epochs", position=0)
         inner = tqdm(total=max_len_dataloader, desc=f"Batch", position=1)
         tqdm.write(" Epoch ||| Predictor       ||| Discriminator ")
@@ -925,6 +889,8 @@ def train_adversarial_iters(
             else:
                 scheduler.step(scheduler.mode_worse)
 
+    inner.close()
+    outer.close()
     # Save final model
     best_checkpoint = torch.load(os.path.join(save_folder, f"best_model.pth"))
     torch.save(best_checkpoint, os.path.join(save_folder, f"final_model.pth"))
@@ -959,7 +925,7 @@ def plot_results(
 
     # prediction loss
     axs[0].plot(
-        *format_iters(results_running_history_source["clf_loss"]),
+        *evaluation.format_iters(results_running_history_source["clf_loss"]),
         label="Training",
         ls="-",
         c="tab:blue",
@@ -993,7 +959,7 @@ def plot_results(
 
     # discriminator loss
     axs[1].plot(
-        *format_iters(results_running_history_source["dis_loss"]),
+        *evaluation.format_iters(results_running_history_source["dis_loss"]),
         label="Source train",
         ls="-",
         c="tab:blue",
@@ -1001,7 +967,7 @@ def plot_results(
         alpha=0.5,
     )
     axs[1].plot(
-        *format_iters(results_running_history_target["dis_loss"]),
+        *evaluation.format_iters(results_running_history_target["dis_loss"]),
         label="Target train",
         ls="-",
         c="tab:orange",
@@ -1032,7 +998,7 @@ def plot_results(
 
     # discriminator accuracy
     axs[2].plot(
-        *format_iters(results_running_history_source["dis_accu"]),
+        *evaluation.format_iters(results_running_history_source["dis_accu"]),
         label="Source train",
         ls="-",
         c="tab:blue",
@@ -1040,7 +1006,7 @@ def plot_results(
         alpha=0.5,
     )
     axs[2].plot(
-        *format_iters(results_running_history_target["dis_accu"]),
+        *evaluation.format_iters(results_running_history_target["dis_accu"]),
         label="Target train",
         ls="-",
         c="tab:orange",
@@ -1096,7 +1062,7 @@ if data_params["train_using_all_st_samples"]:
 
     model.advtraining()
 
-    print(model)
+    tqdm.write(repr(model))
 
     train_adversarial_iters(
         model,
@@ -1127,7 +1093,7 @@ else:
         model.to(device)
 
         model.advtraining()
-        print(model)
+        tqdm.write(repr(model))
 
         training_history = train_adversarial_iters(
             model,
@@ -1149,4 +1115,4 @@ with open(os.path.join(model_folder, "config.yml"), "w") as f:
 
 temp_folder_holder.copy_out()
 
-print("Script run time:", datetime.datetime.now(datetime.timezone.utc) - script_start_time)
+tqdm.write(f"Script run time: {datetime.datetime.now(datetime.timezone.utc) - script_start_time}")

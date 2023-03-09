@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """Preps the data into sets."""
 
-import glob
-import pickle
-import os
 import argparse
-from collections import OrderedDict
-import warnings
+import glob
 import logging
+import os
+import pickle
+import warnings
+from collections import OrderedDict
 
 import anndata as ad
 import h5py
@@ -93,8 +93,7 @@ def get_scaler(scaler_name):
         return preprocessing.StandardScaler
     if scaler_name == "celldart":
         warnings.warn(
-            "celldart scaler is provided for legacy purposes only. "
-            "Use minmax instead."
+            "celldart scaler is provided for legacy purposes only. " "Use minmax instead."
         )
         return scaler_name
 
@@ -239,11 +238,7 @@ def select_genes_and_split(
     )
 
     print("Selecting genes")
-    (
-        (adata_sc_train, adata_st),
-        df_genelists,
-        (fig, ax),
-    ) = data_processing.select_marker_genes(
+    ((adata_sc_train, adata_st), df_genelists, (fig, ax),) = data_processing.select_marker_genes(
         adata_sc_train,
         adata_st,
         n_markers=None if all_genes else n_markers,
@@ -319,13 +314,8 @@ def gen_pseudo_spots(
 
     unscaled_data_dir = os.path.join(selected_dir, "unscaled")
     try:
-        sc_mix_d, lab_mix_d = data_loading.load_pseudospots(
-            unscaled_data_dir, n_mix, n_spots
-        )
-        print(
-            "Unscaled pseudospots already exist. "
-            "Skipping generation and loading from disk."
-        )
+        sc_mix_d, lab_mix_d = data_loading.load_pseudospots(unscaled_data_dir, n_mix, n_spots)
+        print("Unscaled pseudospots already exist. " "Skipping generation and loading from disk.")
         return sc_mix_d, lab_mix_d
 
     except FileNotFoundError:
@@ -362,9 +352,7 @@ def gen_pseudo_spots(
         os.makedirs(unscaled_data_dir)
 
     print("Saving unscaled pseudospots")
-    data_loading.save_pseudospots(
-        lab_mix_d, sc_mix_d, unscaled_data_dir, n_mix, n_spots
-    )
+    data_loading.save_pseudospots(lab_mix_d, sc_mix_d, unscaled_data_dir, n_mix, n_spots)
 
     return sc_mix_d, lab_mix_d
 
@@ -409,9 +397,7 @@ def log_scale_pseudospots(
     if not os.path.exists(preprocessed_data_dir):
         os.makedirs(preprocessed_data_dir)
 
-    data_loading.save_pseudospots(
-        lab_mix_d, sc_mix_s_d, preprocessed_data_dir, n_mix, n_spots
-    )
+    data_loading.save_pseudospots(lab_mix_d, sc_mix_s_d, preprocessed_data_dir, n_mix, n_spots)
 
 
 def split_st(selected_dir, stsplit=False, rng=None):
@@ -428,9 +414,7 @@ def split_st(selected_dir, stsplit=False, rng=None):
     rng_integers = misc.check_integer_rng(rng)
 
     unscaled_data_dir = os.path.join(selected_dir, "unscaled")
-    out_path = os.path.join(
-        unscaled_data_dir, f"mat_sp_{'split' if stsplit else 'train'}_d.hdf5"
-    )
+    out_path = os.path.join(unscaled_data_dir, f"mat_sp_{'split' if stsplit else 'train'}_d.hdf5")
     if os.path.isfile(out_path):
         print("Unscaled spatial data already exists at:")
         print(out_path)
@@ -494,15 +478,11 @@ def log_scale_st(selected_dir, scaler_name, stsplit=False):
             grp_samp = fout.create_group(sample_id)
 
             if stsplit:
-                scaled = scale(
-                    scaler, *(grp[split][()] for split in data_loading.SPLITS)
-                )
+                scaled = scale(scaler, *(grp[split][()] for split in data_loading.SPLITS))
                 for split in data_loading.SPLITS:
                     grp_samp.create_dataset(split, data=next(scaled))
             else:
-                grp_samp.create_dataset(
-                    "train", data=next(scale(scaler, grp["train"][()]))
-                )
+                grp_samp.create_dataset("train", data=next(scale(scaler, grp["train"][()])))
 
 
 def log_scale_all_st(selected_dir, scaler_name):
@@ -524,9 +504,7 @@ def log_scale_all_st(selected_dir, scaler_name):
         os.makedirs(preprocessed_data_dir)
 
     print("Saving all spatial data...")
-    with h5py.File(
-        os.path.join(preprocessed_data_dir, "mat_sp_train_s.hdf5"), "w"
-    ) as f:
+    with h5py.File(os.path.join(preprocessed_data_dir, "mat_sp_train_s.hdf5"), "w") as f:
         f.create_dataset("all", data=mat_sp_train_all)
 
 
@@ -545,12 +523,8 @@ if __name__ == "__main__":
         choices=SCALER_OPTS,
         help="Scaler to use.",
     )
-    parser.add_argument(
-        "--stsplit", action="store_true", help="Whether to split ST data."
-    )
-    parser.add_argument(
-        "--allgenes", "-a", action="store_true", help="Turn off marker selection."
-    )
+    parser.add_argument("--stsplit", action="store_true", help="Whether to split ST data.")
+    parser.add_argument("--allgenes", "-a", action="store_true", help="Turn off marker selection.")
     parser.add_argument(
         "--nmarkers",
         type=int,

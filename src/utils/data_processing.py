@@ -2,13 +2,12 @@
 
 Adapted from: https://github.com/mexchy1000/CellDART
 """
-from joblib import Parallel, delayed
-
+import matplotlib.pyplot as plt
+import matplotlib_venn
 import numpy as np
 import pandas as pd
 import scanpy as sc
-import matplotlib_venn
-import matplotlib.pyplot as plt
+from joblib import Parallel, delayed
 from sklearn import preprocessing
 
 
@@ -20,6 +19,10 @@ def random_mix(X, y, nmix=5, n_samples=10000, seed=0, n_jobs=1):
         X (:obj:, array_like of `float`): Matrix containing single cell samples
             and their GEx profiles
         y (:obj:, array_like of `int`): Array of cell type labels
+        nmix (int): Number of cells per spot. Defaults to 5.
+        n_samples (int): Number of training pseudospots. Defaults to 10000.
+        seed (int): Random seed. Defaults to 0.
+        n_jobs (int): Number of jobs to run in parallel. Defaults to 1.
 
     Shape:
         - X: `(N, C)`, where `N` is the number of single cell samples, and `C`
@@ -32,10 +35,12 @@ def random_mix(X, y, nmix=5, n_samples=10000, seed=0, n_jobs=1):
         is the number of cell types.
 
     Returns:
+        A tuple of (pseudo_gex, ctps) where:
          - pseudo_gex (ndarray): Matrix containing pseudo-spot samples and their
          cell type proportion weighted averages
          - ctps (ndarray): Matrix containing pseudo-spot samples and their cell
          type proportions
+
     """
     # Define empty lists
     pseudo_gex, ctps = [], []
@@ -95,6 +100,7 @@ def rank_genes(adata_sc):
 
     Returns:
         A DataFrame containing the ranked genes by cell_subclass.
+
     """
     sc.tl.rank_genes_groups(adata_sc, groupby="cell_subclass", method="wilcoxon")
 
@@ -125,11 +131,11 @@ def select_marker_genes(
         force_rerank (bool): If True, will force rerank of genes and will not
             save. Defaults to False.
 
-
     Returns:
         A tuple of a tuple of (adata_sc, adata_st) with the reduced set of
         marker genes, and a DataFrame containing the ranked genes by
         cell_subclass.
+
     """
 
     # Load or rank genes

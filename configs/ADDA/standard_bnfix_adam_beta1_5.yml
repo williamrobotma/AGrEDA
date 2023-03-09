@@ -27,3 +27,4 @@ train_params:
   initial_train_epochs: 100
   min_epochs: 40.0
   min_epochs_adv: 80.0
+  pretraining: true
