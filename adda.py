@@ -11,7 +11,6 @@
 import argparse
 import datetime
 import os
-import warnings
 from copy import deepcopy
 
 import matplotlib.pyplot as plt
@@ -24,9 +23,8 @@ from tqdm.autonotebook import tqdm
 
 from src.da_models.adda import ADDAST
 from src.da_models.datasets import SpotDataset
-from src.da_models.utils import initialize_weights, set_requires_grad
-from src.utils import data_loading
-from src.utils.evaluation import format_iters
+from src.da_models.utils import get_torch_device, initialize_weights, set_requires_grad
+from src.utils import data_loading, evaluation
 from src.utils.output_utils import DupStdout, TempFolderHolder
 
 script_start_time = datetime.datetime.now(datetime.timezone.utc)
@@ -42,6 +40,7 @@ parser.add_argument(
 )
 parser.add_argument("--cuda", "-c", default=None, help="gpu index to use")
 parser.add_argument("--tmpdir", "-d", default=None, help="optional temporary model directory")
+parser.add_argument("--log_fname", "-l", default=None, help="optional log file name")
 
 # %%
 args = parser.parse_args()
@@ -49,6 +48,7 @@ CONFIG_FNAME = args.config_fname
 CUDA_INDEX = args.cuda
 NUM_WORKERS = args.num_workers
 TMP_DIR = args.tmpdir
+LOG_FNAME = args.log_fname
 
 # CONFIG_FNAME = "celldart1_bnfix.yml"
 # NUM_WORKERS = 0
@@ -150,23 +150,14 @@ print(yaml.safe_dump(config))
 
 
 # %%
-if CUDA_INDEX is not None:
-    device = torch.device(f"cuda:{CUDA_INDEX}" if torch.cuda.is_available() else "cpu")
-else:
-    device = torch.device(f"cuda" if torch.cuda.is_available() else "cpu")
-if device == "cpu":
-    warnings.warn("Using CPU", stacklevel=2)
+
+
+device = get_torch_device(CUDA_INDEX)
 
 
 # %%
-if "manual_seed" in torch_params:
-    torch_seed = torch_params["manual_seed"]
-    torch_seed_path = str(torch_params["manual_seed"])
-else:
-    torch_seed = int(script_start_time.timestamp())
-    # torch_seed_path = script_start_time.strftime("%Y-%m-%d_%Hh%Mm%Ss")
-    torch_seed_path = "random"
-
+torch_seed = torch_params.get("manual_seed", int(script_start_time.timestamp()))
+torch_seed_path = str(torch_seed) if "manual_seed" in torch_params else "random"
 torch.manual_seed(torch_seed)
 np.random.seed(torch_seed)
 
@@ -175,16 +166,8 @@ np.random.seed(torch_seed)
 model_folder = data_loading.get_model_rel_path(
     MODEL_NAME,
     model_params["model_version"],
-    dset=data_params.get("dset", "dlpfc"),
-    sc_id=data_params.get("sc_id", data_loading.DEF_SC_ID),
-    st_id=data_params.get("st_id", data_loading.DEF_ST_ID),
-    n_markers=data_params["n_markers"],
-    all_genes=data_params["all_genes"],
-    n_mix=data_params["n_mix"],
-    n_spots=data_params["n_spots"],
-    st_split=data_params["st_split"],
-    scaler_name=data_params["scaler_name"],
     torch_seed_path=torch_seed_path,
+    **data_params,
 )
 model_folder = os.path.join("model", model_folder)
 
@@ -198,30 +181,18 @@ model_folder = temp_folder_holder.set_output_folder(TMP_DIR, model_folder)
 # %%
 selected_dir = data_loading.get_selected_dir(
     data_loading.get_dset_dir(
-        data_params["data_dir"], dset=data_params.get("dset", "dlpfc")
+        data_params["data_dir"],
+        dset=data_params.get("dset", "dlpfc"),
     ),
-    sc_id=data_params.get("sc_id", data_loading.DEF_SC_ID),
-    st_id=data_params.get("st_id", data_loading.DEF_ST_ID),
-    n_markers=data_params["n_markers"],
-    all_genes=data_params["all_genes"],
+    **data_params,
 )
 
 
 # Load spatial data
-mat_sp_d, mat_sp_train, st_sample_id_l = data_loading.load_spatial(
-    selected_dir,
-    data_params["scaler_name"],
-    train_using_all_st_samples=data_params["train_using_all_st_samples"],
-    st_split=data_params["st_split"],
-)
+mat_sp_d, mat_sp_train, st_sample_id_l = data_loading.load_spatial(selected_dir, **data_params)
 
 # Load sc data
-sc_mix_d, lab_mix_d, sc_sub_dict, sc_sub_dict2 = data_loading.load_sc(
-    selected_dir,
-    data_params["scaler_name"],
-    n_mix=data_params["n_mix"],
-    n_spots=data_params["n_spots"],
-)
+sc_mix_d, lab_mix_d, sc_sub_dict, sc_sub_dict2 = data_loading.load_sc(selected_dir, **data_params)
 
 
 # %% [markdown]
@@ -236,29 +207,23 @@ source_train_set = SpotDataset(sc_mix_d["train"], lab_mix_d["train"])
 source_val_set = SpotDataset(sc_mix_d["val"], lab_mix_d["val"])
 source_test_set = SpotDataset(sc_mix_d["test"], lab_mix_d["test"])
 
+source_dataloader_kwargs = dict(
+    num_workers=NUM_WORKERS, pin_memory=True, batch_size=train_params["batch_size"]
+)
+
 dataloader_source_train = torch.utils.data.DataLoader(
-    source_train_set,
-    batch_size=train_params["batch_size"],
-    shuffle=True,
-    num_workers=NUM_WORKERS,
-    pin_memory=False,
+    source_train_set, shuffle=True, **source_dataloader_kwargs
 )
 dataloader_source_val = torch.utils.data.DataLoader(
-    source_val_set,
-    batch_size=train_params["batch_size"],
-    shuffle=False,
-    num_workers=NUM_WORKERS,
-    pin_memory=False,
+    source_val_set, shuffle=False, **source_dataloader_kwargs
 )
 dataloader_source_test = torch.utils.data.DataLoader(
-    source_test_set,
-    batch_size=train_params["batch_size"],
-    shuffle=False,
-    num_workers=NUM_WORKERS,
-    pin_memory=False,
+    source_test_set, shuffle=False, **source_dataloader_kwargs
 )
 
 ### target dataloaders
+target_dataloader_kwargs = source_dataloader_kwargs
+
 target_train_set_d = {}
 dataloader_target_train_d = {}
 if data_params["st_split"]:
@@ -274,24 +239,18 @@ if data_params["st_split"]:
 
         dataloader_target_train_d[sample_id] = torch.utils.data.DataLoader(
             target_train_set_d[sample_id],
-            batch_size=train_params["batch_size"],
             shuffle=True,
-            num_workers=NUM_WORKERS,
-            pin_memory=False,
+            **target_dataloader_kwargs,
         )
         dataloader_target_val_d[sample_id] = torch.utils.data.DataLoader(
             target_val_set_d[sample_id],
-            batch_size=train_params["batch_size"],
             shuffle=False,
-            num_workers=NUM_WORKERS,
-            pin_memory=False,
+            **target_dataloader_kwargs,
         )
         dataloader_target_test_d[sample_id] = torch.utils.data.DataLoader(
             target_test_set_d[sample_id],
-            batch_size=train_params["batch_size"],
             shuffle=False,
-            num_workers=NUM_WORKERS,
-            pin_memory=False,
+            **target_dataloader_kwargs,
         )
 
 else:
@@ -304,38 +263,28 @@ else:
         target_train_set_d[sample_id] = SpotDataset(mat_sp_d[sample_id]["train"])
         dataloader_target_train_d[sample_id] = torch.utils.data.DataLoader(
             target_train_set_d[sample_id],
-            batch_size=train_params["batch_size"],
             shuffle=True,
-            num_workers=NUM_WORKERS,
-            pin_memory=False,
+            **target_dataloader_kwargs,
         )
 
         target_test_set_d[sample_id] = SpotDataset(deepcopy(mat_sp_d[sample_id]["test"]))
         dataloader_target_test_d[sample_id] = torch.utils.data.DataLoader(
             target_test_set_d[sample_id],
-            batch_size=train_params["batch_size"],
             shuffle=False,
-            num_workers=NUM_WORKERS,
-            pin_memory=False,
+            **target_dataloader_kwargs,
         )
 
         target_train_set_dis_d[sample_id] = SpotDataset(deepcopy(mat_sp_d[sample_id]["train"]))
         dataloader_target_train_dis_d[sample_id] = torch.utils.data.DataLoader(
             target_train_set_dis_d[sample_id],
-            batch_size=train_params["batch_size"],
             shuffle=True,
-            num_workers=NUM_WORKERS,
-            pin_memory=False,
+            **target_dataloader_kwargs,
         )
 
 if data_params["train_using_all_st_samples"]:
     target_train_set = SpotDataset(mat_sp_train)
     dataloader_target_train = torch.utils.data.DataLoader(
-        target_train_set,
-        batch_size=train_params["batch_size"],
-        shuffle=True,
-        num_workers=NUM_WORKERS,
-        pin_memory=True,
+        target_train_set, shuffle=True, **target_dataloader_kwargs
     )
 
 
@@ -374,15 +323,14 @@ pre_scheduler = torch.optim.lr_scheduler.OneCycleLR(
 )
 
 criterion_clf = nn.KLDivLoss(reduction="batchmean")
-
+to_inp_kwargs = dict(device=device, dtype=torch.float32, non_blocking=True)
 
 # %%
 def model_loss(x, y_true, model):
-    x = x.to(torch.float32).to(device)
-    y_true = y_true.to(torch.float32).to(device)
+    x = x.to(**to_inp_kwargs)
+    y_true = y_true.to(**to_inp_kwargs)
 
     y_pred = model(x)
-
     loss = criterion_clf(y_pred, y_true)
 
     return loss
@@ -434,14 +382,15 @@ loss_history_running = []
 best_loss_val = np.inf
 early_stop_count = 0
 
-with DupStdout().dup_to_file(os.path.join(pretrain_folder, "log.txt"), "w") as f_log:
+log_file_path = os.path.join(pretrain_folder, LOG_FNAME) if LOG_FNAME else None
+with DupStdout().dup_to_file(log_file_path, "w") as dup_stdout:
     # Train
-    print("Start pretrain...")
-    outer = tqdm(total=train_params["initial_train_epochs"], desc="Epochs", position=0)
-    inner = tqdm(total=len(dataloader_source_train), desc=f"Batch", position=1)
+    tqdm.write("Start pretrain...")
+    outer = tqdm(total=train_params["initial_train_epochs"], desc="Epochs")
+    inner = tqdm(total=len(dataloader_source_train), desc=f"Batch")
 
-    print(" Epoch | Train Loss | Val Loss   ")
-    print("---------------------------------")
+    tqdm.write(" Epoch | Train Loss | Val Loss   ")
+    tqdm.write("---------------------------------")
     checkpoint = {
         "epoch": -1,
         "model": model,
@@ -477,41 +426,21 @@ with DupStdout().dup_to_file(os.path.join(pretrain_folder, "log.txt"), "w") as f
 
         # Print the results
         outer.update(1)
-        print(
-            f" {epoch:5d}",
-            f"| {loss_history[-1]:<10.8f}",
-            f"| {curr_loss_val:<10.8f}",
-            end=" ",
-        )
+        out_string = f" {epoch:5d} | {loss_history[-1]:<10.8f} | {curr_loss_val:<10.8f} "
         # Save the best weights
         if curr_loss_val < best_loss_val:
             best_loss_val = curr_loss_val
             torch.save(checkpoint, os.path.join(pretrain_folder, f"best_model.pth"))
             early_stop_count = 0
 
-            print("<-- new best val loss")
-        else:
-            print("")
+            out_string += "<-- new best val loss"
 
-        # Save checkpoint every 10
-        # if epoch % 10 == 0 or epoch >= train_params["initial_train_epochs"] - 1:
-        #     torch.save(checkpoint, os.path.join(pretrain_folder, f"checkpt{epoch}.pth"))
-
-        # check to see if validation loss has plateau'd
-        # if (
-        #     early_stop_count >= train_params["early_stop_crit"]
-        #     and epoch >= train_params["min_epochs"] - 1
-        # ):
-        #     print(
-        #         f"Validation loss plateaued after {early_stop_count} at epoch {epoch}"
-        #     )
-        #     torch.save(
-        #         checkpoint, os.path.join(pretrain_folder, f"earlystop{epoch}.pth")
-        #     )
-        #     break
+        tqdm.write(out_string)
 
         early_stop_count += 1
 
+    inner.close()
+    outer.close()
     # Save final model
     best_checkpoint = torch.load(os.path.join(pretrain_folder, f"best_model.pth"))
     torch.save(best_checkpoint, os.path.join(pretrain_folder, f"final_model.pth"))
@@ -528,26 +457,12 @@ if not os.path.isdir(advtrain_folder):
 
 
 # %%
-# def cycle_iter(iter):
-#     while True:
-#         yield from iter
-
-
-# def iter_skip(iter, n=1):
-#     for i in range(len(iter) * n):
-#         if (i % n) == n - 1:
-#             yield next(iter)
-#         else:
-#             yield None, None
-
-
-# %%
 criterion_dis = nn.BCEWithLogitsLoss()
 
 
 # %%
 def discrim_loss_accu(x, domain, model):
-    x = x.to(device)
+    x = x.to(**to_inp_kwargs)
 
     if domain == "source":
         y_dis = torch.zeros(x.shape[0], device=device, dtype=x.dtype).view(-1, 1)
@@ -569,42 +484,6 @@ def discrim_loss_accu(x, domain, model):
     )
 
     return loss, accu
-
-
-# def discrim_loss_accu(x_source, x_target, model):
-#     # x = x.to(device)
-
-#     x_source, x_target = x_source.to(device), x_target.to(device)
-
-#     # if domain == 'source':
-#     #     y_dis = torch.zeros(x.shape[0], device=device, dtype=x.dtype).view(-1, 1)
-#     #     emb = model.source_encoder(x) #.view(x.shape[0], -1)
-#     # elif domain == 'target':
-#     #     y_dis = torch.ones(x.shape[0], device=device, dtype=x.dtype).view(-1, 1)
-#     #     emb = model.target_encoder(x) #.view(x.shape[0], -1)
-#     # else:
-#     #     raise(ValueError, f"invalid domain {domain} given, must be 'source' or 'target'")
-
-#     y_dis = torch.cat(
-#         [
-#             torch.zeros(x_source.shape[0], device=device, dtype=x_source.dtype).view(
-#                 -1, 1
-#             ),
-#             torch.ones(x_target.shape[0], device=device, dtype=x_target.dtype).view(
-#                 -1, 1
-#             ),
-#         ]
-#     )
-#     x = torch.cat([x_source, x_target])
-#     emb = model.source_encoder(x)  # .view(x.shape[0], -1)
-#     y_pred = model.dis(emb)
-
-#     loss = criterion_dis(y_pred, y_dis)
-#     accu = torch.mean(
-#         (torch.round(y_pred).to(torch.long) == y_dis).to(torch.float32)
-#     ).cpu()
-
-#     return loss, accu
 
 
 def compute_acc_dis(dataloader_source, dataloader_target, model):
@@ -631,7 +510,8 @@ def compute_acc_dis(dataloader_source, dataloader_target, model):
         )
         results_history["dis"]["target"]["loss"] = np.average(loss_running, weights=mean_weights)
         results_history["dis"]["target"]["accu"] = np.average(accu_running, weights=mean_weights)
-    return results_history
+
+        return results_history
 
 
 def run_adv_epoch_dis(model, dataloader, domain):
@@ -687,15 +567,12 @@ def train_adversarial_iters(
         eps=1e-07,
     )
 
-    # iters = -(max_len_dataloader // -(1 + DIS_LOOP_FACTOR))  # ceiling divide
-
     dataloader_lengths = [
         len(dataloader_source_train),
         len(dataloader_target_train),
         len(dataloader_target_train_dis) * train_params["dis_loop_factor"],
     ]
     max_len_dataloader = np.amax(dataloader_lengths)
-    longest = np.argmax(dataloader_lengths)
 
     # dis_scheduler = torch.optim.lr_scheduler.OneCycleLR(
     #     dis_optimizer, max_lr=0.0005, steps_per_epoch=iters, epochs=EPOCHS
@@ -703,17 +580,6 @@ def train_adversarial_iters(
     # target_scheduler = torch.optim.lr_scheduler.OneCycleLR(
     #     target_optimizer, max_lr=0.0005, steps_per_epoch=iters, epochs=EPOCHS
     # )
-
-    # Initialize lists to store loss and accuracy values
-    # loss_history = []
-    # accu_history = []
-    # loss_history_val = []
-    # accu_history_val = []
-    # loss_history_running = []
-
-    # loss_history_gen = []
-    # loss_history_gen_running = []
-    # mean_weights_gen = []
 
     results_template = {
         "dis": {
@@ -729,23 +595,25 @@ def train_adversarial_iters(
     results_history_running = deepcopy(results_template)
 
     # Early Stopping
-    best_loss_val = np.inf
     early_stop_count = 0
-    with DupStdout().dup_to_file(os.path.join(save_folder, "log.txt"), "w") as f_log:
+    log_file_path = os.path.join(save_folder, LOG_FNAME) if LOG_FNAME else None
+    with DupStdout().dup_to_file(log_file_path, "w") as dup_stdout:
         # Train
-        print("Start adversarial training...")
-        outer = tqdm(total=train_params["epochs"], desc="Epochs", position=0)
-        inner1 = tqdm(total=max_len_dataloader, desc=f"Batch", position=1)
+        tqdm.write("Start adversarial training...")
+        outer = tqdm(total=train_params["epochs"], desc="Epochs")
+        inner = tqdm(total=max_len_dataloader, desc=f"Batch")
 
-        print(" Epoch ||| Generator       ||| Discriminator ")
-        print("       ||| Train           ||| Train                             || Validation    ")
-        print(
+        tqdm.write(" Epoch ||| Generator       ||| Discriminator ")
+        tqdm.write(
+            "       ||| Train           ||| Train                             || Validation    "
+        )
+        tqdm.write(
             "       ||| Loss   | Accu   ||| Loss            | Accu            || Loss            | Accu  "
         )
-        print(
+        tqdm.write(
             "       ||| Target - Target ||| Source - Target | Source - Target || Source - Target | Source - Target "
         )
-        print(
+        tqdm.write(
             "------------------------------------------------------------------------------------------------------"
         )
         checkpoint = {
@@ -757,8 +625,8 @@ def train_adversarial_iters(
             # "target_scheduler": target_scheduler,
         }
         for epoch in range(train_params["epochs"]):
-            inner1.refresh()  # force print final state
-            inner1.reset()  # reuse bar
+            inner.refresh()  # force print final state
+            inner.reset()  # reuse bar
 
             checkpoint["epoch"] = epoch
 
@@ -785,14 +653,10 @@ def train_adversarial_iters(
                     t_train_iter = iter(dataloader_target_train)
                     x_target, _ = next(t_train_iter)
 
-                train_encoder_step = (i % train_params["dis_loop_factor"]) == train_params[
-                    "dis_loop_factor"
-                ] - 1
+                inner_loop_idx = i % train_params["dis_loop_factor"]
+                train_encoder_step = inner_loop_idx == train_params["dis_loop_factor"] - 1
 
                 model.train_discriminator()
-                # model.target_encoder.train()
-                # model.source_encoder.train()
-                # model.dis.train()
 
                 set_requires_grad(model.target_encoder, False)
                 set_requires_grad(model.source_encoder, False)
@@ -828,7 +692,6 @@ def train_adversarial_iters(
                 dis_optimizer.step()
                 # dis_scheduler.step()
 
-                # print(i % DIS_LOOP_FACTOR)
                 if train_encoder_step:
                     try:
                         x_target_enc, _ = next(t_train_dis_iter)
@@ -836,9 +699,6 @@ def train_adversarial_iters(
                         t_train_dis_iter = iter(dataloader_target_train_dis)
                         x_target_enc, _ = next(t_train_dis_iter)
                     model.train_target_encoder()
-                    # model.target_encoder.train()
-                    # model.source_encoder.train()
-                    # model.dis.train()
 
                     set_requires_grad(model.target_encoder, True)
                     set_requires_grad(model.source_encoder, False)
@@ -856,23 +716,10 @@ def train_adversarial_iters(
                     target_optimizer.step()
                 # target_scheduler.step()
 
-                inner1.update(1)
-            for module_k in results_running:
-                for domain_k in results_running[module_k]:
-                    for metric_k in results_running[module_k][domain_k]:
-                        results_history[module_k][domain_k][metric_k].append(
-                            np.average(
-                                results_running[module_k][domain_k][metric_k],
-                                weights=results_running[module_k][domain_k]["weights"],
-                            )
-                        )
+                inner.update(1)
 
-            for module_k in results_running:
-                for domain_k in results_running[module_k]:
-                    for metric_k in results_running[module_k][domain_k]:
-                        results_history_running[module_k][domain_k][metric_k].append(
-                            results_running[module_k][domain_k][metric_k],
-                        )
+            evaluation.recurse_avg_dict(results_running, results_history)
+            evaluation.recurse_running_dict(results_running, results_history_running)
 
             model.eval()
             model.dis.eval()
@@ -884,62 +731,32 @@ def train_adversarial_iters(
             set_requires_grad(model.source_encoder, True)
             set_requires_grad(model.dis, True)
 
-            # del batch_cycler
             with torch.no_grad():
                 results_val = compute_acc_dis(dataloader_source_val, dataloader_target_train, model)
-            for module_k in results_val:
-                for domain_k in results_val[module_k]:
-                    for metric_k in results_val[module_k][domain_k]:
-                        results_history_val[module_k][domain_k][metric_k].append(
-                            results_val[module_k][domain_k][metric_k]
-                        )
+            evaluation.recurse_running_dict(results_val, results_history_val)
+
             # Print the results
             outer.update(1)
-            print(
-                f" {epoch:5d}",
-                f"||| {results_history['gen']['target']['loss'][-1]:6.4f}",
-                f"- {results_history['gen']['target']['accu'][-1]:6.4f}",
-                f"||| {results_history['dis']['source']['loss'][-1]:6.4f}",
-                f"- {results_history['dis']['target']['loss'][-1]:6.4f}",
-                f"| {results_history['dis']['source']['accu'][-1]:6.4f}",
-                f"- {results_history['dis']['target']['accu'][-1]:6.4f}",
-                f"|| {results_history_val['dis']['source']['loss'][-1]:6.4f}",
-                f"- {results_history_val['dis']['target']['loss'][-1]:6.4f}",
-                f"| {results_history_val['dis']['source']['accu'][-1]:6.4f}",
-                f"- {results_history_val['dis']['target']['accu'][-1]:6.4f}",
-                end=" ",
+            out_string = (
+                f" {epoch:5d} "
+                f"||| {results_history['gen']['target']['loss'][-1]:6.4f} "
+                f"- {results_history['gen']['target']['accu'][-1]:6.4f} "
+                f"||| {results_history['dis']['source']['loss'][-1]:6.4f} "
+                f"- {results_history['dis']['target']['loss'][-1]:6.4f} "
+                f"| {results_history['dis']['source']['accu'][-1]:6.4f} "
+                f"- {results_history['dis']['target']['accu'][-1]:6.4f} "
+                f"|| {results_history_val['dis']['source']['loss'][-1]:6.4f} "
+                f"- {results_history_val['dis']['target']['loss'][-1]:6.4f} "
+                f"| {results_history_val['dis']['source']['accu'][-1]:6.4f} "
+                f"- {results_history_val['dis']['target']['accu'][-1]:6.4f} "
             )
 
-            # # Save the best weights
-            # if diff_from_rand < best_loss_val:
-            #     best_loss_val = diff_from_rand
-            #     torch.save(checkpoint, os.path.join(save_folder, f"best_model.pth"))
-            #     early_stop_count = 0
-
-            #     print("<-- new best difference from random loss")
-            # else:
-            #     print("")
-
-            print("")
-
-            # Save checkpoint every 10
-            # if epoch % 10 == 0 or epoch >= train_params["epochs"] - 1:
-            #     torch.save(checkpoint, os.path.join(save_folder, f"checkpt{epoch}.pth"))
-
-            # # check to see if validation loss has plateau'd
-            # if (
-            #     early_stop_count >= train_params["early_stop_crit_adv"]
-            #     and epoch > train_params["min_epochs_adv"] - 1
-            # ):
-            #     print(
-            #         f"Discriminator loss plateaued after {early_stop_count} at epoch {epoch}"
-            #     )
-            #     torch.save(
-            #         checkpoint, os.path.join(save_folder, f"earlystop_{epoch}.pth")
-            #     )
-            #     break
+            tqdm.write(out_string)
 
             early_stop_count += 1
+
+    outer.close()
+    inner.close()
 
     # Save final model
     torch.save(checkpoint, os.path.join(save_folder, f"final_model.pth"))
@@ -954,17 +771,17 @@ def plot_results(results_history, results_history_running, results_history_val, 
 
     # loss
     axs[0].plot(
-        *format_iters(results_history_running["dis"]["source"]["loss"]),
+        *evaluation.format_iters(results_history_running["dis"]["source"]["loss"]),
         label="d-source",
         linewidth=0.5,
     )
     axs[0].plot(
-        *format_iters(results_history_running["dis"]["target"]["loss"]),
+        *evaluation.format_iters(results_history_running["dis"]["target"]["loss"]),
         label="d-target",
         linewidth=0.5,
     )
     axs[0].plot(
-        *format_iters(results_history_running["gen"]["target"]["loss"]),
+        *evaluation.format_iters(results_history_running["gen"]["target"]["loss"]),
         label="g-target",
         linewidth=0.5,
     )
@@ -979,17 +796,17 @@ def plot_results(results_history, results_history_running, results_history_val, 
 
     # accuracy
     axs[1].plot(
-        *format_iters(results_history_running["dis"]["source"]["accu"]),
+        *evaluation.format_iters(results_history_running["dis"]["source"]["accu"]),
         label="d-source",
         linewidth=0.5,
     )
     axs[1].plot(
-        *format_iters(results_history_running["dis"]["target"]["accu"]),
+        *evaluation.format_iters(results_history_running["dis"]["target"]["accu"]),
         label="d-target",
         linewidth=0.5,
     )
     axs[1].plot(
-        *format_iters(results_history_running["gen"]["target"]["accu"]),
+        *evaluation.format_iters(results_history_running["gen"]["target"]["accu"]),
         label="g-target",
         linewidth=0.5,
     )
@@ -1023,7 +840,7 @@ def plot_results(results_history, results_history_running, results_history_val, 
     axs[3].minorticks_on()
     axs[3].grid(which="minor", alpha=0.2)
 
-    axs[3].set_title("Valdiation Accuracy")
+    axs[3].set_title("Validation Accuracy")
     axs[3].legend()
 
     plt.savefig(os.path.join(save_folder, "adv_train.png"))
@@ -1037,7 +854,7 @@ def plot_results(results_history, results_history_running, results_history_val, 
 
 # %%
 if data_params["train_using_all_st_samples"]:
-    print(f"Adversarial training for all ST slides")
+    tqdm.write(f"Adversarial training for all ST slides")
     save_folder = advtrain_folder
 
     best_checkpoint = torch.load(os.path.join(pretrain_folder, f"final_model.pth"))
@@ -1068,7 +885,7 @@ if data_params["train_using_all_st_samples"]:
 
 else:
     for sample_id in st_sample_id_l:
-        print(f"Adversarial training for ST slide {sample_id}: ")
+        tqdm.write(f"Adversarial training for ST slide {sample_id}: ")
 
         save_folder = os.path.join(advtrain_folder, sample_id)
         if not os.path.isdir(save_folder):

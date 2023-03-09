@@ -11,24 +11,43 @@ class DupStdout:
     """Duplicates stdout to a file."""
 
     def __init__(self):
-        self._stdout = sys.stdout
+        self._stdout = None
 
     def open_file(self, *args, **kwargs):
-        """Opens a file and duplicates stdout to it.
+        """Opens a file and duplicates stdout to it, replacing sys.stdout.
+
+        If opening the file fails, a warning is issued and self acts as a
+        passthrough to sys.stdout.
 
         Args:
             *args: Positional arguments to pass to open().
             **kwargs: Keyword arguments to pass to open().
-        """
-        self.f = open(*args, **kwargs)
-        sys.stdout = self
 
-        return self.f
+        Returns:
+            DupStdout: self
+        """
+        self._stdout = sys.stdout
+
+        try:
+            self.f = open(*args, **kwargs)
+        except (TypeError, OSError):
+            self.f = None
+            warnings.warn(
+                f"Could not open {args[0]} for writing.",
+                category=UserWarning,
+                stacklevel=2,
+            )
+
+        sys.stdout = self
+        return self
 
     def close_file(self):
         """Closes the file and restores stdout."""
-        self.f.close()
+        if self.f is not None:
+            self.f.close()
+            self.f = None
         sys.stdout = self._stdout
+        self._stdout = None
 
     @contextmanager
     def dup_to_file(self, *args, **kwargs):
@@ -45,11 +64,13 @@ class DupStdout:
 
     def write(self, *args, **kwargs):
         self._stdout.write(*args, **kwargs)
-        self.f.write(*args, **kwargs)
+        if self.f is not None:
+            self.f.write(*args, **kwargs)
 
     def flush(self, *args, **kwargs):
         self._stdout.flush(*args, **kwargs)
-        self.f.flush(*args, **kwargs)
+        if self.f is not None:
+            self.f.flush(*args, **kwargs)
 
 
 class TempFolderHolder:
@@ -75,13 +96,14 @@ class TempFolderHolder:
         if tmp_dir:
             self.real_out_folder = out_folder
             self.curr_out_folder = tmp_dir
+        else:
+            self.real_out_folder = self.curr_out_folder = out_folder
 
         print(f"Saving results to {self.curr_out_folder} ...")
         if not os.path.isdir(self.curr_out_folder):
             os.makedirs(self.curr_out_folder)
-            print(self.curr_out_folder)
         else:
-            warnings.warn("Output folder exists. Will overwrite.")
+            warnings.warn("Output folder exists. Will overwrite.", stacklevel=2)
 
         return self.curr_out_folder
 

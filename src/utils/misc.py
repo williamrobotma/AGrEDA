@@ -1,6 +1,7 @@
 """Miscellaneous utility functions."""
 import numpy as np
 
+
 def check_integer_rng(rng):
     """Converts inputs into integer callback rng.
 

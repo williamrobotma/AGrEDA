@@ -2,16 +2,13 @@
 """Runs evaluation on models."""
 # %%
 import argparse
-import math
 import datetime
 import logging
+import math
 import os
-import shutil
-import warnings
-
-from collections import defaultdict
-from multiprocessing import Pool, TimeoutError
 import pickle
+import shutil
+from collections import defaultdict
 
 import harmonypy as hm
 import matplotlib as mpl
@@ -28,8 +25,7 @@ from sklearn import metrics, model_selection
 from sklearn.decomposition import PCA
 from sklearn.metrics import RocCurveDisplay
 
-from src.da_models.adda import ADDAST
-from src.da_models.dann import DANN
+from src.da_models.utils import get_torch_device
 from src.utils import data_loading
 
 # from src.da_models.datasets import SpotDataset
@@ -49,12 +45,9 @@ parser.add_argument("--tmpdir", "-d", default=None, help="optional temporary res
 args = parser.parse_args()
 
 
-# import umap
-
-
 script_start_time = datetime.datetime.now(datetime.timezone.utc)
 logging.basicConfig(
-    level=logging.DEBUG,
+    level=logging.WARNING,
     format="%(asctime)s:%(levelname)s:%(name)s:%(message)s",
 )
 logger = logging.getLogger(__name__)
@@ -77,14 +70,9 @@ Ex_to_L_d = {
 
 metric_ctp = JSD()
 
-if args.cuda is not None:
-    device = torch.device(f"cuda:{args.cuda}" if torch.cuda.is_available() else "cpu")
-else:
-    device = torch.device(f"cuda" if torch.cuda.is_available() else "cpu")
-if device == "cpu":
-    warnings.warn("Using CPU", stacklevel=2)
+device = get_torch_device(args.cuda)
 
-# %%
+
 def main():
     evaluator = Evaluator()
     evaluator.evaluate_embeddings()
@@ -110,33 +98,20 @@ class Evaluator:
         self.model_params = self.config["model_params"]
         self.train_params = self.config["train_params"]
 
-        if "manual_seed" in self.torch_params:
-            torch_seed_path = str(self.torch_params["manual_seed"])
-        else:
-            torch_seed_path = "random"
+        torch_seed_path = str(self.torch_params.get("manual_seed", "random"))
 
-        # %%
         model_rel_path = data_loading.get_model_rel_path(
             MODEL_NAME,
             self.model_params["model_version"],
-            dset=self.data_params.get("dset", "dlpfc"),
-            sc_id=self.data_params.get("sc_id", data_loading.DEF_SC_ID),
-            st_id=self.data_params.get("st_id", data_loading.DEF_ST_ID),
-            n_markers=self.data_params["n_markers"],
-            all_genes=self.data_params["all_genes"],
-            n_mix=self.data_params["n_mix"],
-            n_spots=self.data_params["n_spots"],
-            st_split=self.data_params["st_split"],
-            scaler_name=self.data_params["scaler_name"],
             torch_seed_path=torch_seed_path,
+            **self.data_params,
         )
-
         model_folder = os.path.join("model", model_rel_path)
+
         if args.tmpdir:
             real_model_folder = model_folder
             model_folder = os.path.join(args.tmpdir, "model")
-            # if not os.path.isdir(model_folder):
-            #     os.makedirs(model_folder)
+
             shutil.copytree(real_model_folder, model_folder, dirs_exist_ok=True)
 
         # Check to make sure config file matches config file in model folder
@@ -149,41 +124,27 @@ class Evaluator:
         results_folder = os.path.join("results", model_rel_path)
 
         self.temp_folder_holder = TempFolderHolder()
-        temp_results_folder = os.path.join(args.tmpdir, "results")
+        temp_results_folder = os.path.join(args.tmpdir, "results") if args.tmpdir else None
         self.results_folder = self.temp_folder_holder.set_output_folder(
             temp_results_folder, results_folder
         )
 
-        # %%
-        # sc.logging.print_versions()
         sc.set_figure_params(facecolor="white", figsize=(8, 8))
         sc.settings.verbosity = 3
 
-        # %% [markdown]
-        #   # Data load
-
         self.selected_dir = data_loading.get_selected_dir(
             data_loading.get_dset_dir(
-                self.data_params["data_dir"], dset=self.data_params.get("dset", "dlpfc")
+                self.data_params["data_dir"],
+                dset=self.data_params.get("dset", "dlpfc"),
             ),
-            sc_id=self.data_params.get("sc_id", data_loading.DEF_SC_ID),
-            st_id=self.data_params.get("st_id", data_loading.DEF_ST_ID),
-            n_markers=self.data_params["n_markers"],
-            all_genes=self.data_params["all_genes"],
+            **self.data_params,
         )
 
-        # %%
         print("Loading Data")
         # Load spatial data
-        (
-            self.mat_sp_d,
-            self.mat_sp_train,
-            self.st_sample_id_l,
-        ) = data_loading.load_spatial(
+        self.mat_sp_d, self.mat_sp_train, self.st_sample_id_l = data_loading.load_spatial(
             self.selected_dir,
-            self.data_params["scaler_name"],
-            train_using_all_st_samples=self.data_params["train_using_all_st_samples"],
-            st_split=self.data_params["st_split"],
+            **self.data_params,
         )
 
         # Load sc data
@@ -192,23 +153,11 @@ class Evaluator:
             self.lab_mix_d,
             self.sc_sub_dict,
             self.sc_sub_dict2,
-        ) = data_loading.load_sc(
-            self.selected_dir,
-            self.data_params["scaler_name"],
-            n_mix=self.data_params["n_mix"],
-            n_spots=self.data_params["n_spots"],
-        )
+        ) = data_loading.load_sc(self.selected_dir, **self.data_params)
 
-        # %%
         pretrain_folder = os.path.join(model_folder, "pretrain")
         self.advtrain_folder = os.path.join(model_folder, "advtrain")
         self.pretrain_model_path = os.path.join(pretrain_folder, f"final_model.pth")
-
-        # %%
-        # st_sample_id_l = [SAMPLE_ID_N]
-
-        # %% [markdown]
-        #  ## Load Models
 
         self.splits = ("train", "val", "test")
 
@@ -261,14 +210,12 @@ class Evaluator:
         plt.close()
 
     def rf50_score(self, emb_train, emb_test, y_dis_train, y_dis_test):
-        print("Running RF50")
+        logger.info("Running RF50")
         logger.debug(f"emb_train dtype: {emb_train.dtype}")
-        # pca = PCA(n_components=min(50, emb_train.shape[1]), svd_solver="full")
         logger.debug("fitting pca 50")
         pca = fit_pca(emb_train, n_components=min(50, emb_train.shape[1]))
 
         emb_train_50 = pca.transform(emb_train)
-        # emb_train_50 = pca.fit_transform(emb_train)
         logger.debug("transforming pca 50 test")
         emb_test_50 = pca.transform(emb_test)
 
@@ -406,13 +353,9 @@ class Evaluator:
             cell_name = "Other"
         logging.debug(f"plotting cell fraction for {cell_name}")
         y_pred = pred_sp[:, visnum].squeeze()
-        # print(y_pred.shape)
         if y_pred.ndim > 1:
             y_pred = y_pred.sum(axis=1)
-        # print(y_pred.shape)
         adata.obs["Pred_label"] = y_pred
-        # vmin = 0
-        # vmax = np.amax(pred_sp)
 
         sc.pl.spatial(
             adata,
@@ -424,8 +367,6 @@ class Evaluator:
             title=cell_name,
             spot_size=1 if self.data_params.get("dset") == "pdac" else 150,
             show=False,
-            # vmin=vmin,
-            # vmax=vmax,
             ax=ax,
         )
 
@@ -461,14 +402,12 @@ class Evaluator:
         return metrics.roc_auc_score(y_true, y_pred)
 
     def _plot_roc_pdac(self, visnum, adata, pred_sp, name, st_to_sc_celltype, ax=None):
-        """Plot ROC for a given visnum"""
+        """Plot ROC for a given visnum (PDAC)"""
         try:
             cell_name = self.sc_sub_dict[visnum]
         except TypeError:
             cell_name = "Other"
         logging.debug(f"plotting ROC for {cell_name} and {name}")
-
-        # num_to_ex_d = dict(zip(numlist, Ex_l))
 
         def st_sc_bin(x):
             if cell_name in st_to_sc_celltype.get(x, set()):
@@ -479,8 +418,7 @@ class Evaluator:
         if y_pred.ndim > 1:
             y_pred = y_pred.sum(axis=1)
         y_true = adata.obs["cell_subclass"].map(st_sc_bin).fillna(0)
-        # print(y_true)
-        # print(y_true.isna().sum())
+
         RocCurveDisplay.from_predictions(y_true=y_true, y_pred=y_pred, name=name, ax=ax)
 
         try:
@@ -508,13 +446,9 @@ class Evaluator:
 
         color_dict["NA"] = "lightgrey"
 
-        self._plot_spatial(
-            adata_st_d, color_dict, color="spatialLIBD", fname="layers.png"
-        )
+        self._plot_spatial(adata_st_d, color_dict, color="spatialLIBD", fname="layers.png")
 
-    def _plot_spatial(
-        self, adata_st_d, color_dict, color="spatialLIBD", fname="layers.png"
-    ):
+    def _plot_spatial(self, adata_st_d, color_dict, color="spatialLIBD", fname="layers.png"):
         fig, ax = plt.subplots(
             nrows=1,
             ncols=len(self.st_sample_id_l),
@@ -560,7 +494,6 @@ class Evaluator:
             ax[0][i].set_xlabel("")
             ax[0][i].set_ylabel("")
 
-        # fig.legend(loc=7)
         fig.savefig(
             os.path.join(self.results_folder, fname),
             bbox_inches="tight",
@@ -592,9 +525,7 @@ class Evaluator:
         n_rows = int(math.ceil(n_celltypes / 5))
 
         numlist = [self.sc_sub_dict2.get(t) for t in celltypes[:-1]]
-        numlist.append(
-            [v for k, v in self.sc_sub_dict2.items() if k not in celltypes[:-1]]
-        )
+        numlist.append([v for k, v in self.sc_sub_dict2.items() if k not in celltypes[:-1]])
         # cluster_assignments = [
         #     "Cancer region",
         #     "Pancreatic tissue",
@@ -603,9 +534,7 @@ class Evaluator:
         #     "Stroma",
         # ]
         logging.debug(f"Plotting Cell Fractions")
-        fig, ax = plt.subplots(
-            n_rows, 5, figsize=(20, 4 * n_rows), constrained_layout=True, dpi=10
-        )
+        fig, ax = plt.subplots(n_rows, 5, figsize=(20, 4 * n_rows), constrained_layout=True, dpi=10)
         for i, num in enumerate(numlist):
             self._plot_cellfraction(num, adata_st, pred_sp, ax.flat[i])
             ax.flat[i].axis("equal")
@@ -621,7 +550,6 @@ class Evaluator:
             bbox_inches="tight",
             dpi=300,
         )
-        # fig.show()
         plt.close()
 
         logging.debug(f"Plotting ROC")
@@ -669,9 +597,7 @@ class Evaluator:
                     )
                 )
 
-            ax.flat[i].plot(
-                [0, 1], [0, 1], transform=ax.flat[i].transAxes, ls="--", color="k"
-            )
+            ax.flat[i].plot([0, 1], [0, 1], transform=ax.flat[i].transAxes, ls="--", color="k")
             ax.flat[i].set_aspect("equal")
             ax.flat[i].set_xlim([0, 1])
             ax.flat[i].set_ylim([0, 1])
@@ -692,18 +618,15 @@ class Evaluator:
         for i in range(len(numlist[:-1]), n_rows * 5):
             ax.flat[i].axis("off")
         fig.suptitle(sample_id)
+
         logging.debug(f"Saving ROC Figure")
         fig.savefig(
             os.path.join(self.results_folder, f"{sample_id}_roc.png"),
             bbox_inches="tight",
             dpi=300,
         )
-        # fig.show()
         plt.close()
 
-        # realspots_d["da"][sample_id] = np.mean(da_aucs)
-        # if PRETRAINING:
-        #     realspots_d["noda"][sample_id] = np.mean(noda_aucs)
         return np.nanmean(da_aucs), np.nanmean(noda_aucs) if self.pretraining else None
 
     def _plot_samples(self, sample_id, adata_st_d, pred_sp_d, pred_sp_noda_d=None):
@@ -719,9 +642,7 @@ class Evaluator:
 
         logging.debug(f"Plotting Cell Fractions")
         for i, num in enumerate(numlist):
-            self._plot_cellfraction(
-                num, adata_st_d[sample_id], pred_sp_d[sample_id], ax.flat[i]
-            )
+            self._plot_cellfraction(num, adata_st_d[sample_id], pred_sp_d[sample_id], ax.flat[i])
             ax.flat[i].axis("equal")
             ax.flat[i].set_xlabel("")
             ax.flat[i].set_ylabel("")
@@ -733,7 +654,6 @@ class Evaluator:
             bbox_inches="tight",
             dpi=300,
         )
-        # fig.show()
         plt.close()
 
         logging.debug(f"Plotting ROC")
@@ -804,12 +724,8 @@ class Evaluator:
             bbox_inches="tight",
             dpi=300,
         )
-        # fig.show()
         plt.close()
 
-        # realspots_d["da"][sample_id] = np.mean(da_aucs)
-        # if PRETRAINING:
-        #     realspots_d["noda"][sample_id] = np.mean(noda_aucs)
         return np.nanmean(da_aucs), np.nanmean(noda_aucs) if self.pretraining else None
 
     # %%
@@ -843,18 +759,14 @@ class Evaluator:
         print("Loading ST adata: ")
         for sample_id in self.st_sample_id_l:
             adata_st_d[sample_id] = adata_st[adata_st.obs.sample_id == sample_id]
-            adata_st_d[sample_id].obsm["spatial"] = (
-                adata_st_d[sample_id].obs[["X", "Y"]].values
-            )
+            adata_st_d[sample_id].obsm["spatial"] = adata_st_d[sample_id].obs[["X", "Y"]].values
         realspots_d = {"da": {}}
         if self.pretraining:
             realspots_d["noda"] = {}
         if self.data_params.get("dset") == "pdac":
             aucs = self.eval_pdac_spots(pred_sp_d, pred_sp_noda_d, adata_st_d)
         else:
-            aucs = self.eval_dlpfc_spots(
-                pred_sp_d, pred_sp_noda_d, adata_st, adata_st_d
-            )
+            aucs = self.eval_dlpfc_spots(pred_sp_d, pred_sp_noda_d, adata_st, adata_st_d)
 
         for sample_id, auc in zip(self.st_sample_id_l, aucs):
             realspots_d["da"][sample_id] = auc[0]
@@ -880,10 +792,6 @@ class Evaluator:
         with open(os.path.join(raw_pdac_dir, ctr_fname), "rb") as f:
             cluster_to_rgb = pickle.load(f)
 
-        # cto_fname = f"{self.data_params['st_id']}-cluster_to_ordinal.json"
-        # with open(os.path.join(raw_pdac_dir, cto_fname), "r") as f:
-        #     cluster_to_ordinal = json.load(f)
-        # cluster_to_ordinal = {int(k): v for k, v in cluster_to_ordinal.items()}
         self._plot_spatial(
             adata_st_d, cluster_to_rgb, color="cell_subclass", fname="st_cell_types.png"
         )
@@ -938,8 +846,8 @@ class Evaluator:
             pred_mix = get_predictions(model, inputs, source_encoder=True)
             for split, pred in zip(self.splits, pred_mix):
                 score = metric_ctp(
-                    torch.as_tensor(pred).float(),
-                    torch.as_tensor(self.lab_mix_d[split]).float(),
+                    torch.as_tensor(pred, dtype=torch.float32),
+                    torch.as_tensor(self.lab_mix_d[split], dtype=torch.float32),
                 )
                 self.jsd_d[da][split][sample_id] = score.detach().cpu().numpy()
 
@@ -987,15 +895,12 @@ class Evaluator:
         results_df.to_csv(os.path.join(self.results_folder, "results.csv"))
         print(results_df)
 
-        # %%
         with open(os.path.join(self.results_folder, "config.yml"), "w") as f:
             yaml.dump(self.config, f)
 
         self.temp_folder_holder.copy_out()
 
 
-# %%
-# checkpoints_da_d = {}
 def get_model(model_path):
     check_point_da = torch.load(model_path, map_location=device)
     model = check_point_da["model"]
@@ -1011,7 +916,7 @@ def get_predictions(model, inputs, source_encoder=False):
         model.target_inference()
 
     def out_func(x):
-        out = model(torch.as_tensor(x).float().to(device))
+        out = model(torch.as_tensor(x, device=device, dtype=torch.float32))
         if isinstance(out, tuple):
             out = out[0]
         return torch.exp(out)
@@ -1042,7 +947,7 @@ def get_embeddings(model, inputs, source_encoder=False):
         else:
             encoder = model.target_encoder
 
-    out_func = lambda x: encoder(torch.as_tensor(x).float().to(device))
+    out_func = lambda x: encoder(torch.as_tensor(x, device=device, dtype=torch.float32))
     try:
         inputs.shape
     except AttributeError:
@@ -1056,44 +961,10 @@ def get_embeddings(model, inputs, source_encoder=False):
             yield out_func(input).detach().cpu().numpy()
 
 
-# %% [markdown]
-#  ## Evaluation of latent space
-# %%
-def _fit_pca(X, *args, **kwargs):
+def fit_pca(X, *args, **kwargs):
     return PCA(*args, **kwargs).fit(X)
 
 
-def fit_pca(X, *args, **kwargs):
-
-    # # try:
-    # #     pca = PCA(*args, **kwargs)
-    # #     pool = Pool(processes=1)
-    # #     res = pool.apply_async(pca.fit, (X,))
-    # #     pca = res.get(timeout=360)
-    # # except TimeoutError:
-    # #     logging.warning('PCA Timed out, retrying')
-    # #     pool.terminate()
-    # #     pca = fit_pca(X, *args, **kwargs)
-    # # finally:
-    # #     try:
-    # #         pool.terminate()
-    # #     except NameError:
-    # #         pass
-    # with Pool(processes=1) as pool:
-    #     res = pool.apply_async(_fit_pca, (X, *args), kwargs)
-    #     try:
-    #         pca = res.get(timeout=360)
-    #     except TimeoutError:
-    #         logging.warning('PCA Timed out, retrying')
-    #         pca = None
-    # if pca is None:
-    #     fit_pca(X, *args, **kwargs)
-
-    # return pca
-    return _fit_pca(X, *args, **kwargs)
-
-
-# %%
 if __name__ == "__main__":
     main()
 

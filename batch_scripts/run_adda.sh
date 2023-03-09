@@ -37,20 +37,24 @@
 # python -u adda.py -f "standard_bnfix_adam_beta1_9.yml" -c 0  --njobs 16 > "logs/adda-standard_bnfix_adam_beta1_9.out"
 # python -u eval_config.py -n "ADDA" -f "standard_bnfix_adam_beta1_9.yml" -c 0  --njobs 32
 
-python -u adda.py -f "standard_nobnfix_adam_beta1_5.yml" -c 0  --njobs 16 > "logs/adda-standard_nobnfix_adam_beta1_5.out"
-python -u eval_config.py -n "ADDA" -f "standard_nobnfix_adam_beta1_5.yml" -c 0  --njobs 32
+# python -u adda.py -f "standard_nobnfix_adam_beta1_5.yml" -c 0  --njobs 16 > "logs/adda-standard_nobnfix_adam_beta1_5.out"
+# python -u eval_config.py -n "ADDA" -f "standard_nobnfix_adam_beta1_5.yml" -c 0  --njobs 32
 
-python -u adda.py -f "standard_nobnfix_adam_beta1_9.yml" -c 0  --njobs 16 > "logs/adda-standard_nobnfix_adam_beta1_9.out"
-python -u eval_config.py -n "ADDA" -f "standard_nobnfix_adam_beta1_9.yml" -c 0  --njobs 32
+# python -u adda.py -f "standard_nobnfix_adam_beta1_9.yml" -c 0  --njobs 16 > "logs/adda-standard_nobnfix_adam_beta1_9.out"
+# python -u eval_config.py -n "ADDA" -f "standard_nobnfix_adam_beta1_9.yml" -c 0  --njobs 32
 
-python -u adda.py -f "unscaled_bnfix_adam_beta1_5.yml" -c 0  --njobs 16 > "logs/adda-unscaled_bnfix_adam_beta1_5.out"
-python -u eval_config.py -n "ADDA" -f "unscaled_bnfix_adam_beta1_5.yml" -c 0  --njobs 32
+# python -u adda.py -f "unscaled_bnfix_adam_beta1_5.yml" -c 0  --njobs 16 > "logs/adda-unscaled_bnfix_adam_beta1_5.out"
+# python -u eval_config.py -n "ADDA" -f "unscaled_bnfix_adam_beta1_5.yml" -c 0  --njobs 32
 
-python -u adda.py -f "unscaled_bnfix_adam_beta1_9.yml" -c 0  --njobs 16 > "logs/adda-unscaled_bnfix_adam_beta1_9.out"
-python -u eval_config.py -n "ADDA" -f "unscaled_bnfix_adam_beta1_9.yml" -c 0  --njobs 32
+# python -u adda.py -f "unscaled_bnfix_adam_beta1_9.yml" -c 0  --njobs 16 > "logs/adda-unscaled_bnfix_adam_beta1_9.out"
+# python -u eval_config.py -n "ADDA" -f "unscaled_bnfix_adam_beta1_9.yml" -c 0  --njobs 32
 
-python -u adda.py -f "unscaled_nobnfix_adam_beta1_5.yml" -c 0  --njobs 16 > "logs/adda-unscaled_nobnfix_adam_beta1_5.out"
-python -u eval_config.py -n "ADDA" -f "unscaled_nobnfix_adam_beta1_5.yml" -c 0  --njobs 32
+# python -u adda.py -f "unscaled_nobnfix_adam_beta1_5.yml" -c 0  --njobs 16 > "logs/adda-unscaled_nobnfix_adam_beta1_5.out"
+# python -u eval_config.py -n "ADDA" -f "unscaled_nobnfix_adam_beta1_5.yml" -c 0  --njobs 32
 
-python -u adda.py -f "unscaled_nobnfix_adam_beta1_9.yml" -c 0  --njobs 16 > "logs/adda-unscaled_nobnfix_adam_beta1_9.out"
-python -u eval_config.py -n "ADDA" -f "unscaled_nobnfix_adam_beta1_9.yml" -c 0  --njobs 32
+# python -u adda.py -f "unscaled_nobnfix_adam_beta1_9.yml" -c 0  --njobs 16 > "logs/adda-unscaled_nobnfix_adam_beta1_9.out"
+# python -u eval_config.py -n "ADDA" -f "unscaled_nobnfix_adam_beta1_9.yml" -c 0  --njobs 32
+
+python -u adda.py -f "standard_bnfix_adam_beta1_5.yml" -l "log.txt"
+python -u eval_config.py -n "ADDA" -f "standard_bnfix_adam_beta1_5.yml"
+
