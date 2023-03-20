@@ -139,6 +139,8 @@ dmypy.json
 /results/
 /logs/
 
+/pyvenv.cfg
+
 # slurm files
 *.out
 sinfo-requirements.txt
