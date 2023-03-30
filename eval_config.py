@@ -504,21 +504,38 @@ class Evaluator:
     def _plot_samples_pdac(self, sample_id, adata_st, pred_sp, pred_sp_noda=None):
         logging.debug(f"Plotting {sample_id}")
 
-        sc_to_st_celltype = {
-            "Ductal": "Duct epithelium",
-            "Cancer clone": "Cancer region",
-            # 'mDCs': 45,
-            # 'Macrophages': 40,
-            # 'T cells & NK cells': 40,
-            # 'Tuft cells': 32,
-            # 'Monocytes': 18,
-            # 'RBCs': 15,
-            # 'Mast cells': 14,
-            "Acinar cells": "Pancreatic tissue",
-            "Endocrine cells": "Pancreatic tissue",
-            # 'pDCs': 13,
-            "Endothelial cells": "Interstitium",
-        }
+        if self.data_params.get("sc_id") == "CA001063":
+            sc_to_st_celltype = {
+                # Peng et al., 2019: Taken together, these results show that
+                # type 2 ductal cells are the major source of malignant cells in
+                # PDACs.
+                "Ductal cell type 2": "Cancer region",
+                "T cell": "Stroma",
+                "Macrophage cell": "Stroma",
+                "Fibroblast cell": "Stroma",
+                "B cell": "Stroma",
+                "Ductal cell type 1": "Duct epithelium",
+                "Endothelial cell": "Interstitium",
+                "Stellate cell": "Stroma",
+                "Acinar cell": "Pancreatic tissue",
+                "Endocrine cell": "Pancreatic tissue",
+            }
+        else:
+            sc_to_st_celltype = {
+                "Ductal": "Duct epithelium",
+                "Cancer clone": "Cancer region",
+                # 'mDCs': 45,
+                # 'Macrophages': 40,
+                # 'T cells & NK cells': 40,
+                # 'Tuft cells': 32,
+                # 'Monocytes': 18,
+                # 'RBCs': 15,
+                # 'Mast cells': 14,
+                "Acinar cells": "Pancreatic tissue",
+                "Endocrine cells": "Pancreatic tissue",
+                # 'pDCs': 13,
+                "Endothelial cells": "Interstitium",
+            }
 
         celltypes = list(sc_to_st_celltype.keys()) + ["Other"]
         n_celltypes = len(celltypes)

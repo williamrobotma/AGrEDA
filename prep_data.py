@@ -529,7 +529,10 @@ if __name__ == "__main__":
         "--nmarkers",
         type=int,
         default=data_loading.DEFAULT_N_MARKERS,
-        help="Number of top markers in sc training data to used. Ignored if --allgenes flag is used.",
+        help=(
+            "Number of top markers in sc training data to used. "
+            "Ignored if --allgenes flag is used."
+        ),
     )
     parser.add_argument(
         "--nmix",
@@ -554,7 +557,7 @@ if __name__ == "__main__":
         "-d",
         type=str,
         default="dlpfc",
-        help="dataset to use. Default: dlpfc.",
+        help="dataset type to use. Default: dlpfc.",
     )
     parser.add_argument(
         "--st_id",

@@ -1,0 +1,36 @@
+data_params:
+  all_genes: false
+  data_dir: data
+  dset: pdac
+  n_markers: 20
+  n_mix: 50
+  n_spots: 20000
+  # sample_id_n: '151673'
+  scaler_name: standard
+  sc_id: "CA001063"
+  st_id: "GSE111672"
+  st_split: false
+  train_using_all_st_samples: false
+model_params:
+  coral_kwargs:
+    batchnorm: true
+    batchnorm_after_act: true
+    dropout: 0.5
+    enc_hidden_layer_sizes:
+      - 1024
+      - 512
+      - 64
+    hidden_act: leakyrelu
+  model_version: coral_pdac
+torch_params:
+  manual_seed: 345678
+train_params:
+  batch_size: 512
+  early_stop_crit_adv: 100
+  epochs: 100
+  lambda: 100
+  min_epochs_adv: 40.0
+  opt_kwargs:
+    lr: 0.001
+    weight_decay: 0.3
+  two_step: true
