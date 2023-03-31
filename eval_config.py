@@ -387,8 +387,10 @@ class Evaluator:
         num_to_ex_d = dict(zip(numlist, Ex_l))
 
         def layer_to_layer_number(x):
+            """Converts a string of layers to a list of layer numbers"""
             for char in x:
                 if char.isdigit():
+                    # if in (ordinal -> ex number -> layers)
                     if int(char) in Ex_to_L_d[num_to_ex_d[visnum]]:
                         return 1
             return 0
@@ -419,12 +421,11 @@ class Evaluator:
             y_pred = y_pred.sum(axis=1)
         y_true = adata.obs["cell_subclass"].map(st_sc_bin).fillna(0)
 
-        RocCurveDisplay.from_predictions(y_true=y_true, y_pred=y_pred, name=name, ax=ax)
-
-        try:
+        if y_true.sum() > 0:
+            RocCurveDisplay.from_predictions(y_true=y_true, y_pred=y_pred, name=name, ax=ax)
             return metrics.roc_auc_score(y_true, y_pred)
-        except ValueError:
-            return np.nan
+
+        return np.nan
 
     def _plot_layers(self, adata_st, adata_st_d):
 
@@ -512,7 +513,7 @@ class Evaluator:
                 "Ductal cell type 2": "Cancer region",
                 "T cell": "Stroma",
                 "Macrophage cell": "Stroma",
-                "Fibroblast cell": "Stroma",
+                "Fibroblast cell": "Cancer region",
                 "B cell": "Stroma",
                 "Ductal cell type 1": "Duct epithelium",
                 "Endothelial cell": "Interstitium",
@@ -522,18 +523,25 @@ class Evaluator:
             }
         else:
             sc_to_st_celltype = {
-                "Ductal": "Duct epithelium",
+                # As expected, we found that all ductal subpopulations in PDAC-A
+                # were enriched in the duct region of the tissue. In contrast,
+                # only the hypoxic and terminal ductal cell populations were
+                # significantly enriched in the cancer region
+                "Ductal - MHC Class II": "Duct epithelium",
+                "Ductal - CRISP3 high/centroacinar like": "Duct epithelium",
+                "Ductal - terminal ductal like": "Cancer region",
+                "Ductal - APOL1 high/hypoxic": "Cancer region",
                 "Cancer clone": "Cancer region",
-                # 'mDCs': 45,
-                # 'Macrophages': 40,
-                # 'T cells & NK cells': 40,
-                # 'Tuft cells': 32,
-                # 'Monocytes': 18,
-                # 'RBCs': 15,
-                # 'Mast cells': 14,
+                "mDCs": "Stroma",
+                "Macrophages": "Stroma",
+                "T cells & NK cells": "Stroma",
+                "Tuft cells": "Duct epithelium",
+                "Monocytes": "Stroma",
+                #'RBCs': 15,
+                "Mast cells": "Stroma",
                 "Acinar cells": "Pancreatic tissue",
                 "Endocrine cells": "Pancreatic tissue",
-                # 'pDCs': 13,
+                "pDCs": "Stroma",
                 "Endothelial cells": "Interstitium",
             }
 
@@ -652,10 +660,12 @@ class Evaluator:
         num_name_exN_l = []
         for k, v in self.sc_sub_dict.items():
             if "Ex" in v:
+                # (clust_ordinal, clust_name, Ex_clust_num)
                 num_name_exN_l.append((k, v, int(v.split("_")[1])))
+
         num_name_exN_l.sort(key=lambda a: a[2])
 
-        numlist = [t[0] for t in num_name_exN_l]
+        numlist = [t[0] for t in num_name_exN_l]  # clust ordinals
 
         logging.debug(f"Plotting Cell Fractions")
         for i, num in enumerate(numlist):

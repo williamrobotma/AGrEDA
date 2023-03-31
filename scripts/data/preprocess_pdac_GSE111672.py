@@ -1304,9 +1304,10 @@ if not os.path.isdir(ST_OUT_DIR):
 sample_ids = ["pdac_a", "pdac_b"]
 indrop_out = ad.concat([pdac_a_indrop, pdac_b_indrop], label="sample_id", keys=sample_ids)
 indrop_out.obs_names_make_unique()
-indrop_out.obs["cell_subclass"] = indrop_out.obs["cell_subclass"].map(
-    lambda x: x.split(" - ")[0].rstrip(" AB")
-)
+# indrop_out.obs["cell_subclass"] = indrop_out.obs["cell_subclass"].map(
+#     lambda x: x.split(" - ")[0].rstrip(" AB")
+# )
+indrop_out.obs["cell_subclass"] = indrop_out.obs["cell_subclass"].str.rstrip(" AB")
 cell_type_value_counts = indrop_out.obs["cell_subclass"].value_counts()
 cell_types_to_keep = set(cell_type_value_counts[cell_type_value_counts >= 10].index.tolist())
 indrop_out = indrop_out[indrop_out.obs["cell_subclass"].isin(cell_types_to_keep)]
