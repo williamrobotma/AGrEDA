@@ -403,7 +403,7 @@ class Evaluator:
 
         return metrics.roc_auc_score(y_true, y_pred)
 
-    def _plot_roc_pdac(self, visnum, adata, pred_sp, name, st_to_sc_celltype, ax=None):
+    def _plot_roc_pdac(self, visnum, adata, pred_sp, name, sc_to_st_celltype, ax=None):
         """Plot ROC for a given visnum (PDAC)"""
         try:
             cell_name = self.sc_sub_dict[visnum]
@@ -411,10 +411,8 @@ class Evaluator:
             cell_name = "Other"
         logging.debug(f"plotting ROC for {cell_name} and {name}")
 
-        def st_sc_bin(x):
-            if cell_name in st_to_sc_celltype.get(x, set()):
-                return 1
-            return 0
+        def st_sc_bin(cell_subclass):
+            return int(cell_subclass in sc_to_st_celltype.get(cell_name, set()))
 
         y_pred = pred_sp[:, visnum].squeeze()
         if y_pred.ndim > 1:
@@ -502,6 +500,7 @@ class Evaluator:
         )
         plt.close()
 
+    """
     def _plot_samples_pdac(self, sample_id, adata_st, pred_sp, pred_sp_noda=None):
         logging.debug(f"Plotting {sample_id}")
 
@@ -618,6 +617,159 @@ class Evaluator:
                         pred_sp_noda,
                         f"{MODEL_NAME}_wo_da",
                         st_to_sc_celltype,
+                        ax.flat[i],
+                    )
+                )
+
+            ax.flat[i].plot([0, 1], [0, 1], transform=ax.flat[i].transAxes, ls="--", color="k")
+            ax.flat[i].set_aspect("equal")
+            ax.flat[i].set_xlim([0, 1])
+            ax.flat[i].set_ylim([0, 1])
+            try:
+                cell_name = self.sc_sub_dict[num]
+            except TypeError:
+                cell_name = "Other"
+            ax.flat[i].set_title(cell_name)
+
+            if i >= len(numlist) - 5:
+                ax.flat[i].set_xlabel("FPR")
+            else:
+                ax.flat[i].set_xlabel("")
+            if i % 5 == 0:
+                ax.flat[i].set_ylabel("TPR")
+            else:
+                ax.flat[i].set_ylabel("")
+        for i in range(len(numlist[:-1]), n_rows * 5):
+            ax.flat[i].axis("off")
+        fig.suptitle(sample_id)
+
+        logging.debug(f"Saving ROC Figure")
+        fig.savefig(
+            os.path.join(self.results_folder, f"{sample_id}_roc.png"),
+            bbox_inches="tight",
+            dpi=300,
+        )
+        plt.close()
+
+        return np.nanmean(da_aucs), np.nanmean(noda_aucs) if self.pretraining else None
+    """
+
+    def _plot_samples_pdac(self, sample_id, adata_st, pred_sp, pred_sp_noda=None):
+        logging.debug(f"Plotting {sample_id}")
+
+        if self.data_params.get("sc_id") == "CA001063":
+            sc_to_st_celltype = {
+                # Peng et al., 2019: Taken together, these results show that
+                # type 2 ductal cells are the major source of malignant cells in
+                # PDACs.
+                "Ductal cell type 2": {"Cancer region"},
+                "T cell": {"Cancer region", "Stroma"},
+                "Macrophage cell": {"Cancer region", "Stroma"},
+                "Fibroblast cell": {"Cancer region", "Stroma"},
+                "B cell": {"Cancer region", "Stroma"},
+                "Ductal cell type 1": {"Duct epithelium"},
+                "Endothelial cell": {"Interstitium"},
+                "Stellate cell": {"Stroma", "Pancreatic tissue"},
+                "Acinar cell": {"Pancreatic tissue"},
+                "Endocrine cell": {"Pancreatic tissue"},
+            }
+        else:
+            sc_to_st_celltype = {
+                # As expected, we found that all ductal subpopulations in PDAC-A
+                # were enriched in the duct region of the tissue. In contrast,
+                # only the hypoxic and terminal ductal cell populations were
+                # significantly enriched in the cancer region
+                "Ductal - MHC Class II": {"Duct epithelium"},
+                "Ductal - CRISP3 high/centroacinar like": {"Duct epithelium"},
+                "Ductal - terminal ductal like": {"Duct epithelium", "Cancer region"},
+                "Ductal - APOL1 high/hypoxic": {"Duct epithelium", "Cancer region"},
+                "Cancer clone": {"Cancer region"},
+                "mDCs": {"Cancer region", "Stroma"},
+                "Macrophages": {"Cancer region", "Stroma"},
+                "T cells & NK cells": {"Cancer region", "Stroma"},
+                "Tuft cells": {"Pancreatic tissue"},
+                "Monocytes": {"Cancer region", "Stroma"},
+                # "RBCs": 15,
+                "Mast cells": {"Cancer region", "Stroma"},
+                "Acinar cells": {"Pancreatic tissue"},
+                "Endocrine cells": {"Pancreatic tissue"},
+                "pDCs": {"Cancer region", "Stroma"},
+                "Endothelial cells": {"Interstitium"},
+            }
+
+        celltypes = list(sc_to_st_celltype.keys()) + ["Other"]
+        n_celltypes = len(celltypes)
+        n_rows = int(math.ceil(n_celltypes / 5))
+
+        numlist = [self.sc_sub_dict2.get(t) for t in celltypes[:-1]]
+        numlist.append([v for k, v in self.sc_sub_dict2.items() if k not in celltypes[:-1]])
+        # cluster_assignments = [
+        #     "Cancer region",
+        #     "Pancreatic tissue",
+        #     "Interstitium",
+        #     "Duct epithelium",
+        #     "Stroma",
+        # ]
+        logging.debug(f"Plotting Cell Fractions")
+        fig, ax = plt.subplots(n_rows, 5, figsize=(20, 4 * n_rows), constrained_layout=True, dpi=10)
+        for i, num in enumerate(numlist):
+            self._plot_cellfraction(num, adata_st, pred_sp, ax.flat[i])
+            ax.flat[i].axis("equal")
+            ax.flat[i].set_xlabel("")
+            ax.flat[i].set_ylabel("")
+        for i in range(n_celltypes, n_rows * 5):
+            ax.flat[i].axis("off")
+        fig.suptitle(sample_id)
+
+        logging.debug(f"Saving Cell Fractions Figure")
+        fig.savefig(
+            os.path.join(self.results_folder, f"{sample_id}_cellfraction.png"),
+            bbox_inches="tight",
+            dpi=300,
+        )
+        plt.close()
+
+        logging.debug(f"Plotting ROC")
+
+        # st_to_sc_celltype = {}
+        # for k, v in sc_to_st_celltype.items():
+        #     if v not in st_to_sc_celltype:
+        #         st_to_sc_celltype[v] = set()
+        #     st_to_sc_celltype[v].add(k)
+
+        n_rows = int(math.ceil(len(sc_to_st_celltype) / 5))
+        fig, ax = plt.subplots(
+            n_rows,
+            5,
+            figsize=(20, 4 * n_rows),
+            constrained_layout=True,
+            sharex=True,
+            sharey=True,
+            dpi=10,
+        )
+
+        da_aucs = []
+        if self.pretraining:
+            noda_aucs = []
+        for i, num in enumerate(numlist[:-1]):
+            da_aucs.append(
+                self._plot_roc_pdac(
+                    num,
+                    adata_st,
+                    pred_sp,
+                    MODEL_NAME,
+                    sc_to_st_celltype,
+                    ax.flat[i],
+                )
+            )
+            if self.pretraining:
+                noda_aucs.append(
+                    self._plot_roc_pdac(
+                        num,
+                        adata_st,
+                        pred_sp_noda,
+                        f"{MODEL_NAME}_wo_da",
+                        sc_to_st_celltype,
                         ax.flat[i],
                     )
                 )

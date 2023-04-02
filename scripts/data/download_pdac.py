@@ -10,11 +10,13 @@ import json
 PDAC_DIR = "./data/pdac"
 SERIES_ACCESSION = "GSE111672"
 DATA_DIR = os.path.join(PDAC_DIR, SERIES_ACCESSION)
-RAW_PATH = os.path.join(DATA_DIR, 'suppl/GSE111672_RAW.tar')
+RAW_PATH = os.path.join(DATA_DIR, "suppl/GSE111672_RAW.tar")
 
-os.system(f"wget -r -nH --cut-dirs=3 --no-parent 'ftp://ftp.ncbi.nlm.nih.gov/geo/series/GSE111nnn/{SERIES_ACCESSION}/' -P '{PDAC_DIR}'")
+os.system(
+    f"wget -r -nH --cut-dirs=3 --no-parent 'ftp://ftp.ncbi.nlm.nih.gov/geo/series/GSE111nnn/{SERIES_ACCESSION}/' -P '{PDAC_DIR}'"
+)
 
-os.system(f"gunzip -r '{DATA_DIR}'")
+os.system(f"gunzip -r '{DATA_DIR}' -f")
 os.system(f"tar -xf '{RAW_PATH}' --one-top-level -C '{DATA_DIR}'")
 os.remove(RAW_PATH)
 os.chdir(DATA_DIR)
@@ -25,7 +27,7 @@ os.chdir(DATA_DIR)
 #     os.system("gunzip matrix/GSE111672_series_matrix.txt.gz")
 
 # %%
-with open("matrix/GSE111672_series_matrix.txt", 'r') as f:
+with open("matrix/GSE111672_series_matrix.txt", "r") as f:
     lines = f.readlines()
 lines = pd.Series(lines)
 
@@ -47,11 +49,13 @@ lines = lines.apply(lambda x: x[1:])
 
 
 # %%
-accession_to_title = pd.DataFrame([lines.loc["!Sample_title"], lines.loc["!Sample_geo_accession"]]).T.applymap(lambda x: x.split('"')[1])
+accession_to_title = pd.DataFrame(
+    [lines.loc["!Sample_title"], lines.loc["!Sample_geo_accession"]]
+).T.applymap(lambda x: x.split('"')[1])
 accession_to_title = accession_to_title.set_index(1)
 accession_to_title = accession_to_title[0].to_dict()
 
-with open("accession_to_title.json", 'w') as f:
+with open("accession_to_title.json", "w") as f:
     json.dump(accession_to_title, f)
 
 # %%
@@ -94,8 +98,8 @@ for accession, title in accession_to_title.items():
 
     accession_fnames = [fname for fname in file_names if accession in fname]
     for fname in accession_fnames:
-        os.rename(f'GSE111672_RAW/{fname}', f'{out_dir}/{fname}')
-        os.system(f"gunzip {out_dir}/{fname}")
+        os.rename(f"GSE111672_RAW/{fname}", f"{out_dir}/{fname}")
+        os.system(f"gunzip {out_dir}/{fname} -f")
         file_names.remove(fname)
 
 
@@ -103,6 +107,3 @@ for accession, title in accession_to_title.items():
 os.rmdir("GSE111672_RAW")
 
 # %%
-
-
-
