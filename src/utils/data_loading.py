@@ -23,6 +23,7 @@ def get_model_rel_path(
     n_mix=DEFAULT_N_MIX,
     n_spots=DEFAULT_N_SPOTS,
     st_split=False,
+    samp_split=False,
     scaler_name="minmax",
     torch_seed_path="random",
     **kwargs,
@@ -57,7 +58,9 @@ def get_model_rel_path(
     selected_rel_path = get_selected_rel_path(sc_id, st_id, n_markers, all_genes)
     data_str = f"{n_mix}mix_{n_spots}spots"
     if st_split:
-        data_str += "_stsplit"
+        data_str += "-stsplit"
+    # elif samp_split:
+    #     data_str += "-sampsplit"
 
     return os.path.join(
         model_name,
@@ -167,6 +170,7 @@ def load_st_spots(
     processed_data_dir,
     train_using_all_st_samples=False,
     st_split=False,
+    samp_split=False,
     **kwargs,
 ):
     """Loads spatial spots.
@@ -194,19 +198,31 @@ def load_st_spots(
 
 
     """
-    fname = f"mat_sp_{'split' if st_split else 'train'}_d.hdf5"
+    if samp_split:
+        fname = "mat_sp_samp_split_d.hdf5"
+    elif st_split:
+        fname = "mat_sp_split_d.hdf5"
+    else:
+        fname = "mat_sp_train_d.hdf5"
+
     in_path = os.path.join(processed_data_dir, fname)
 
     mat_sp_d = {}
     with h5py.File(in_path, "r") as f:
-        for sample_id in f:
-            mat_sp_d[sample_id] = {}
-            mat_sp_d[sample_id]["train"] = f[f"{sample_id}/train"][()]
-            if st_split:
-                mat_sp_d[sample_id]["val"] = f[f"{sample_id}/val"][()]
-                mat_sp_d[sample_id]["test"] = f[f"{sample_id}/test"][()]
-            else:
-                mat_sp_d[sample_id]["test"] = mat_sp_d[sample_id]["train"]
+        for l1 in f:
+            mat_sp_d[l1] = {}
+            for l2 in f[l1]:
+                mat_sp_d[l1][l2] = f[f"{l1}/{l2}"][()]
+            if not st_split and not samp_split:
+                mat_sp_d[l1]["test"] = mat_sp_d[l1]["train"]
+        # for sample_id in f:
+        #     mat_sp_d[sample_id] = {}
+        #     mat_sp_d[sample_id]["train"] = f[f"{sample_id}/train"][()]
+        #     if st_split:
+        #         mat_sp_d[sample_id]["val"] = f[f"{sample_id}/val"][()]
+        #         mat_sp_d[sample_id]["test"] = f[f"{sample_id}/test"][()]
+        #     else:
+        #         mat_sp_d[sample_id]["test"] = mat_sp_d[sample_id]["train"]
 
     mat_sp_train = None
     if train_using_all_st_samples:

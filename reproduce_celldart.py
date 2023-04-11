@@ -234,6 +234,21 @@ if data_params["st_split"]:
             shuffle=False,
             **target_dataloader_kwargs,
         )
+elif data_params.get("samp_split", False):
+    mat_sp_train = np.concatenate([v for v in mat_sp_d["train"].values()])
+    target_train_set = SpotDataset(deepcopy(mat_sp_train))
+    target_val_set = SpotDataset(deepcopy(next(iter(mat_sp_d["val"].values()))))
+    target_test_set = SpotDataset(deepcopy(next(iter(mat_sp_d["test"].values()))))
+
+    dataloader_target_train = torch.utils.data.DataLoader(
+        target_train_set, shuffle=True, **target_dataloader_kwargs
+    )
+    dataloader_target_val = torch.utils.data.DataLoader(
+        target_val_set, shuffle=False, **target_dataloader_kwargs
+    )
+    dataloader_target_test = torch.utils.data.DataLoader(
+        target_test_set, shuffle=False, **target_dataloader_kwargs
+    )
 
 else:
     target_test_set_d = {}
@@ -249,7 +264,7 @@ else:
         target_test_set_d[sample_id] = SpotDataset(deepcopy(mat_sp_d[sample_id]["test"]))
         dataloader_target_test_d[sample_id] = torch.utils.data.DataLoader(
             target_test_set_d[sample_id],
-            shuffle=True,
+            shuffle=False,
             **target_dataloader_kwargs,
         )
 
@@ -727,7 +742,26 @@ if data_params["train_using_all_st_samples"]:
         dataloader_source_train,
         dataloader_target_train,
     )
+elif data_params.get("samp_split", False):
+    tqdm.write(f"Adversarial training for slides {mat_sp_d['train'].keys()}: ")
+    save_folder = os.path.join(advtrain_folder, "samp_split")
+    if not os.path.isdir(save_folder):
+        os.makedirs(save_folder)
 
+    best_checkpoint = torch.load(os.path.join(pretrain_folder, f"final_model.pth"))
+    model = best_checkpoint["model"]
+    model.to(device)
+    model.advtraining()
+
+    train_adversarial(
+        model,
+        save_folder,
+        sc_mix_d["train"],
+        lab_mix_d["train"],
+        mat_sp_train,
+        dataloader_source_train,
+        dataloader_target_train,
+    )
 else:
     for sample_id in st_sample_id_l:
         tqdm.write(f"Adversarial training for ST slide {sample_id}: ")

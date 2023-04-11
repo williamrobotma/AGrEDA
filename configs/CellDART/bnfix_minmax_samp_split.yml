@@ -7,14 +7,15 @@ data_params:
   sample_id_n: "151673"
   scaler_name: minmax
   st_split: false
+  samp_split: true
   train_using_all_st_samples: false
 model_params:
   celldart_kwargs:
     bn_momentum: 0.01
     emb_dim: 64
-  model_version: bnfix_minmax
+  model_version: bnfix_minmax_samp_split
 torch_params:
-  manual_seed: 1205
+  manual_seed: 2634
 train_params:
   alpha: 0.6
   alpha_lr: 5

@@ -20,6 +20,7 @@ import seaborn as sns
 import torch
 import yaml
 from imblearn.ensemble import BalancedRandomForestClassifier
+from imblearn.under_sampling import RandomUnderSampler
 from joblib import Parallel, delayed, effective_n_jobs, parallel_backend
 from sklearn import metrics, model_selection
 from sklearn.decomposition import PCA
@@ -42,6 +43,7 @@ parser.add_argument(
 )
 parser.add_argument("--cuda", "-c", default=None, help="GPU index to use")
 parser.add_argument("--tmpdir", "-d", default=None, help="optional temporary results directory")
+parser.add_argument("--test", "-t", action="store_true", help="test mode")
 args = parser.parse_args()
 
 
@@ -142,10 +144,31 @@ class Evaluator:
 
         print("Loading Data")
         # Load spatial data
-        self.mat_sp_d, self.mat_sp_train, self.st_sample_id_l = data_loading.load_spatial(
+        mat_sp_d, self.mat_sp_train, st_sample_id_l = data_loading.load_spatial(
             self.selected_dir,
             **self.data_params,
         )
+
+        if args.test:
+            self.splits = ("train", "val", "test")
+        else:
+            self.splits = ("train", "val")
+
+        if self.data_params.get("samp_split", False):
+            self.st_sample_id_d = {}
+            for split in self.splits:
+                self.st_sample_id_d[split] = [
+                    sid for sid in st_sample_id_l if sid in mat_sp_d[split].keys()
+                ]
+
+            self.mat_sp_d = {}
+            for split in self.splits:
+                for sid in self.st_sample_id_d[split]:
+                    self.mat_sp_d[sid] = mat_sp_d[split][sid]
+
+        else:
+            self.st_sample_id_d = {"": st_sample_id_l}
+            self.mat_sp_d = {k: v["test"] for k, v in mat_sp_d.items()}
 
         # Load sc data
         (
@@ -158,8 +181,6 @@ class Evaluator:
         pretrain_folder = os.path.join(model_folder, "pretrain")
         self.advtrain_folder = os.path.join(model_folder, "advtrain")
         self.pretrain_model_path = os.path.join(pretrain_folder, f"final_model.pth")
-
-        self.splits = ("train", "val", "test")
 
     def gen_pca(self, sample_id, split, y_dis, emb, emb_noda=None):
         n_cols = 2 if emb_noda is not None else 1
@@ -219,7 +240,7 @@ class Evaluator:
         logger.debug("transforming pca 50 test")
         emb_test_50 = pca.transform(emb_test)
 
-        logger.debug("initializie brfc")
+        logger.debug("initialize brfc")
         n_jobs = effective_n_jobs(args.njobs)
         clf = BalancedRandomForestClassifier(random_state=145, n_jobs=n_jobs)
         logger.debug("fit brfc")
@@ -252,19 +273,36 @@ class Evaluator:
         else:
             model_noda = None
 
-        for sample_id in self.st_sample_id_l:
-            print(f"Calculating domain shift for {sample_id}:", end=" ")
-            random_states = random_states + 1
+        if "" in self.st_sample_id_d:
+            splits = [""]
+        else:
+            splits = self.splits
 
-            self._eval_embeddings_1samp(sample_id, random_states, model_noda=model_noda)
+        if self.data_params.get("samp_split", False):
+            model = get_model(os.path.join(self.advtrain_folder, "samp_split/final_model.pth"))
+        elif self.data_params.get("train_using_all_st_samples", False):
+            model = get_model(os.path.join(self.advtrain_folder, "final_model.pth"))
+        else:
+            model = None
 
-    def _eval_embeddings_1samp(self, sample_id, random_states, model_noda=None):
-        model = get_model(os.path.join(self.advtrain_folder, sample_id, f"final_model.pth"))
+        for split in splits:
+            for sample_id in self.st_sample_id_d[split]:
+                print(f"Calculating domain shift for {sample_id}:", end=" ")
+                random_states = random_states + 1
+
+                self._eval_embeddings_1samp(
+                    sample_id, random_states, model=model, model_noda=model_noda
+                )
+
+    def _eval_embeddings_1samp(self, sample_id, random_states, model=None, model_noda=None):
+        if model is None:
+            model = get_model(os.path.join(self.advtrain_folder, sample_id, f"final_model.pth"))
+
         n_jobs = effective_n_jobs(args.njobs)
 
         for split, rs in zip(self.splits, random_states):
             print(split.upper(), end=" |")
-            Xs, Xt = (self.sc_mix_d[split], self.mat_sp_d[sample_id]["test"])
+            Xs, Xt = (self.sc_mix_d[split], self.mat_sp_d[sample_id])
             logger.debug("Getting embeddings")
             source_emb = next(get_embeddings(model, Xs, source_encoder=True))
             target_emb = next(get_embeddings(model, Xt, source_encoder=False))
@@ -326,15 +364,22 @@ class Evaluator:
     def _run_milisi(self, sample_id, n_jobs, split, emb, emb_noda, y_dis):
         logger.debug(f"Using {n_jobs} jobs with parallel backend \"{'threading'}\"")
 
+        all_embs = np.concatenate([emb, emb_noda], axis=1)
+        all_embs_bal, y_dis_bal = RandomUnderSampler(random_state=int(sample_id)).fit_resample(
+            all_embs, y_dis
+        )
+        emb_bal = all_embs_bal[:, : all_embs_bal.shape[1] // 2]
+        emb_noda_bal = all_embs_bal[:, all_embs_bal.shape[1] // 2 :]
+
         print(" milisi", end=" ")
-        meta_df = pd.DataFrame(y_dis, columns=["Domain"])
-        score = self._milisi_parallel(n_jobs, emb, meta_df)
+        meta_df = pd.DataFrame(y_dis_bal, columns=["Domain"])
+        score = self._milisi_parallel(n_jobs, emb_bal, meta_df)
 
         self.miLISI_d["da"][split][sample_id] = np.median(score)
         logger.debug(f"miLISI da: {self.miLISI_d['da'][split][sample_id]}")
 
         if self.pretraining:
-            score = self._milisi_parallel(n_jobs, emb_noda, meta_df)
+            score = self._milisi_parallel(n_jobs, emb_noda_bal, meta_df)
             self.miLISI_d["noda"][split][sample_id] = np.median(score)
             logger.debug(f"miLISI noda: {self.miLISI_d['da'][split][sample_id]}")
 
@@ -450,8 +495,8 @@ class Evaluator:
     def _plot_spatial(self, adata_st_d, color_dict, color="spatialLIBD", fname="layers.png"):
         fig, ax = plt.subplots(
             nrows=1,
-            ncols=len(self.st_sample_id_l),
-            figsize=(3 * len(self.st_sample_id_l), 3),
+            ncols=len(self.mat_sp_d),
+            figsize=(3 * len(self.mat_sp_d), 3),
             squeeze=False,
             constrained_layout=True,
             dpi=50,
@@ -474,20 +519,25 @@ class Evaluator:
             loc="center right",
         )
 
-        for i, sample_id in enumerate(self.st_sample_id_l):
-            sc.pl.spatial(
-                adata_st_d[sample_id],
-                img_key=None,
-                color=color,
-                palette=color_dict,
-                size=1,
-                title=sample_id,
-                legend_loc=4,
-                na_color="lightgrey",
-                spot_size=1 if self.data_params.get("dset") == "pdac" else 100,
-                show=False,
-                ax=ax[0][i],
-            )
+        if "" in self.st_sample_id_d:
+            splits = [""]
+        else:
+            splits = self.splits
+        for split in splits:
+            for i, sample_id in enumerate(self.st_sample_id_d[split]):
+                sc.pl.spatial(
+                    adata_st_d[sample_id],
+                    img_key=None,
+                    color=color,
+                    palette=color_dict,
+                    size=1,
+                    title=sample_id,
+                    legend_loc=4,
+                    na_color="lightgrey",
+                    spot_size=1 if self.data_params.get("dset") == "pdac" else 100,
+                    show=False,
+                    ax=ax[0][i],
+                )
 
             ax[0][i].axis("equal")
             ax[0][i].set_xlabel("")
@@ -910,25 +960,37 @@ class Evaluator:
     # %%
     def eval_spots(self):
         print("Getting predictions: ")
-        if self.data_params["train_using_all_st_samples"]:
-            inputs = [self.mat_sp_d[sid]["test"] for sid in self.st_sample_id_l]
-            path = os.path.join(self.advtrain_folder, f"final_model.pth")
-            outputs = get_predictions(get_model(path), inputs)
-            pred_sp_d = dict(zip(self.st_sample_id_l, outputs))
+        if "" in self.st_sample_id_d:
+            splits = [""]
+        else:
+            splits = self.splits
 
+        sids = [sid for split in splits for sid in self.st_sample_id_d[split]]
+
+        if self.data_params.get("samp_split", False):
+            path = os.path.join(self.advtrain_folder, "samp_split/final_model.pth")
+        elif self.data_params["train_using_all_st_samples"]:
+            path = os.path.join(self.advtrain_folder, "final_model.pth")
+        else:
+            path = None
+
+        if path is not None:
+            inputs = [self.mat_sp_d[sid] for sid in sids]
+            outputs = get_predictions(get_model(path), inputs)
+            pred_sp_d = dict(zip(sids, outputs))
         else:
             pred_sp_d = {}
-            for sample_id in self.st_sample_id_l:
+            for sample_id in sids:
                 path = os.path.join(self.advtrain_folder, sample_id, f"final_model.pth")
-                input = self.mat_sp_d[sample_id]["test"]
+                input = self.mat_sp_d[sample_id]
                 pred_sp_d[sample_id] = next(get_predictions(get_model(path), input))
 
         if self.pretraining:
-            inputs = [self.mat_sp_d[sid]["test"] for sid in self.st_sample_id_l]
+            inputs = [self.mat_sp_d[sid] for sid in sids]
             outputs = get_predictions(
                 get_model(self.pretrain_model_path), inputs, source_encoder=True
             )
-            pred_sp_noda_d = dict(zip(self.st_sample_id_l, outputs))
+            pred_sp_noda_d = dict(zip(sids, outputs))
         else:
             pred_sp_noda_d = None
         # %%
@@ -936,7 +998,7 @@ class Evaluator:
 
         adata_st_d = {}
         print("Loading ST adata: ")
-        for sample_id in self.st_sample_id_l:
+        for sample_id in sids:
             adata_st_d[sample_id] = adata_st[adata_st.obs.sample_id == sample_id]
             adata_st_d[sample_id].obsm["spatial"] = adata_st_d[sample_id].obs[["X", "Y"]].values
         realspots_d = {"da": {}}
@@ -947,21 +1009,28 @@ class Evaluator:
         else:
             aucs = self.eval_dlpfc_spots(pred_sp_d, pred_sp_noda_d, adata_st, adata_st_d)
 
-        for sample_id, auc in zip(self.st_sample_id_l, aucs):
+        for sample_id, auc in zip(sids, aucs):
             realspots_d["da"][sample_id] = auc[0]
             if self.pretraining:
                 realspots_d["noda"][sample_id] = auc[1]
         self.realspots_d = realspots_d
 
     def eval_dlpfc_spots(self, pred_sp_d, pred_sp_noda_d, adata_st, adata_st_d):
+
+        if "" in self.st_sample_id_d:
+            splits = [""]
+        else:
+            splits = self.splits
+
+        sids = [sid for split in splits for sid in self.st_sample_id_d[split]]
+
         self._plot_layers(adata_st, adata_st_d)
 
         print("Plotting Samples")
-        n_jobs_samples = min(effective_n_jobs(args.njobs), len(self.st_sample_id_l))
+        n_jobs_samples = min(effective_n_jobs(args.njobs), len(sids))
         logging.debug(f"n_jobs_samples: {n_jobs_samples}")
         aucs = Parallel(n_jobs=n_jobs_samples, verbose=100)(
-            delayed(self._plot_samples)(sid, adata_st_d, pred_sp_d, pred_sp_noda_d)
-            for sid in self.st_sample_id_l
+            delayed(self._plot_samples)(sid, adata_st_d, pred_sp_d, pred_sp_noda_d) for sid in sids
         )
         return aucs
 
@@ -974,9 +1043,15 @@ class Evaluator:
         self._plot_spatial(
             adata_st_d, cluster_to_rgb, color="cell_subclass", fname="st_cell_types.png"
         )
+        if "" in self.st_sample_id_d:
+            splits = [""]
+        else:
+            splits = self.splits
+
+        sids = [sid for split in splits for sid in self.st_sample_id_d[split]]
 
         print("Plotting Samples")
-        n_jobs_samples = min(effective_n_jobs(args.njobs), len(self.st_sample_id_l))
+        n_jobs_samples = min(effective_n_jobs(args.njobs), len(sids))
         logging.debug(f"n_jobs_samples: {n_jobs_samples}")
         aucs = Parallel(n_jobs=n_jobs_samples, verbose=100)(
             delayed(self._plot_samples_pdac)(
@@ -985,7 +1060,7 @@ class Evaluator:
                 pred_sp_d[sid],
                 pred_sp_noda_d[sid] if pred_sp_noda_d else None,
             )
-            for sid in self.st_sample_id_l
+            for sid in sids
         )
         return aucs
 
@@ -997,31 +1072,41 @@ class Evaluator:
         for k in self.jsd_d:
             self.jsd_d[k] = {split: {} for split in self.splits}
 
+        if "" in self.st_sample_id_d:
+            sids = self.st_sample_id_d[""]
+        else:
+            sids = [sid for split in self.splits for sid in self.st_sample_id_d[split]]
+
         if self.pretraining:
+            model = get_model(self.pretrain_model_path)
+
             self._calc_jsd(
                 metric_ctp,
-                self.st_sample_id_l[0],
-                model_path=self.pretrain_model_path,
+                sids[0],
+                model=model,
                 da="noda",
             )
             for split in self.splits:
-                score = self.jsd_d["noda"][split][self.st_sample_id_l[0]]
-                for sample_id in self.st_sample_id_l[1:]:
+                score = self.jsd_d["noda"][split][sids[0]]
+                for sample_id in sids[1:]:
                     self.jsd_d["noda"][split][sample_id] = score
 
-        for sample_id in self.st_sample_id_l:
-            if self.data_params["train_using_all_st_samples"]:
-                model_path = os.path.join(self.advtrain_folder, f"final_model.pth")
-            else:
-                model_path = os.path.join(self.advtrain_folder, sample_id, f"final_model.pth")
+        if self.data_params.get("samp_split", False):
+            model = get_model(os.path.join(self.advtrain_folder, "samp_split/final_model.pth"))
+        elif self.data_params["train_using_all_st_samples"]:
+            model = get_model(os.path.join(self.advtrain_folder, f"final_model.pth"))
+        else:
+            model = None
 
-            self._calc_jsd(metric_ctp, sample_id, model_path=model_path, da="da")
+        for sample_id in sids:
+            if model is None:
+                model = get_model(os.path.join(self.advtrain_folder, sample_id, "final_model.pth"))
 
-    def _calc_jsd(self, metric_ctp, sample_id, model=None, model_path=None, da="da"):
+            self._calc_jsd(metric_ctp, sample_id, model=model, da="da")
+
+    def _calc_jsd(self, metric_ctp, sample_id, model=None, da="da"):
         with torch.no_grad():
             inputs = (self.sc_mix_d[split] for split in self.splits)
-            if model is None:
-                model = get_model(model_path)
             pred_mix = get_predictions(model, inputs, source_encoder=True)
             for split, pred in zip(self.splits, pred_mix):
                 score = metric_ctp(
@@ -1069,6 +1154,12 @@ class Evaluator:
         results_df = [
             pd.concat(list(self.gen_l_dfs(da)), axis=1, keys=df_keys) for da in da_dict_keys
         ]
+
+        sid_to_split = {sid: split for split, sids_ in self.st_sample_id_d.items() for sid in sids_}
+        for df in results_df:
+            df.index = df.index.map(lambda x: (sid_to_split[x], x))
+            df.index.set_names(["SC Split", "Sample ID"], inplace=True)
+
         results_df = pd.concat(results_df, axis=0, keys=da_df_keys)
 
         results_df.to_csv(os.path.join(self.results_folder, "results.csv"))
