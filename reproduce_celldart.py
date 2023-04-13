@@ -18,8 +18,8 @@ from torch import nn
 from tqdm.autonotebook import tqdm
 
 from src.da_models.adda import ADDAST
-from src.da_models.datasets import SpotDataset
-from src.da_models.utils import get_torch_device, set_requires_grad
+from src.da_models.model_utils.datasets import SpotDataset
+from src.da_models.model_utils.utils import get_torch_device, set_requires_grad
 from src.utils import data_loading
 from src.utils.output_utils import DupStdout, TempFolderHolder
 
@@ -46,10 +46,10 @@ LOG_FNAME = args.log_fname
 # CUDA_INDEX = None
 # NUM_WORKERS = 0
 # %%
-# torch_params = {}
+# lib_params = {}
 
-# torch_params["manual_seed"] = 1205
-# torch_params["cuda_i"] = 0
+# lib_params["manual_seed"] = 1205
+# lib_params["cuda_i"] = 0
 
 
 # %%
@@ -109,7 +109,7 @@ MODEL_NAME = "CellDART"
 
 # %%
 # config = {
-#     "torch_params": torch_params,
+#     "lib_params": lib_params,
 #     "data_params": data_params,
 #     "model_params": model_params,
 #     "train_params": train_params,
@@ -118,7 +118,7 @@ MODEL_NAME = "CellDART"
 with open(os.path.join("configs", MODEL_NAME, CONFIG_FNAME), "r") as f:
     config = yaml.safe_load(f)
 
-torch_params = config["torch_params"]
+lib_params = config["lib_params"]
 data_params = config["data_params"]
 model_params = config["model_params"]
 train_params = config["train_params"]
@@ -135,8 +135,8 @@ tqdm.write(yaml.safe_dump(config))
 device = get_torch_device(CUDA_INDEX)
 
 # %%
-torch_seed = torch_params.get("manual_seed", int(script_start_time.timestamp()))
-torch_seed_path = str(torch_seed) if "manual_seed" in torch_params else "random"
+torch_seed = lib_params.get("manual_seed", int(script_start_time.timestamp()))
+lib_seed_path = str(torch_seed) if "manual_seed" in lib_params else "random"
 
 torch.manual_seed(torch_seed)
 np.random.seed(torch_seed)
@@ -146,7 +146,7 @@ np.random.seed(torch_seed)
 model_folder = data_loading.get_model_rel_path(
     MODEL_NAME,
     model_params["model_version"],
-    torch_seed_path=torch_seed_path,
+    lib_seed_path=lib_seed_path,
     **data_params,
 )
 model_folder = os.path.join("model", model_folder)

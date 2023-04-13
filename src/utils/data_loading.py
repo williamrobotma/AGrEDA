@@ -25,7 +25,7 @@ def get_model_rel_path(
     st_split=False,
     samp_split=False,
     scaler_name="minmax",
-    torch_seed_path="random",
+    lib_seed_path="random",
     **kwargs,
 ):
     """Get path relative to data or results directory for a given run.
@@ -48,7 +48,7 @@ def get_model_rel_path(
         st_split (bool): Whether to use a train/val/test split for spatial data.
             Default: False.
         scaler_name (str): Name of the scaler to use. Default: "minmax".
-        torch_seed_path: Seed used for pytorch rng. Default: "random".
+        lib_seed_path: Seed used for pytorch rng. Default: "random".
         **kwargs: Catches additional unused arguments.
 
     Returns:
@@ -69,7 +69,7 @@ def get_model_rel_path(
         data_str,
         scaler_name,
         model_version,
-        torch_seed_path,
+        lib_seed_path,
     )
 
 

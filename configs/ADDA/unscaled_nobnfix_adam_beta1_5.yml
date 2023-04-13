@@ -4,7 +4,7 @@ data_params:
   n_markers: 20
   n_mix: 8
   n_spots: 20000
-  sample_id_n: '151673'
+  sample_id_n: "151673"
   scaler_name: unscaled
   st_split: false
   train_using_all_st_samples: false
@@ -13,7 +13,7 @@ model_params:
     bn_momentum: 0.99
     emb_dim: 64
   model_version: unscaled_nobnfix_adam_beta1_5
-torch_params:
+lib_params:
   manual_seed: 76
 train_params:
   adam_beta1: 0.5

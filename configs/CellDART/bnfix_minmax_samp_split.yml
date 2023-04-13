@@ -14,7 +14,7 @@ model_params:
     bn_momentum: 0.01
     emb_dim: 64
   model_version: bnfix_minmax_samp_split
-torch_params:
+lib_params:
   manual_seed: 2634
 train_params:
   alpha: 0.6

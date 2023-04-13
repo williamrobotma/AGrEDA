@@ -4,7 +4,7 @@ data_params:
   n_markers: 20
   n_mix: 8
   n_spots: 20000
-  sample_id_n: '151673'
+  sample_id_n: "151673"
   scaler_name: standard
   st_split: false
   train_using_all_st_samples: false
@@ -14,14 +14,14 @@ model_params:
     batchnorm_after_act: true
     dropout: 0.5
     enc_hidden_layer_sizes:
-    - 1024
-    - 1024
-    - 1024
-    - 256
-    - 64
+      - 1024
+      - 1024
+      - 1024
+      - 256
+      - 64
     hidden_act: leakyrelu
   model_version: deep_coral
-torch_params:
+lib_params:
   manual_seed: 263
 train_params:
   batch_size: 512

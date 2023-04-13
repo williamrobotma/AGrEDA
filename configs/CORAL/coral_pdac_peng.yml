@@ -22,7 +22,7 @@ model_params:
       - 64
     hidden_act: leakyrelu
   model_version: coral_pdac
-torch_params:
+lib_params:
   manual_seed: 345678
 train_params:
   batch_size: 512

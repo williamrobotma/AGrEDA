@@ -17,7 +17,6 @@ import numpy as np
 import pandas as pd
 import scanpy as sc
 import seaborn as sns
-import torch
 import yaml
 from imblearn.ensemble import BalancedRandomForestClassifier
 from imblearn.under_sampling import RandomUnderSampler
@@ -26,11 +25,12 @@ from sklearn import metrics, model_selection
 from sklearn.decomposition import PCA
 from sklearn.metrics import RocCurveDisplay
 
-from src.da_models.utils import get_torch_device
+from src.da_models.model_utils.utils import (
+    ModelWrapper,
+    dict_to_lib_config,
+    get_metric_ctp,
+)
 from src.utils import data_loading
-
-# from src.da_models.datasets import SpotDataset
-from src.utils.evaluation import JSD
 from src.utils.output_utils import TempFolderHolder
 
 parser = argparse.ArgumentParser(description="Evaluates.")
@@ -70,9 +70,9 @@ Ex_to_L_d = {
     10: {2, 3, 4},
 }
 
-metric_ctp = JSD()
+metric_ctp = get_metric_ctp("jsd")
 
-device = get_torch_device(args.cuda)
+# device = get_torch_device(args.cuda)
 
 
 def main():
@@ -86,8 +86,13 @@ def main():
 
 class Evaluator:
     def __init__(self):
+        self.lib_config = dict_to_lib_config(vars(args))
+        ModelWrapper.configurate(self.lib_config)
 
-        print(f"Evaluating {MODEL_NAME} on {device} with {args.njobs} jobs")
+        print(f"Evaluating {MODEL_NAME} on with {args.njobs} jobs")
+        print("Using library config:")
+        print(self.lib_config)
+
         print(f"Loading config {args.config_fname} ... ")
 
         with open(os.path.join("configs", MODEL_NAME, args.config_fname), "r") as f:
@@ -95,17 +100,17 @@ class Evaluator:
 
         print(yaml.dump(self.config))
 
-        self.torch_params = self.config["torch_params"]
+        self.lib_params = self.config["lib_params"]
         self.data_params = self.config["data_params"]
         self.model_params = self.config["model_params"]
         self.train_params = self.config["train_params"]
 
-        torch_seed_path = str(self.torch_params.get("manual_seed", "random"))
+        lib_seed_path = str(self.lib_params.get("manual_seed", "random"))
 
         model_rel_path = data_loading.get_model_rel_path(
             MODEL_NAME,
             self.model_params["model_version"],
-            torch_seed_path=torch_seed_path,
+            lib_seed_path=lib_seed_path,
             **self.data_params,
         )
         model_folder = os.path.join("model", model_rel_path)
@@ -178,9 +183,10 @@ class Evaluator:
             self.sc_sub_dict2,
         ) = data_loading.load_sc(self.selected_dir, **self.data_params)
 
-        pretrain_folder = os.path.join(model_folder, "pretrain")
+        self.pretrain_folder = os.path.join(model_folder, "pretrain")
         self.advtrain_folder = os.path.join(model_folder, "advtrain")
-        self.pretrain_model_path = os.path.join(pretrain_folder, f"final_model.pth")
+        self.samp_split_folder = os.path.join(self.advtrain_folder, "samp_split")
+        # self.pretrain_model_path = os.path.join(pretrain_folder, f"final_model.pth")
 
     def gen_pca(self, sample_id, split, y_dis, emb, emb_noda=None):
         n_cols = 2 if emb_noda is not None else 1
@@ -269,7 +275,7 @@ class Evaluator:
                     self.miLISI_d[k][split] = {}
 
         if self.pretraining:
-            model_noda = get_model(self.pretrain_model_path)
+            model_noda = ModelWrapper(self.pretrain_folder, "final_model")
         else:
             model_noda = None
 
@@ -279,9 +285,9 @@ class Evaluator:
             splits = self.splits
 
         if self.data_params.get("samp_split", False):
-            model = get_model(os.path.join(self.advtrain_folder, "samp_split/final_model.pth"))
+            model = ModelWrapper(self.samp_split_folder, "final_model")
         elif self.data_params.get("train_using_all_st_samples", False):
-            model = get_model(os.path.join(self.advtrain_folder, "final_model.pth"))
+            model = ModelWrapper(self.advtrain_folder, "final_model")
         else:
             model = None
 
@@ -296,7 +302,7 @@ class Evaluator:
 
     def _eval_embeddings_1samp(self, sample_id, random_states, model=None, model_noda=None):
         if model is None:
-            model = get_model(os.path.join(self.advtrain_folder, sample_id, f"final_model.pth"))
+            model = ModelWrapper(os.path.join(self.advtrain_folder, sample_id), "final_model")
 
         n_jobs = effective_n_jobs(args.njobs)
 
@@ -304,14 +310,12 @@ class Evaluator:
             print(split.upper(), end=" |")
             Xs, Xt = (self.sc_mix_d[split], self.mat_sp_d[sample_id])
             logger.debug("Getting embeddings")
-            source_emb = next(get_embeddings(model, Xs, source_encoder=True))
-            target_emb = next(get_embeddings(model, Xt, source_encoder=False))
+            source_emb = model.get_embeddings(Xs, source_encoder=True)
+            target_emb = model.get_embeddings(Xt, source_encoder=False)
             emb = np.concatenate([source_emb, target_emb])
             if self.pretraining:
-
-                emb_gen = get_embeddings(model_noda, (Xs, Xt), source_encoder=True)
-                source_emb_noda = next(emb_gen)
-                target_emb_noda = next(emb_gen)
+                source_emb_noda = model_noda.get_embeddings(Xs, source_encoder=True)
+                target_emb_noda = model_noda.get_embeddings(Xt, source_encoder=True)
 
                 emb_noda = np.concatenate([source_emb_noda, target_emb_noda])
             else:
@@ -968,28 +972,26 @@ class Evaluator:
         sids = [sid for split in splits for sid in self.st_sample_id_d[split]]
 
         if self.data_params.get("samp_split", False):
-            path = os.path.join(self.advtrain_folder, "samp_split/final_model.pth")
+            path = self.samp_split_folder
         elif self.data_params["train_using_all_st_samples"]:
-            path = os.path.join(self.advtrain_folder, "final_model.pth")
+            path = self.advtrain_folder
         else:
             path = None
 
         if path is not None:
             inputs = [self.mat_sp_d[sid] for sid in sids]
-            outputs = get_predictions(get_model(path), inputs)
+            outputs = iter_preds(inputs, path)
             pred_sp_d = dict(zip(sids, outputs))
         else:
             pred_sp_d = {}
             for sample_id in sids:
-                path = os.path.join(self.advtrain_folder, sample_id, f"final_model.pth")
+                path = os.path.join(self.advtrain_folder, sample_id)
                 input = self.mat_sp_d[sample_id]
-                pred_sp_d[sample_id] = next(get_predictions(get_model(path), input))
+                pred_sp_d[sample_id] = ModelWrapper(path).get_predictions(input)
 
         if self.pretraining:
             inputs = [self.mat_sp_d[sid] for sid in sids]
-            outputs = get_predictions(
-                get_model(self.pretrain_model_path), inputs, source_encoder=True
-            )
+            outputs = iter_preds(inputs, self.pretrain_folder, source_encoder=True)
             pred_sp_noda_d = dict(zip(sids, outputs))
         else:
             pred_sp_noda_d = None
@@ -1078,7 +1080,7 @@ class Evaluator:
             sids = [sid for split in self.splits for sid in self.st_sample_id_d[split]]
 
         if self.pretraining:
-            model = get_model(self.pretrain_model_path)
+            model = ModelWrapper(self.pretrain_folder)
 
             self._calc_jsd(
                 metric_ctp,
@@ -1092,28 +1094,25 @@ class Evaluator:
                     self.jsd_d["noda"][split][sample_id] = score
 
         if self.data_params.get("samp_split", False):
-            model = get_model(os.path.join(self.advtrain_folder, "samp_split/final_model.pth"))
+            model = ModelWrapper(self.samp_split_folder)
         elif self.data_params["train_using_all_st_samples"]:
-            model = get_model(os.path.join(self.advtrain_folder, f"final_model.pth"))
+            model = ModelWrapper(self.advtrain_folder)
         else:
             model = None
 
         for sample_id in sids:
             if model is None:
-                model = get_model(os.path.join(self.advtrain_folder, sample_id, "final_model.pth"))
+                model = ModelWrapper(os.path.join(self.advtrain_folder, sample_id))
 
             self._calc_jsd(metric_ctp, sample_id, model=model, da="da")
 
     def _calc_jsd(self, metric_ctp, sample_id, model=None, da="da"):
-        with torch.no_grad():
-            inputs = (self.sc_mix_d[split] for split in self.splits)
-            pred_mix = get_predictions(model, inputs, source_encoder=True)
-            for split, pred in zip(self.splits, pred_mix):
-                score = metric_ctp(
-                    torch.as_tensor(pred, dtype=torch.float32),
-                    torch.as_tensor(self.lab_mix_d[split], dtype=torch.float32),
-                )
-                self.jsd_d[da][split][sample_id] = score.detach().cpu().numpy()
+        for split in self.splits:
+            input = self.sc_mix_d[split]
+            pred = model.get_predictions(input, source_encoder=True)
+            score = metric_ctp(pred, self.lab_mix_d[split])
+
+            self.jsd_d[da][split][sample_id] = score
 
     def gen_l_dfs(self, da):
         """Generate a list of series for a given da"""
@@ -1171,64 +1170,92 @@ class Evaluator:
         self.temp_folder_holder.copy_out()
 
 
-def get_model(model_path):
-    check_point_da = torch.load(model_path, map_location=device)
-    model = check_point_da["model"]
-    model.to(device)
-    model.eval()
-    return model
+def iter_preds(inputs, model_dir, name="final_model", source_encoder=False):
+    model = ModelWrapper(model_dir, name)
+    inputs_iter = listify(inputs)
+
+    for input in inputs_iter:
+        yield model.get_predictions(input, source_encoder=source_encoder)
 
 
-def get_predictions(model, inputs, source_encoder=False):
-    if source_encoder:
-        model.set_encoder("source")
-    else:
-        model.target_inference()
+def iter_embs(inputs, model_dir, name="final_model", source_encoder=False):
+    model = ModelWrapper(model_dir, name)
+    inputs_iter = listify(inputs)
+    logger.debug(f"Embeddings input length: {len(inputs_iter)}")
 
-    def out_func(x):
-        out = model(torch.as_tensor(x, device=device, dtype=torch.float32))
-        if isinstance(out, tuple):
-            out = out[0]
-        return torch.exp(out)
-
-    try:
-        inputs.shape
-    except AttributeError:
-        pass
-    else:
-        inputs = [inputs]
-
-    with torch.no_grad():
-        for input in inputs:
-            yield out_func(input).detach().cpu().numpy()
+    for input in inputs_iter:
+        yield model.get_embeddings(input, source_encoder=source_encoder)
 
 
-def get_embeddings(model, inputs, source_encoder=False):
-    if source_encoder:
-        model.set_encoder("source")
-    else:
-        model.target_inference()
-
-    try:
-        encoder = model.encoder
-    except AttributeError:
-        if source_encoder:
-            encoder = model.source_encoder
-        else:
-            encoder = model.target_encoder
-
-    out_func = lambda x: encoder(torch.as_tensor(x, device=device, dtype=torch.float32))
+def listify(inputs):
     try:
         inputs.shape
     except AttributeError:
         inputs_iter = inputs
     else:
-        logger.debug(f"Embeddings input is single array with shape {inputs.shape}")
+        logger.debug(f"Input is single array with shape {inputs.shape}")
         inputs_iter = [inputs]
-    logger.debug(f"Embeddings input length: {len(inputs_iter)}")
-    with torch.no_grad():
-        for input in inputs_iter:
-            yield out_func(input).detach().cpu().numpy()
+    return inputs_iter
+
+
+# def get_model(model_path):
+#     check_point_da = torch.load(model_path, map_location=device)
+#     model = check_point_da["model"]
+#     model.to(device)
+#     model.eval()
+#     return model
+
+
+# def get_predictions(model, inputs, source_encoder=False):
+#     if source_encoder:
+#         model.set_encoder("source")
+#     else:
+#         model.target_inference()
+
+#     def out_func(x):
+#         out = model(torch.as_tensor(x, device=device, dtype=torch.float32))
+#         if isinstance(out, tuple):
+#             out = out[0]
+#         return torch.exp(out)
+
+#     try:
+#         inputs.shape
+#     except AttributeError:
+#         pass
+#     else:
+#         inputs = [inputs]
+
+#     with torch.no_grad():
+#         for input in inputs:
+#             yield out_func(input).detach().cpu().numpy()
+
+
+# def get_embeddings(model, inputs, source_encoder=False):
+#     if source_encoder:
+#         model.set_encoder("source")
+#     else:
+#         model.target_inference()
+
+#     try:
+#         encoder = model.encoder
+#     except AttributeError:
+#         if source_encoder:
+#             encoder = model.source_encoder
+#         else:
+#             encoder = model.target_encoder
+
+#     out_func = lambda x: encoder(torch.as_tensor(x, device=device, dtype=torch.float32))
+#     try:
+#         inputs.shape
+#     except AttributeError:
+#         inputs_iter = inputs
+#     else:
+#         logger.debug(f"Embeddings input is single array with shape {inputs.shape}")
+#         inputs_iter = [inputs]
+#     logger.debug(f"Embeddings input length: {len(inputs_iter)}")
+#     with torch.no_grad():
+#         for input in inputs_iter:
+#             yield out_func(input).detach().cpu().numpy()
 
 
 def fit_pca(X, *args, **kwargs):

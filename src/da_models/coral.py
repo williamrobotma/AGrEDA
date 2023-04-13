@@ -2,7 +2,7 @@
 
 from torch import nn
 
-from .components import MLP
+from src.da_models.model_utils.components import MLP
 
 ENC_HIDDEN_LAYER_SIZES = (
     1024,
