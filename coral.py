@@ -25,8 +25,8 @@ from src.da_models.coral import CORAL
 from src.da_models.model_utils.datasets import SpotDataset
 from src.da_models.model_utils.utils import get_torch_device, initialize_weights
 from src.da_models.model_utils.losses import coral_loss
-from src.utils import data_loading, evaluation
-from src.utils.output_utils import DupStdout, TempFolderHolder
+from src.da_utils import data_loading, evaluation
+from src.da_utils.output_utils import DupStdout, TempFolderHolder
 
 # datetime object containing current date and time
 script_start_time = datetime.datetime.now(datetime.timezone.utc)

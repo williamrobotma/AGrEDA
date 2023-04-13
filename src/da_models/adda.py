@@ -5,12 +5,12 @@ from torch import nn
 
 from src.da_models.components import (
     MLP,
+    AddaDiscriminator,
+    ADDAMLPEncoder,
+    AddaPredictor,
+    Discriminator,
     MLPEncoder,
     Predictor,
-    Discriminator,
-    ADDAMLPEncoder,
-    AddaDiscriminator,
-    AddaPredictor,
 )
 from src.da_models.model_utils.utils import set_requires_grad
 

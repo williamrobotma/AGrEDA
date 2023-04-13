@@ -1,13 +1,10 @@
 """DANN model."""
-import warnings
-
+import torch.nn.functional as F
 from torch import nn, tensor
 from torch.autograd import Function
 
-import torch.nn.functional as F
-
+from src.da_models.components import MLP
 from src.da_models.model_utils.utils import set_requires_grad
-from src.da_models.model_utils.components import MLP
 
 ENC_HIDDEN_LAYER_SIZES = (
     1024,
