@@ -19,7 +19,7 @@ model_params:
       - 64
     hidden_act: leakyrelu
   model_version: fixed_two_step
-torch_params:
+lib_params:
   manual_seed: 3583
 train_params:
   batch_size: 512

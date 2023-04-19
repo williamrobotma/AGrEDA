@@ -1,6 +1,7 @@
 """Datasets for models."""
 import torch
 
+
 class SpotDataset(torch.utils.data.Dataset):
     """Dataset for cell spots. Indexes a spot with GEx data, and optionally cell
     type proportion.
@@ -18,6 +19,7 @@ class SpotDataset(torch.utils.data.Dataset):
         number of spots, and :math: `C_{types}` is the number of cell types.
 
     """
+
     def __init__(self, X, Y=None):
         super().__init__()
 

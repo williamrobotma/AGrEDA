@@ -7,24 +7,23 @@ data_params:
   sample_id_n: "151673"
   scaler_name: minmax
   st_split: false
+  samp_split: true
   train_using_all_st_samples: false
 model_params:
-  adda_kwargs:
+  celldart_kwargs:
     bn_momentum: 0.01
     emb_dim: 64
-  model_version: minmax_bnfix_adam_beta1_9
+  model_version: bnfix_minmax_samp_split
 lib_params:
-  manual_seed: 359
+  manual_seed: 2634
 train_params:
-  adam_beta1: 0.9
-  alpha: 2
-  batch_size: 1024
-  dis_loop_factor: 5
+  alpha: 0.6
+  alpha_lr: 5
+  batch_size: 512
   early_stop_crit: 100
-  early_stop_crit_adv: 200
-  enc_lr: 0.0002
-  epochs: 200
-  initial_train_epochs: 100
-  min_epochs: 40.0
-  min_epochs_adv: 80.0
+  early_stop_crit_adv: 10
+  initial_train_epochs: 10
+  min_epochs: 10
+  min_epochs_adv: 10
+  n_iter: 3000
   pretraining: true

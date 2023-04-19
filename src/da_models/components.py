@@ -2,9 +2,9 @@
 from collections.abc import Iterable
 from copy import deepcopy
 
-from torch import nn
 import torch
 import torch.nn.functional as F
+from torch import nn
 
 ADDA_ENC_HIDDEN_LAYER_SIZES = (
     1024,
@@ -83,9 +83,7 @@ class MLP(nn.Module):
         else:
             act_gen = iterify_act(hidden_act)
             for i, h in enumerate(hidden_layer_sizes):
-                layers.append(
-                    nn.Linear(inp_dim if i == 0 else hidden_layer_sizes[i - 1], h)
-                )
+                layers.append(nn.Linear(inp_dim if i == 0 else hidden_layer_sizes[i - 1], h))
                 if batchnorm and not batchnorm_after_act:
                     layers.append(nn.BatchNorm1d(h, **bn_kwargs))
                 next_act = next(act_gen)
@@ -164,9 +162,7 @@ class ADDAMLPEncoder(nn.Module):
 
         layers = []
         for i, h in enumerate(hidden_layer_sizes):
-            layers.append(
-                nn.Linear(inp_dim if i == 0 else hidden_layer_sizes[i - 1], h)
-            )
+            layers.append(nn.Linear(inp_dim if i == 0 else hidden_layer_sizes[i - 1], h))
             layers.append(nn.BatchNorm1d(h, eps=0.001, momentum=bn_momentum))
             layers.append(nn.LeakyReLU())
             layers.append(nn.Dropout(dropout))

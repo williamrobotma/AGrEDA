@@ -18,8 +18,8 @@ from torch import nn
 from tqdm.autonotebook import tqdm
 
 from src.da_models.adda import ADDAST
-from src.da_models.datasets import SpotDataset
-from src.da_models.utils import get_torch_device, set_requires_grad
+from src.da_models.model_utils.datasets import SpotDataset
+from src.da_models.model_utils.utils import get_torch_device, set_requires_grad
 from src.utils import data_loading
 from src.utils.output_utils import DupStdout, TempFolderHolder
 
@@ -46,10 +46,10 @@ LOG_FNAME = args.log_fname
 # CUDA_INDEX = None
 # NUM_WORKERS = 0
 # %%
-# torch_params = {}
+# lib_params = {}
 
-# torch_params["manual_seed"] = 1205
-# torch_params["cuda_i"] = 0
+# lib_params["manual_seed"] = 1205
+# lib_params["cuda_i"] = 0
 
 
 # %%
@@ -109,7 +109,7 @@ MODEL_NAME = "CellDART"
 
 # %%
 # config = {
-#     "torch_params": torch_params,
+#     "lib_params": lib_params,
 #     "data_params": data_params,
 #     "model_params": model_params,
 #     "train_params": train_params,
@@ -118,7 +118,7 @@ MODEL_NAME = "CellDART"
 with open(os.path.join("configs", MODEL_NAME, CONFIG_FNAME), "r") as f:
     config = yaml.safe_load(f)
 
-torch_params = config["torch_params"]
+lib_params = config["lib_params"]
 data_params = config["data_params"]
 model_params = config["model_params"]
 train_params = config["train_params"]
@@ -135,8 +135,8 @@ tqdm.write(yaml.safe_dump(config))
 device = get_torch_device(CUDA_INDEX)
 
 # %%
-torch_seed = torch_params.get("manual_seed", int(script_start_time.timestamp()))
-torch_seed_path = str(torch_seed) if "manual_seed" in torch_params else "random"
+torch_seed = lib_params.get("manual_seed", int(script_start_time.timestamp()))
+lib_seed_path = str(torch_seed) if "manual_seed" in lib_params else "random"
 
 torch.manual_seed(torch_seed)
 np.random.seed(torch_seed)
@@ -146,7 +146,7 @@ np.random.seed(torch_seed)
 model_folder = data_loading.get_model_rel_path(
     MODEL_NAME,
     model_params["model_version"],
-    torch_seed_path=torch_seed_path,
+    lib_seed_path=lib_seed_path,
     **data_params,
 )
 model_folder = os.path.join("model", model_folder)
@@ -234,6 +234,21 @@ if data_params["st_split"]:
             shuffle=False,
             **target_dataloader_kwargs,
         )
+elif data_params.get("samp_split", False):
+    mat_sp_train = np.concatenate([v for v in mat_sp_d["train"].values()])
+    target_train_set = SpotDataset(deepcopy(mat_sp_train))
+    target_val_set = SpotDataset(deepcopy(next(iter(mat_sp_d["val"].values()))))
+    target_test_set = SpotDataset(deepcopy(next(iter(mat_sp_d["test"].values()))))
+
+    dataloader_target_train = torch.utils.data.DataLoader(
+        target_train_set, shuffle=True, **target_dataloader_kwargs
+    )
+    dataloader_target_val = torch.utils.data.DataLoader(
+        target_val_set, shuffle=False, **target_dataloader_kwargs
+    )
+    dataloader_target_test = torch.utils.data.DataLoader(
+        target_test_set, shuffle=False, **target_dataloader_kwargs
+    )
 
 else:
     target_test_set_d = {}
@@ -249,7 +264,7 @@ else:
         target_test_set_d[sample_id] = SpotDataset(deepcopy(mat_sp_d[sample_id]["test"]))
         dataloader_target_test_d[sample_id] = torch.utils.data.DataLoader(
             target_test_set_d[sample_id],
-            shuffle=True,
+            shuffle=False,
             **target_dataloader_kwargs,
         )
 
@@ -727,7 +742,26 @@ if data_params["train_using_all_st_samples"]:
         dataloader_source_train,
         dataloader_target_train,
     )
+elif data_params.get("samp_split", False):
+    tqdm.write(f"Adversarial training for slides {mat_sp_d['train'].keys()}: ")
+    save_folder = os.path.join(advtrain_folder, "samp_split")
+    if not os.path.isdir(save_folder):
+        os.makedirs(save_folder)
 
+    best_checkpoint = torch.load(os.path.join(pretrain_folder, f"final_model.pth"))
+    model = best_checkpoint["model"]
+    model.to(device)
+    model.advtraining()
+
+    train_adversarial(
+        model,
+        save_folder,
+        sc_mix_d["train"],
+        lab_mix_d["train"],
+        mat_sp_train,
+        dataloader_source_train,
+        dataloader_target_train,
+    )
 else:
     for sample_id in st_sample_id_l:
         tqdm.write(f"Adversarial training for ST slide {sample_id}: ")

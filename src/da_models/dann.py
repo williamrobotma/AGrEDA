@@ -1,13 +1,10 @@
 """DANN model."""
-import warnings
-
+import torch.nn.functional as F
 from torch import nn, tensor
 from torch.autograd import Function
 
-import torch.nn.functional as F
-
-from .utils import set_requires_grad
-from .components import MLP
+from src.da_models.components import MLP
+from src.da_models.model_utils.utils import set_requires_grad
 
 ENC_HIDDEN_LAYER_SIZES = (
     1024,
@@ -85,9 +82,7 @@ class DANN(nn.Module):
         # self.source_encoder = self.target_encoder = self.encoder
         # self.dis = DannDiscriminator(emb_dim, **kwargs)
         # self.clf = DannPredictor(emb_dim, ncls_source, **kwargs)
-        common_kwargs = dict(
-            batchnorm=batchnorm, bn_kwargs={"momentum": bn_momentum}, **kwargs
-        )
+        common_kwargs = dict(batchnorm=batchnorm, bn_kwargs={"momentum": bn_momentum}, **kwargs)
         self.encoder = MLP(
             inp_dim,
             emb_dim,
@@ -214,9 +209,7 @@ class DannMLPEncoder(nn.Module):
 
         layers = []
         for i, h in enumerate(enc_hidden_layer_sizes):
-            layers.append(
-                nn.Linear(inp_dim if i == 0 else enc_hidden_layer_sizes[i - 1], h)
-            )
+            layers.append(nn.Linear(inp_dim if i == 0 else enc_hidden_layer_sizes[i - 1], h))
             if batchnorm:
                 layers.append(nn.BatchNorm1d(h, momentum=bn_momentum))
             layers.append(nn.LeakyReLU())
@@ -263,9 +256,7 @@ class DannPredictor(nn.Module):
 
         layers = []
         for i, h in enumerate(predictor_hidden_layer_sizes):
-            layers.append(
-                nn.Linear(emb_dim if i == 0 else predictor_hidden_layer_sizes[i - 1], h)
-            )
+            layers.append(nn.Linear(emb_dim if i == 0 else predictor_hidden_layer_sizes[i - 1], h))
             if batchnorm:
                 layers.append(nn.BatchNorm1d(h, momentum=bn_momentum))
             layers.append(nn.LeakyReLU())
@@ -308,9 +299,7 @@ class DannDiscriminator(nn.Module):
 
         layers = []
         for i, h in enumerate(dis_hidden_layer_sizes):
-            layers.append(
-                nn.Linear(emb_dim if i == 0 else dis_hidden_layer_sizes[i - 1], h)
-            )
+            layers.append(nn.Linear(emb_dim if i == 0 else dis_hidden_layer_sizes[i - 1], h))
             if batchnorm:
                 layers.append(nn.BatchNorm1d(h, momentum=bn_momentum))
             layers.append(nn.LeakyReLU())

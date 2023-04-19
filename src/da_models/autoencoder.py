@@ -1,8 +1,10 @@
 """Autoencoder."""
 from copy import copy
+
 from torch import nn
 
-from .components import ADDAMLPEncoder, ADDAMLPDecoder
+from src.da_models.components import ADDAMLPDecoder, ADDAMLPEncoder
+
 
 class AutoEncoder(nn.Module):
     """Autoencoder model for pseudo-spots.

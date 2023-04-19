@@ -3,16 +3,16 @@ import warnings
 
 from torch import nn
 
-from .components import (
+from src.da_models.components import (
     MLP,
+    AddaDiscriminator,
+    ADDAMLPEncoder,
+    AddaPredictor,
+    Discriminator,
     MLPEncoder,
     Predictor,
-    Discriminator,
-    ADDAMLPEncoder,
-    AddaDiscriminator,
-    AddaPredictor,
 )
-from .utils import set_requires_grad
+from src.da_models.model_utils.utils import set_requires_grad
 
 ADDA_ENC_HIDDEN_LAYER_SIZES = (
     1024,

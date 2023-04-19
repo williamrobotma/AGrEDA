@@ -8,6 +8,7 @@ import os
 import pickle
 import warnings
 from collections import OrderedDict
+from itertools import accumulate
 
 import anndata as ad
 import h5py
@@ -68,8 +69,18 @@ def main(args):
 
     print("Log scaling and maybe splitting spatial data")
     print("-" * 80)
-    split_st(selected_dir, stsplit=args.stsplit, rng=16)
-    log_scale_st(selected_dir, scaler_name=args.scaler, stsplit=args.stsplit)
+    split_st(
+        selected_dir,
+        stsplit=args.stsplit,
+        samp_split=args.samp_split,
+        rng=16,
+    )
+    log_scale_st(
+        selected_dir,
+        scaler_name=args.scaler,
+        stsplit=args.stsplit,
+        samp_split=args.samp_split,
+    )
 
     print("Log scaling all spatial data...")
     print("-" * 80)
@@ -400,7 +411,7 @@ def log_scale_pseudospots(
     data_loading.save_pseudospots(lab_mix_d, sc_mix_s_d, preprocessed_data_dir, n_mix, n_spots)
 
 
-def split_st(selected_dir, stsplit=False, rng=None):
+def split_st(selected_dir, stsplit=False, samp_split=False, rng=None):
     """Split and save spatial data into train, val, and test sets if applicable.
 
     Args:
@@ -410,11 +421,20 @@ def split_st(selected_dir, stsplit=False, rng=None):
         rng: Random number generator or seed for numpy's rng. Default: None.
 
     """
+    if stsplit and samp_split:
+        raise ValueError("Cannot use both stsplit and samp_split.")
 
     rng_integers = misc.check_integer_rng(rng)
 
     unscaled_data_dir = os.path.join(selected_dir, "unscaled")
-    out_path = os.path.join(unscaled_data_dir, f"mat_sp_{'split' if stsplit else 'train'}_d.hdf5")
+    if samp_split:
+        fname = "mat_sp_samp_split_d.hdf5"
+    elif stsplit:
+        fname = "mat_sp_split_d.hdf5"
+    else:
+        fname = "mat_sp_train_d.hdf5"
+
+    out_path = os.path.join(unscaled_data_dir, fname)
     if os.path.isfile(out_path):
         print("Unscaled spatial data already exists at:")
         print(out_path)
@@ -426,6 +446,30 @@ def split_st(selected_dir, stsplit=False, rng=None):
 
     adata_st = sc.read_h5ad(os.path.join(selected_dir, "st.h5ad"))
     st_sample_id_l = data_loading.load_st_sample_names(selected_dir)
+
+    if samp_split:
+        holdout_idxs = [rng_integers(len(st_sample_id_l))]
+        # Ensure that the holdout samples are different
+        while holdout_idxs[0] == (i_2 := rng_integers(len(st_sample_id_l))):
+            pass
+        holdout_idxs.append(i_2)
+
+        holdout_sids = [st_sample_id_l[i] for i in holdout_idxs]
+        st_sample_id_l = [sid for sid in st_sample_id_l if sid not in holdout_sids]
+
+        with h5py.File(out_path, "w") as f:
+            grp_samp = f.create_group("train")
+            for sample_id in st_sample_id_l:
+                x_st_train = adata_st[adata_st.obs.sample_id == sample_id].X.toarray()
+                grp_samp.create_dataset(sample_id, data=x_st_train)
+
+            for sample_id, split in zip(holdout_sids, ["val", "test"]):
+                grp_samp = f.create_group(split)
+
+                x_st_test = adata_st[adata_st.obs.sample_id == sample_id].X.toarray()
+                grp_samp.create_dataset(sample_id, data=x_st_test)
+
+        return
 
     with h5py.File(out_path, "w") as f:
         for sample_id in st_sample_id_l:
@@ -448,7 +492,7 @@ def split_st(selected_dir, stsplit=False, rng=None):
                 grp_samp.create_dataset("train", data=x_st_train)
 
 
-def log_scale_st(selected_dir, scaler_name, stsplit=False):
+def log_scale_st(selected_dir, scaler_name, stsplit=False, samp_split=False):
     """Log scale spatial data and save to file.
 
     Args:
@@ -458,6 +502,9 @@ def log_scale_st(selected_dir, scaler_name, stsplit=False):
             test. Defaults to False.
 
     """
+    if stsplit and samp_split:
+        raise ValueError("Cannot use both stsplit and samp_split.")
+
     scaler = get_scaler(scaler_name)
 
     # st_sample_id_l = data_loading.load_st_sample_names(selected_dir)
@@ -467,10 +514,39 @@ def log_scale_st(selected_dir, scaler_name, stsplit=False):
     if not os.path.isdir(preprocessed_data_dir):
         os.makedirs(preprocessed_data_dir)
 
-    st_fname = f"mat_sp_{'split' if stsplit else 'train'}_d.hdf5"
+    if samp_split:
+        st_fname = "mat_sp_samp_split_d.hdf5"
+    elif stsplit:
+        st_fname = "mat_sp_split_d.hdf5"
+    else:
+        st_fname = "mat_sp_train_d.hdf5"
+
     in_path = os.path.join(unscaled_data_dir, st_fname)
     out_path = os.path.join(preprocessed_data_dir, st_fname)
     with h5py.File(out_path, "w") as fout, h5py.File(in_path, "r") as fin:
+
+        if samp_split:
+            x_all = {}
+            sids_lens_all = {}
+            for split in data_loading.SPLITS:
+                sids_lens_l = []
+                x_l = []
+                for sample_id in fin[split]:
+                    x = fin[split][sample_id][()]
+                    sids_lens_l.append((sample_id, x.shape[0]))
+                    x_l.append(x)
+                x_all[split] = np.concatenate(x_l, axis=0)
+                sids_lens_all[split] = sids_lens_l
+
+            scaled = scale(scaler, *(x_all[split] for split in data_loading.SPLITS))
+            for split, x_out in zip(data_loading.SPLITS, scaled):
+                fout.create_group(split)
+
+                _, lens = zip(*sids_lens_all[split])
+                for (sid, l), i_n in zip(sids_lens_all[split], accumulate(lens)):
+                    fout[split].create_dataset(sid, data=x_out[i_n - l : i_n])
+
+            return
 
         for sample_id in fin:
 
@@ -523,13 +599,17 @@ if __name__ == "__main__":
         choices=SCALER_OPTS,
         help="Scaler to use.",
     )
-    parser.add_argument("--stsplit", action="store_true", help="Whether to split ST data.")
+    parser.add_argument("--stsplit", action="store_true", help="Split ST data by spot.")
+    parser.add_argument("--samp_split", action="store_true", help="Split ST data by sample.")
     parser.add_argument("--allgenes", "-a", action="store_true", help="Turn off marker selection.")
     parser.add_argument(
         "--nmarkers",
         type=int,
         default=data_loading.DEFAULT_N_MARKERS,
-        help="Number of top markers in sc training data to used. Ignored if --allgenes flag is used.",
+        help=(
+            "Number of top markers in sc training data to used. "
+            "Ignored if --allgenes flag is used."
+        ),
     )
     parser.add_argument(
         "--nmix",
@@ -554,7 +634,7 @@ if __name__ == "__main__":
         "-d",
         type=str,
         default="dlpfc",
-        help="dataset to use. Default: dlpfc.",
+        help="dataset type to use. Default: dlpfc.",
     )
     parser.add_argument(
         "--st_id",
