@@ -10,6 +10,7 @@ import pandas as pd
 from scipy.sparse import csr_matrix
 import scanpy as sc
 
+from src.da_utils.data_processing import qc_sc
 
 # %% [markdown]
 # # Load and clean data
@@ -1308,8 +1309,13 @@ indrop_out.obs_names_make_unique()
 #     lambda x: x.split(" - ")[0].rstrip(" AB")
 # )
 indrop_out.obs["cell_subclass"] = indrop_out.obs["cell_subclass"].str.rstrip(" AB")
+
+
+qc_sc(indrop_out)
+
 cell_type_value_counts = indrop_out.obs["cell_subclass"].value_counts()
 cell_types_to_keep = set(cell_type_value_counts[cell_type_value_counts >= 10].index.tolist())
+
 indrop_out = indrop_out[indrop_out.obs["cell_subclass"].isin(cell_types_to_keep)]
 
 print(indrop_out.obs["cell_subclass"].value_counts())
@@ -1317,11 +1323,14 @@ print(indrop_out.obs["cell_subclass"].value_counts())
 indrop_out.write(os.path.join(SC_OUT_DIR, f"{SERIES_ACCESSION}.h5ad"))
 # pdac_b_indrop.write(os.path.join(SC_OUT_DIR, "pdac_b_indrop.h5ad"))
 ordinal_to_cluster = {v: k for k, v in cluster_to_ordinal.items()}
+
+
 for sample_id, st_adata in zip(sample_ids, [pdac_a_st, pdac_b_st]):
     # st_samp_dir = os.path.join(ST_OUT_DIR, sample_id)
     # if not os.path.isdir(st_samp_dir):
     #     os.makedirs(st_samp_dir)
     st_adata.obs["cell_subclass"] = st_adata.obs["cell_subclass"].map(ordinal_to_cluster)
+
     st_adata.write(os.path.join(ST_OUT_DIR, f"{SERIES_ACCESSION}-{sample_id}.h5ad"))
 
 

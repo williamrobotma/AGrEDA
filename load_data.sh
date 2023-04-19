@@ -2,8 +2,8 @@
 
 set -x
 
-./scripts/data/download_pdac.py
-./scripts/data/preprocess_pdac_GSE111672.py
-./scripts/data/preprocess_pdac_zenodo6024273.py
-./scripts/data/preprocessing_libd.py
-./scripts/data/preprocessing_dlpfc.py
+python -m scripts.data.download_pdac
+python -m scripts.data.preprocess_pdac_GSE111672
+python -m scripts.data.preprocess_pdac_zenodo6024273
+python -m scripts.data.preprocessing_libd
+python -m scripts.data.preprocessing_dlpfc

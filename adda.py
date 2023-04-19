@@ -24,8 +24,8 @@ from tqdm.autonotebook import tqdm
 from src.da_models.adda import ADDAST
 from src.da_models.model_utils.datasets import SpotDataset
 from src.da_models.model_utils.utils import get_torch_device, initialize_weights, set_requires_grad
-from src.utils import data_loading, evaluation
-from src.utils.output_utils import DupStdout, TempFolderHolder
+from src.da_utils import data_loading, evaluation
+from src.da_utils.output_utils import DupStdout, TempFolderHolder
 
 script_start_time = datetime.datetime.now(datetime.timezone.utc)
 
@@ -325,6 +325,7 @@ pre_scheduler = torch.optim.lr_scheduler.OneCycleLR(
 criterion_clf = nn.KLDivLoss(reduction="batchmean")
 to_inp_kwargs = dict(device=device, dtype=torch.float32, non_blocking=True)
 
+
 # %%
 def model_loss(x, y_true, model):
     x = x.to(**to_inp_kwargs)
@@ -359,7 +360,6 @@ def run_pretrain_epoch(model, dataloader, optimizer=None, scheduler=None, inner=
 
 
 def compute_acc(dataloader, model):
-
     model.eval()
     with torch.no_grad():
         loss_running, mean_weights = run_pretrain_epoch(model, dataloader)
@@ -766,7 +766,6 @@ def train_adversarial_iters(
 
 # %%
 def plot_results(results_history, results_history_running, results_history_val, save_folder):
-
     fig, axs = plt.subplots(4, 1, sharex=True, figsize=(9, 12), layout="constrained")
 
     # loss

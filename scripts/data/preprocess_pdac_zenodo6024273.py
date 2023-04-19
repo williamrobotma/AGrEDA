@@ -4,6 +4,8 @@ import os
 
 import scanpy as sc
 
+from src.da_utils.data_processing import qc_sc
+
 PDAC_DIR = "./data/pdac"
 SC_OUT_DIR = os.path.join(PDAC_DIR, "sc_adata")
 PROJECT_ID = "zenodo6024273"
@@ -15,15 +17,7 @@ def process_dset(adata):
     sc.pp.filter_cells(adata, min_genes=200)
 
     # annotate the group of mitochondrial genes as 'mt'
-    adata.var["mt"] = adata.var_names.str.startswith("MT-")
-
-    sc.pp.calculate_qc_metrics(
-        adata,
-        qc_vars=["mt"],
-        percent_top=None,
-        log1p=False,
-        inplace=True,
-    )
+    qc_sc(adata)
 
     adata.obs.rename(
         columns={
@@ -46,6 +40,8 @@ if not os.path.exists(SC_OUT_DIR):
 
 # each project individually
 for proj_id in master_ad.obs["Project"].unique():
+    if proj_id == "GSE111672":
+        continue
     print(f"processing project {proj_id} ...")
     subset = master_ad[(master_ad.obs[["Project", "Type"]] == (proj_id, "Tumor")).all(axis=1)]
     process_dset(subset)
