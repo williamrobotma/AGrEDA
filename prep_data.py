@@ -16,7 +16,7 @@ import numpy as np
 import scanpy as sc
 from sklearn import model_selection, preprocessing
 
-from src.utils import data_loading, data_processing, misc
+from src.da_utils import data_loading, data_processing, misc
 
 SPLIT_RATIOS = (0.8, 0.1, 0.1)
 DATA_DIR = "./data"
@@ -27,6 +27,7 @@ DATA_DIR = "./data"
 SCALER_OPTS = ("minmax", "standard", "celldart")
 
 logger = logging.getLogger(__name__)
+
 
 # %%
 def main(args):
@@ -249,7 +250,11 @@ def select_genes_and_split(
     )
 
     print("Selecting genes")
-    ((adata_sc_train, adata_st), df_genelists, (fig, ax),) = data_processing.select_marker_genes(
+    (
+        (adata_sc_train, adata_st),
+        df_genelists,
+        (fig, ax),
+    ) = data_processing.select_marker_genes(
         adata_sc_train,
         adata_st,
         n_markers=None if all_genes else n_markers,
@@ -524,7 +529,6 @@ def log_scale_st(selected_dir, scaler_name, stsplit=False, samp_split=False):
     in_path = os.path.join(unscaled_data_dir, st_fname)
     out_path = os.path.join(preprocessed_data_dir, st_fname)
     with h5py.File(out_path, "w") as fout, h5py.File(in_path, "r") as fin:
-
         if samp_split:
             x_all = {}
             sids_lens_all = {}
@@ -549,7 +553,6 @@ def log_scale_st(selected_dir, scaler_name, stsplit=False, samp_split=False):
             return
 
         for sample_id in fin:
-
             grp = fin[sample_id]
             grp_samp = fout.create_group(sample_id)
 

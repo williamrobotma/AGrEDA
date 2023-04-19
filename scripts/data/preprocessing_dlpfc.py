@@ -2,12 +2,13 @@
 
 # %%
 import os
+
 import numpy as np
 import pandas as pd
 import scanpy as sc
-
 from scipy.sparse import csr_matrix
 
+from src.da_utils.data_processing import qc_sc
 
 # %%
 dset_dir = "data/dlpfc"
@@ -104,6 +105,12 @@ adata_sc_dlpfc.obs["patient"] = (
     .str.split("_", 1, expand=True)[0]
     .tolist()
 )
+
+sc.pp.filter_genes(adata_sc_dlpfc, min_cells=3)
+sc.pp.filter_cells(adata_sc_dlpfc, min_genes=200)
+
+qc_sc(adata_sc_dlpfc)
+
 assert adata_sc_dlpfc.obs["patient"].nunique() == 17
 
 # %%

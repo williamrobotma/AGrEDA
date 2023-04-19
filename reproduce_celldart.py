@@ -20,8 +20,8 @@ from tqdm.autonotebook import tqdm
 from src.da_models.adda import ADDAST
 from src.da_models.model_utils.datasets import SpotDataset
 from src.da_models.model_utils.utils import get_torch_device, set_requires_grad
-from src.utils import data_loading
-from src.utils.output_utils import DupStdout, TempFolderHolder
+from src.da_utils import data_loading
+from src.da_utils.output_utils import DupStdout, TempFolderHolder
 
 script_start_time = datetime.datetime.now(datetime.timezone.utc)
 
@@ -341,7 +341,6 @@ def run_pretrain_epoch(model, dataloader, optimizer=None, inner=None):
 
 
 def compute_acc(dataloader, model):
-
     model.eval()
     with torch.no_grad():
         loss_running, mean_weights = run_pretrain_epoch(model, dataloader)
@@ -506,7 +505,6 @@ def compute_acc_dis(dataloader_source, dataloader_target, model):
     with torch.no_grad():
         for y_val, dl in zip([1, 0], [dataloader_target, dataloader_source]):
             for _, (x, _) in enumerate(dl):
-
                 y_dis = torch.full((x.shape[0],), y_val, device=device, dtype=torch.long)
 
                 loss, accu = discrim_loss_accu(x, y_dis, model)
@@ -533,7 +531,6 @@ def train_adversarial(
     dataloader_source_train_eval,
     dataloader_target_train_eval,
 ):
-
     model.to(device)
     model.advtraining()
     model.set_encoder("source")
@@ -604,7 +601,11 @@ def train_adversarial(
 
             dis_weights = new_dis_weights
 
-            x_source, x_target, y_true, = (
+            (
+                x_source,
+                x_target,
+                y_true,
+            ) = (
                 torch.as_tensor(x_source, dtype=torch.float32, device=device),
                 torch.as_tensor(x_target, dtype=torch.float32, device=device),
                 torch.as_tensor(y_true, dtype=torch.float32, device=device),
