@@ -1,0 +1,32 @@
+data_params:
+  all_genes: false
+  data_dir: data
+  dset: "mouse_cortex"
+  n_markers: 20
+  n_mix: 10
+  n_spots: 20000
+  sample_id_n: "151673"
+  scaler_name: minmax
+  sc_id: "spotless_mouse_cortex"
+  st_id: "spotless_mouse_cortex"
+  st_split: false
+  samp_split: true
+  train_using_all_st_samples: false
+model_params:
+  celldart_kwargs:
+    bn_momentum: 0.01
+    emb_dim: 64
+  model_version: bnfix_minmax_spotless
+lib_params:
+  manual_seed: 826
+train_params:
+  alpha: 0.6
+  alpha_lr: 5
+  batch_size: 4
+  early_stop_crit: 100
+  early_stop_crit_adv: 10
+  initial_train_epochs: 10
+  min_epochs: 10
+  min_epochs_adv: 10
+  n_iter: 3000
+  pretraining: true

@@ -20,10 +20,10 @@ metric_ctp = get_metric_ctp("jsd")
 
 
 def main(args):
-    evaluator = Evaluator(vars(args))
+    evaluator = Evaluator(vars(args), metric_ctp)
     evaluator.evaluate_embeddings()
     evaluator.eval_spots()
-    evaluator.eval_sc(metric_ctp)
+    evaluator.eval_sc()
 
     evaluator.produce_results()
 

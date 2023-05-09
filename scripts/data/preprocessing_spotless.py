@@ -39,6 +39,24 @@ id_to_dir = {
 
 
 # %%
+def cat_to_obsm(cat, adata, drop_cols=None):
+    if drop_cols is None:
+        drop_cols = []
+    selected_cols = adata.obs.columns.to_series().map(lambda x: x.split(".")[0] == cat)
+    adata.obsm[cat] = (
+        adata.obs.loc[:, selected_cols]
+        .rename(columns=lambda x: x[len(cat + ".") :])
+        .drop(columns=drop_cols)
+    )
+    keep_cols = ~selected_cols
+    # print(keep_cols)
+
+    for drop_col in drop_cols:
+        keep_cols[cat + "." + drop_col] = True
+    adata.obs = adata.obs.loc[:, keep_cols]
+
+
+# %%
 for dir in glob.glob(os.path.join(SPOTLESS_DIR, "*/")):
     name = os.path.basename(os.path.normpath(dir))
     if name != "reference":
@@ -61,6 +79,11 @@ for dir in glob.glob(os.path.join(SPOTLESS_DIR, "*/")):
             fov.obs = fov.obs.rename(columns={"coordinates.x": "X", "coordinates.y": "Y"})
             fov.X = csr_matrix(fov.X.astype("float32"))
             fov.raw = fov
+
+            fov.obs = fov.obs.loc[:, ~fov.obs.columns.str.contains("spot_no")]
+            cat_to_obsm("relative_spot_composition", fov)
+            cat_to_obsm("spot_composition", fov)
+
             fov.write(os.path.join(st_dir, f"{id}-{sample_id}.h5ad"))
 
 
