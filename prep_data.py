@@ -530,25 +530,33 @@ def log_scale_st(selected_dir, scaler_name, stsplit=False, samp_split=False):
     out_path = os.path.join(preprocessed_data_dir, st_fname)
     with h5py.File(out_path, "w") as fout, h5py.File(in_path, "r") as fin:
         if samp_split:
-            x_all = {}
-            sids_lens_all = {}
+            # x_all = {}
+            # sids_lens_all = {}
+            # for split in data_loading.SPLITS:
+            #     sids_lens_l = []
+            #     x_l = []
+            #     for sample_id in fin[split]:
+            #         x = fin[split][sample_id][()]
+            #         sids_lens_l.append((sample_id, x.shape[0]))
+            #         x_l.append(x)
+            #     x_all[split] = np.concatenate(x_l, axis=0)
+            #     sids_lens_all[split] = sids_lens_l
+
+            # scaled = scale(scaler, *(x_all[split] for split in data_loading.SPLITS))
+            # for split, x_out in zip(data_loading.SPLITS, scaled):
+            #     fout.create_group(split)
+
+            #     _, lens = zip(*sids_lens_all[split])
+            #     for (sid, l), i_n in zip(sids_lens_all[split], accumulate(lens)):
+            #         fout[split].create_dataset(sid, data=x_out[i_n - l : i_n])
+
+            # return
             for split in data_loading.SPLITS:
-                sids_lens_l = []
-                x_l = []
-                for sample_id in fin[split]:
-                    x = fin[split][sample_id][()]
-                    sids_lens_l.append((sample_id, x.shape[0]))
-                    x_l.append(x)
-                x_all[split] = np.concatenate(x_l, axis=0)
-                sids_lens_all[split] = sids_lens_l
-
-            scaled = scale(scaler, *(x_all[split] for split in data_loading.SPLITS))
-            for split, x_out in zip(data_loading.SPLITS, scaled):
-                fout.create_group(split)
-
-                _, lens = zip(*sids_lens_all[split])
-                for (sid, l), i_n in zip(sids_lens_all[split], accumulate(lens)):
-                    fout[split].create_dataset(sid, data=x_out[i_n - l : i_n])
+                grp = fin[split]
+                grp_samp = fout.create_group(split)
+                for sample_id in grp:
+                    x = grp[sample_id][()]
+                    grp_samp.create_dataset(sample_id, data=next(scale(scaler, x)))
 
             return
 

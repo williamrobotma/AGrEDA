@@ -261,14 +261,24 @@ else:
     dataloader_target_test_d = {}
 
     for sample_id in st_sample_id_l:
-        target_train_set_d[sample_id] = SpotDataset(mat_sp_d[sample_id]["train"])
+        if data_params.get("samp_split", False):
+            try:
+                mat_sp = mat_sp_d["train"][sample_id]
+            except KeyError:
+                try:
+                    mat_sp = mat_sp_d["val"][sample_id]
+                except KeyError:
+                    mat_sp = mat_sp_d["test"][sample_id]
+        else:
+            mat_sp = mat_sp_d[sample_id]["train"]
+        target_train_set_d[sample_id] = SpotDataset(mat_sp)
         dataloader_target_train_d[sample_id] = torch.utils.data.DataLoader(
             target_train_set_d[sample_id],
             shuffle=True,
             **target_dataloader_kwargs,
         )
 
-        target_test_set_d[sample_id] = SpotDataset(deepcopy(mat_sp_d[sample_id]["test"]))
+        target_test_set_d[sample_id] = SpotDataset(deepcopy(mat_sp))
         dataloader_target_test_d[sample_id] = torch.utils.data.DataLoader(
             target_test_set_d[sample_id],
             shuffle=False,
@@ -290,6 +300,7 @@ if data_params["train_using_all_st_samples"]:
 criterion_clf = nn.KLDivLoss(reduction="batchmean")
 
 to_inp_kwargs = dict(device=device, dtype=torch.float32, non_blocking=True)
+
 
 # %%
 def model_loss(x, y_true, model):
@@ -333,7 +344,6 @@ def run_pretrain_epoch(
 
 
 def compute_acc(dataloader, model):
-
     model.eval()
     with torch.no_grad():
         loss_running, mean_weights, _ = run_pretrain_epoch(model, dataloader)
@@ -343,7 +353,6 @@ def compute_acc(dataloader, model):
 
 # %%
 if train_params.get("pretraining", False):
-
     pretrain_folder = os.path.join(model_folder, "pretrain")
 
     model = CORAL(
@@ -470,7 +479,6 @@ if train_params.get("pretraining", False):
 
 # %%
 if train_params.get("pretraining", False):
-
     best_checkpoint = torch.load(os.path.join(pretrain_folder, f"final_model.pth"))
 
     best_epoch = best_checkpoint["epoch"]
@@ -556,7 +564,6 @@ def model_adv_loss(
     source_first=True,
     optimizer=None,
 ):
-
     if two_step:
         if source_first:
             y_pred_source, logits_source = model(x_source)

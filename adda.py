@@ -260,21 +260,31 @@ else:
     target_train_set_dis_d = {}
     dataloader_target_train_dis_d = {}
     for sample_id in st_sample_id_l:
-        target_train_set_d[sample_id] = SpotDataset(mat_sp_d[sample_id]["train"])
+        if data_params.get("samp_split", False):
+            try:
+                mat_sp = mat_sp_d["train"][sample_id]
+            except KeyError:
+                try:
+                    mat_sp = mat_sp_d["val"][sample_id]
+                except KeyError:
+                    mat_sp = mat_sp_d["test"][sample_id]
+        else:
+            mat_sp = mat_sp_d[sample_id]["train"]
+        target_train_set_d[sample_id] = SpotDataset(mat_sp)
         dataloader_target_train_d[sample_id] = torch.utils.data.DataLoader(
             target_train_set_d[sample_id],
             shuffle=True,
             **target_dataloader_kwargs,
         )
 
-        target_test_set_d[sample_id] = SpotDataset(deepcopy(mat_sp_d[sample_id]["test"]))
+        target_test_set_d[sample_id] = SpotDataset(deepcopy(mat_sp))
         dataloader_target_test_d[sample_id] = torch.utils.data.DataLoader(
             target_test_set_d[sample_id],
             shuffle=False,
             **target_dataloader_kwargs,
         )
 
-        target_train_set_dis_d[sample_id] = SpotDataset(deepcopy(mat_sp_d[sample_id]["train"]))
+        target_train_set_dis_d[sample_id] = SpotDataset(deepcopy(mat_sp))
         dataloader_target_train_dis_d[sample_id] = torch.utils.data.DataLoader(
             target_train_set_dis_d[sample_id],
             shuffle=True,
