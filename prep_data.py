@@ -54,7 +54,7 @@ def main(args):
     print("Generating Pseudospots")
     print("-" * 80)
     sc_mix_d, lab_mix_d = gen_pseudo_spots(
-        selected_dir, n_mix=args.nmix, n_spots=args.nspots, rng=623, n_jobs=args.njobs
+        selected_dir, n_mix=args.nmix, rng=623, n_jobs=args.njobs
     )
 
     print("Log scaling pseudospots")
@@ -63,7 +63,7 @@ def main(args):
         selected_dir,
         args.scaler,
         n_mix=args.nmix,
-        n_spots=args.nspots,
+        # n_spots=args.nspots,
         sc_mix_d=sc_mix_d,
         lab_mix_d=lab_mix_d,
     )
@@ -217,11 +217,13 @@ def select_genes_and_split(
     adata_sc.var_names_make_unique()
 
     print("Splitting single cell data")
+    # drop cells with no labels
+    adata_sc = adata_sc[~adata_sc.obs["cell_type"].isna(), :]
     # df_sc = adata_sc_dlpfc.to_df()
     # df_sc.index = pd.MultiIndex.from_frame(adata_sc_dlpfc.obs.reset_index())
 
-    # lab_sc_sub = df_sc.index.get_level_values("cell_subclass")
-    lab_sc_sub = adata_sc.obs["cell_subclass"]
+    # lab_sc_sub = df_sc.index.get_level_values("cell_type")
+    lab_sc_sub = adata_sc.obs["cell_type"]
     logger.debug(f"lab_sc_sub counts: {lab_sc_sub.value_counts()}")
     (
         adata_sc_train,
@@ -309,7 +311,7 @@ def select_genes_and_split(
 def gen_pseudo_spots(
     selected_dir,
     n_mix=data_loading.DEFAULT_N_MIX,
-    n_spots=data_loading.DEFAULT_N_SPOTS,
+    # n_spots=data_loading.DEFAULT_N_SPOTS,
     rng=None,
     n_jobs=1,
 ):
@@ -318,8 +320,6 @@ def gen_pseudo_spots(
     Args:
         selected_dir (str): Directory containing the unmixed data.
         n_mix (int): Number of sc samples in each spot. Default: 8.
-        n_spots (int): Number of spots to generate. for training set. Default:
-            20000.
         rng: Random number generator or seed for numpy's rng. Default: None.
 
     Returns:
@@ -330,12 +330,15 @@ def gen_pseudo_spots(
 
     unscaled_data_dir = os.path.join(selected_dir, "unscaled")
     try:
-        sc_mix_d, lab_mix_d = data_loading.load_pseudospots(unscaled_data_dir, n_mix, n_spots)
+        sc_mix_d, lab_mix_d = data_loading.load_pseudospots(unscaled_data_dir, n_mix)
+        # lab_mix_d["train"][:n_spots]
         print("Unscaled pseudospots already exist. " "Skipping generation and loading from disk.")
         return sc_mix_d, lab_mix_d
 
     except FileNotFoundError:
         pass
+    # except IndexError:
+    #     print("Unscaled pseudospots already exist but are incomplete. " "Regenerating.")
 
     if not os.path.exists(unscaled_data_dir):
         os.makedirs(unscaled_data_dir)
@@ -352,7 +355,7 @@ def gen_pseudo_spots(
     lab_mix_d = {}
     sc_mix_d = {}
 
-    total_spots = n_spots / SPLIT_RATIOS[data_loading.SPLITS.index("train")]
+    total_spots = data_loading.DEFAULT_N_SPOTS / SPLIT_RATIOS[data_loading.SPLITS.index("train")]
     for split, ratio in zip(data_loading.SPLITS, SPLIT_RATIOS):
         sc_mix_d[split], lab_mix_d[split] = data_processing.random_mix(
             adata_sc_d[split].X.toarray(),
@@ -368,7 +371,7 @@ def gen_pseudo_spots(
         os.makedirs(unscaled_data_dir)
 
     print("Saving unscaled pseudospots")
-    data_loading.save_pseudospots(lab_mix_d, sc_mix_d, unscaled_data_dir, n_mix, n_spots)
+    data_loading.save_pseudospots(lab_mix_d, sc_mix_d, unscaled_data_dir, n_mix)
 
     return sc_mix_d, lab_mix_d
 
@@ -377,7 +380,7 @@ def log_scale_pseudospots(
     selected_dir,
     scaler_name,
     n_mix=data_loading.DEFAULT_N_MIX,
-    n_spots=data_loading.DEFAULT_N_SPOTS,
+    # n_spots=data_loading.DEFAULT_N_SPOTS,
     sc_mix_d=None,
     lab_mix_d=None,
 ):
@@ -389,8 +392,6 @@ def log_scale_pseudospots(
             directory.
         scaler_name (str): Name of the scaler to use.
         n_mix (int): Number of sc samples in each spot. Default: 8.
-        n_spots (int): Number of spots to generate. for training set. Default:
-            20000.
         sc_mix_d (dict): Dictionary of sc mixtures. Default: None.
         lab_mix_d (dict): Dictionary of labels for sc mixtures. Default: None.
 
@@ -401,9 +402,7 @@ def log_scale_pseudospots(
 
     if sc_mix_d is None or lab_mix_d is None:
         unscaled_data_dir = os.path.join(selected_dir, "unscaled")
-        sc_mix_d, lab_mix_d = data_loading.load_pseudospots(
-            unscaled_data_dir, n_mix=n_mix, n_spots=n_spots
-        )
+        sc_mix_d, lab_mix_d = data_loading.load_pseudospots(unscaled_data_dir, n_mix=n_mix)
 
     scaled = scale(scaler, *(sc_mix_d[split] for split in data_loading.SPLITS))
     sc_mix_s_d = {split: next(scaled) for split in data_loading.SPLITS}
@@ -413,7 +412,7 @@ def log_scale_pseudospots(
     if not os.path.exists(preprocessed_data_dir):
         os.makedirs(preprocessed_data_dir)
 
-    data_loading.save_pseudospots(lab_mix_d, sc_mix_s_d, preprocessed_data_dir, n_mix, n_spots)
+    data_loading.save_pseudospots(lab_mix_d, sc_mix_s_d, preprocessed_data_dir, n_mix)
 
 
 def split_st(selected_dir, stsplit=False, samp_split=False, rng=None):
@@ -453,13 +452,29 @@ def split_st(selected_dir, stsplit=False, samp_split=False, rng=None):
     st_sample_id_l = data_loading.load_st_sample_names(selected_dir)
 
     if samp_split:
-        holdout_idxs = [rng_integers(len(st_sample_id_l))]
+        # for spotless, gold standard 1 fovs 5 and 6 is not representative
+        # for gs2, 1-4 do not have enough cell types
+
+        if "spotless_mouse_cortex" in selected_dir:
+            exclude_sids = {"Eng2019_cortex_svz_fov5", "Eng2019_cortex_svz_fov6"}
+        elif "spotless_mouse_olfactory" in selected_dir:
+            exclude_sids = {
+                "Eng2019_ob_fov1",
+                "Eng2019_ob_fov2",
+                "Eng2019_ob_fov3",
+                "Eng2019_ob_fov4",
+            }
+        else:
+            exclude_sids = set()
+
+        holdout_idxs = [rng_integers(len(st_sample_id_l) - len(exclude_sids))]
         # Ensure that the holdout samples are different
         while holdout_idxs[0] == (i_2 := rng_integers(len(st_sample_id_l))):
             pass
         holdout_idxs.append(i_2)
 
-        holdout_sids = [st_sample_id_l[i] for i in holdout_idxs]
+        holdout_candidate_sids = [sid for sid in st_sample_id_l if sid not in exclude_sids]
+        holdout_sids = [holdout_candidate_sids[i] for i in holdout_idxs]
         st_sample_id_l = [sid for sid in st_sample_id_l if sid not in holdout_sids]
 
         with h5py.File(out_path, "w") as f:
@@ -478,7 +493,9 @@ def split_st(selected_dir, stsplit=False, samp_split=False, rng=None):
 
     with h5py.File(out_path, "w") as f:
         for sample_id in st_sample_id_l:
-            x_st_train = adata_st[adata_st.obs.sample_id == sample_id].X.toarray()
+            adata_sample = adata_st[adata_st.obs.sample_id == sample_id]
+            x_st_train = adata_sample.X.toarray()
+            # index_st_train = adata_sample.obs.index.to_numpy()
             grp_samp = f.create_group(sample_id)
             if stsplit:
                 x_st_train, x_st_val = model_selection.train_test_split(
@@ -497,7 +514,7 @@ def split_st(selected_dir, stsplit=False, samp_split=False, rng=None):
                 grp_samp.create_dataset("train", data=x_st_train)
 
 
-def log_scale_st(selected_dir, scaler_name, stsplit=False, samp_split=False):
+def log_scale_st(selected_dir, scaler_name, stsplit=False, samp_split=False, one_model=False):
     """Log scale spatial data and save to file.
 
     Args:
@@ -522,43 +539,47 @@ def log_scale_st(selected_dir, scaler_name, stsplit=False, samp_split=False):
     if samp_split:
         st_fname = "mat_sp_samp_split_d.hdf5"
     elif stsplit:
-        st_fname = "mat_sp_split_d.hdf5"
+        if one_model:
+            st_fname = "mat_sp_split_d_one_model.hdf5"
+        else:
+            st_fname = "mat_sp_split_d.hdf5"
     else:
-        st_fname = "mat_sp_train_d.hdf5"
+        if one_model:
+            st_fname = "mat_sp_train_d_one_model.hdf5"
+        else:
+            st_fname = "mat_sp_train_d.hdf5"
 
     in_path = os.path.join(unscaled_data_dir, st_fname)
     out_path = os.path.join(preprocessed_data_dir, st_fname)
     with h5py.File(out_path, "w") as fout, h5py.File(in_path, "r") as fin:
         if samp_split:
-            # x_all = {}
-            # sids_lens_all = {}
-            # for split in data_loading.SPLITS:
-            #     sids_lens_l = []
-            #     x_l = []
-            #     for sample_id in fin[split]:
-            #         x = fin[split][sample_id][()]
-            #         sids_lens_l.append((sample_id, x.shape[0]))
-            #         x_l.append(x)
-            #     x_all[split] = np.concatenate(x_l, axis=0)
-            #     sids_lens_all[split] = sids_lens_l
-
-            # scaled = scale(scaler, *(x_all[split] for split in data_loading.SPLITS))
-            # for split, x_out in zip(data_loading.SPLITS, scaled):
-            #     fout.create_group(split)
-
-            #     _, lens = zip(*sids_lens_all[split])
-            #     for (sid, l), i_n in zip(sids_lens_all[split], accumulate(lens)):
-            #         fout[split].create_dataset(sid, data=x_out[i_n - l : i_n])
-
-            # return
+            x_all = {}
+            sids_lens_all = {}
+            # concatenate samples together and save lengths to recover samples later
+            # lengths saved as (sample_id, length) tuples in dict by split
             for split in data_loading.SPLITS:
-                grp = fin[split]
-                grp_samp = fout.create_group(split)
-                for sample_id in grp:
-                    x = grp[sample_id][()]
-                    grp_samp.create_dataset(sample_id, data=next(scale(scaler, x)))
+                sids_lens_l = []
+                x_l = []
+                for sample_id in fin[split]:
+                    x = fin[split][sample_id][()]
+                    sids_lens_l.append((sample_id, x.shape[0]))
+                    x_l.append(x)
+                x_all[split] = np.concatenate(x_l, axis=0)
+                sids_lens_all[split] = sids_lens_l
+
+            # scale concatenated samples
+            scaled = scale(scaler, *(x_all[split] for split in data_loading.SPLITS))
+            for split, x_out in zip(data_loading.SPLITS, scaled):
+                fout.create_group(split)
+
+                _, lens = zip(*sids_lens_all[split])
+                # accumulate == cumulative sum of lengths
+                for (sid, l), i_n in zip(sids_lens_all[split], accumulate(lens)):
+                    fout[split].create_dataset(sid, data=x_out[i_n - l : i_n])
 
             return
+        # not samp_split
+        # if one_model:
 
         for sample_id in fin:
             grp = fin[sample_id]
@@ -628,12 +649,12 @@ if __name__ == "__main__":
         default=data_loading.DEFAULT_N_MIX,
         help="number of sc samples to use to generate pseudospots.",
     )
-    parser.add_argument(
-        "--nspots",
-        type=int,
-        default=data_loading.DEFAULT_N_SPOTS,
-        help="Number of training pseudospots to use.",
-    )
+    # parser.add_argument(
+    #     "--nspots",
+    #     type=int,
+    #     default=data_loading.DEFAULT_N_SPOTS,
+    #     help="Number of training pseudospots to use.",
+    # )
     parser.add_argument(
         "--njobs",
         type=int,

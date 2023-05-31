@@ -1,11 +1,14 @@
 data_params:
   all_genes: false
   data_dir: data
+  dset: "mouse_cortex"
   n_markers: 20
-  n_mix: 8
-  n_spots: 200000
+  n_mix: 10
+  n_spots: 20000
   sample_id_n: "151673"
   scaler_name: standard
+  sc_id: "GSE115746"
+  st_id: "spotless_mouse_cortex"
   st_split: false
   samp_split: true
   train_using_all_st_samples: false
@@ -19,16 +22,16 @@ model_params:
       - 512
       - 64
     hidden_act: leakyrelu
-  model_version: fixed_two_step
+  model_version: coral_spotless_sc
 lib_params:
-  manual_seed: 3583
+  manual_seed: 3609
 train_params:
-  batch_size: 512
+  batch_size: 16
   early_stop_crit_adv: 100
   epochs: 100
   lambda: 100
   min_epochs_adv: 40.0
   opt_kwargs:
-    lr: 0.001
+    lr: 0.0001
     weight_decay: 0.3
   two_step: true

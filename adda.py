@@ -23,7 +23,11 @@ from tqdm.autonotebook import tqdm
 
 from src.da_models.adda import ADDAST
 from src.da_models.model_utils.datasets import SpotDataset
-from src.da_models.model_utils.utils import get_torch_device, initialize_weights, set_requires_grad
+from src.da_models.model_utils.utils import (
+    get_torch_device,
+    initialize_weights,
+    set_requires_grad,
+)
 from src.da_utils import data_loading, evaluation
 from src.da_utils.output_utils import DupStdout, TempFolderHolder
 
@@ -141,8 +145,15 @@ data_params = config["data_params"]
 model_params = config["model_params"]
 train_params = config["train_params"]
 
+rewrite_config = False
 if not "pretraining" in train_params:
     train_params["pretraining"] = True
+    rewrite_config = True
+if not "initial_train_lr" in train_params:
+    train_params["initial_train_lr"] = 0.002
+    rewrite_config = True
+
+if rewrite_config:
     with open(os.path.join("configs", MODEL_NAME, CONFIG_FNAME), "w") as f:
         yaml.safe_dump(config, f)
 
@@ -252,7 +263,25 @@ if data_params["st_split"]:
             shuffle=False,
             **target_dataloader_kwargs,
         )
+elif data_params.get("samp_split", False):
+    mat_sp_train = np.concatenate(list(mat_sp_d["train"].values()))
+    target_train_set = SpotDataset(mat_sp_train)
+    target_train_set_dis = SpotDataset(deepcopy(mat_sp_train))
+    target_val_set = SpotDataset(next(iter(mat_sp_d["val"].values())))
+    target_test_set = SpotDataset(next(iter(mat_sp_d["test"].values())))
 
+    dataloader_target_train = torch.utils.data.DataLoader(
+        target_train_set, shuffle=True, **target_dataloader_kwargs
+    )
+    dataloader_target_train_dis = torch.utils.data.DataLoader(
+        target_train_set_dis, shuffle=True, **target_dataloader_kwargs
+    )
+    dataloader_target_val = torch.utils.data.DataLoader(
+        target_val_set, shuffle=False, **target_dataloader_kwargs
+    )
+    dataloader_target_test = torch.utils.data.DataLoader(
+        target_test_set, shuffle=False, **target_dataloader_kwargs
+    )
 else:
     target_test_set_d = {}
     dataloader_target_test_d = {}
@@ -260,16 +289,16 @@ else:
     target_train_set_dis_d = {}
     dataloader_target_train_dis_d = {}
     for sample_id in st_sample_id_l:
-        if data_params.get("samp_split", False):
-            try:
-                mat_sp = mat_sp_d["train"][sample_id]
-            except KeyError:
-                try:
-                    mat_sp = mat_sp_d["val"][sample_id]
-                except KeyError:
-                    mat_sp = mat_sp_d["test"][sample_id]
-        else:
-            mat_sp = mat_sp_d[sample_id]["train"]
+        # if data_params.get("samp_split", False):
+        #     try:
+        #         mat_sp = mat_sp_d["train"][sample_id]
+        #     except KeyError:
+        #         try:
+        #             mat_sp = mat_sp_d["val"][sample_id]
+        #         except KeyError:
+        #             mat_sp = mat_sp_d["test"][sample_id]
+        # else:
+        mat_sp = mat_sp_d[sample_id]["train"]
         target_train_set_d[sample_id] = SpotDataset(mat_sp)
         dataloader_target_train_d[sample_id] = torch.utils.data.DataLoader(
             target_train_set_d[sample_id],
@@ -323,11 +352,16 @@ if not os.path.isdir(pretrain_folder):
 
 
 # %%
-pre_optimizer = torch.optim.Adam(model.parameters(), lr=0.002, betas=(0.9, 0.999), eps=1e-07)
+pre_optimizer = torch.optim.Adam(
+    model.parameters(),
+    lr=train_params["initial_train_lr"],
+    betas=(0.9, 0.999),
+    eps=1e-07,
+)
 
 pre_scheduler = torch.optim.lr_scheduler.OneCycleLR(
     pre_optimizer,
-    max_lr=0.002,
+    max_lr=train_params["initial_train_lr"],
     steps_per_epoch=len(dataloader_source_train),
     epochs=train_params["initial_train_epochs"],
 )
@@ -560,7 +594,11 @@ def train_adversarial_iters(
     dataloader_source_val,
     dataloader_target_train,
     dataloader_target_train_dis,
+    dataloader_target_val=None,
 ):
+    if dataloader_target_val is None:
+        dataloader_target_val = dataloader_target_train
+
     model.to(device)
     model.advtraining()
 
@@ -742,7 +780,7 @@ def train_adversarial_iters(
             set_requires_grad(model.dis, True)
 
             with torch.no_grad():
-                results_val = compute_acc_dis(dataloader_source_val, dataloader_target_train, model)
+                results_val = compute_acc_dis(dataloader_source_val, dataloader_target_val, model)
             evaluation.recurse_running_dict(results_val, results_history_val)
 
             # Print the results
@@ -891,7 +929,46 @@ if data_params["train_using_all_st_samples"]:
         dataloader_target_train,
         dataloader_target_train_dis,
     )
+elif data_params.get("samp_split", False):
+    tqdm.write(f"Adversarial training for slides {mat_sp_d['train'].keys()}: ")
+    save_folder = os.path.join(advtrain_folder, "samp_split")
+    if not os.path.isdir(save_folder):
+        os.makedirs(save_folder)
 
+    best_checkpoint = torch.load(os.path.join(pretrain_folder, f"final_model.pth"))
+
+    model = ADDAST(
+        sc_mix_d["train"].shape[1],
+        ncls_source=lab_mix_d["train"].shape[1],
+        is_adda=True,
+        **model_params["adda_kwargs"],
+    )
+
+    model.apply(initialize_weights)
+
+    # load state dicts
+    # this makes it easier, if, say, the discriminator changes
+    model.source_encoder.load_state_dict(best_checkpoint["model"].source_encoder.state_dict())
+
+    model.clf.load_state_dict(best_checkpoint["model"].clf.state_dict())
+
+    model.init_adv()
+    model.dis.apply(initialize_weights)
+
+    model.to(device)
+
+    model.advtraining()
+
+    results = train_adversarial_iters(
+        model,
+        save_folder,
+        dataloader_source_train,
+        dataloader_source_val,
+        dataloader_target_train,
+        dataloader_target_train_dis,
+        dataloader_target_val,
+    )
+    plot_results(*results, save_folder)
 else:
     for sample_id in st_sample_id_l:
         tqdm.write(f"Adversarial training for ST slide {sample_id}: ")

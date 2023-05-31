@@ -262,21 +262,36 @@ if data_params["st_split"]:
             shuffle=False,
             **target_dataloader_kwargs,
         )
+elif data_params.get("samp_split", False):
+    mat_sp_train = np.concatenate(list(mat_sp_d["train"].values()))
 
+    target_train_set = SpotDataset(mat_sp_train)
+    target_val_set = SpotDataset(next(iter(mat_sp_d["val"].values())))
+    target_test_set = SpotDataset(next(iter(mat_sp_d["test"].values())))
+
+    dataloader_target_train = torch.utils.data.DataLoader(
+        target_train_set, shuffle=True, **target_dataloader_kwargs
+    )
+    dataloader_target_val = torch.utils.data.DataLoader(
+        target_val_set, shuffle=False, **target_dataloader_kwargs
+    )
+    dataloader_target_test = torch.utils.data.DataLoader(
+        target_test_set, shuffle=False, **target_dataloader_kwargs
+    )
 else:
     target_test_set_d = {}
     dataloader_target_test_d = {}
     for sample_id in st_sample_id_l:
-        if data_params.get("samp_split", False):
-            try:
-                mat_sp = mat_sp_d["train"][sample_id]
-            except KeyError:
-                try:
-                    mat_sp = mat_sp_d["val"][sample_id]
-                except KeyError:
-                    mat_sp = mat_sp_d["test"][sample_id]
-        else:
-            mat_sp = mat_sp_d[sample_id]["train"]
+        # if data_params.get("samp_split", False):
+        #     try:
+        #         mat_sp = mat_sp_d["train"][sample_id]
+        #     except KeyError:
+        #         try:
+        #             mat_sp = mat_sp_d["val"][sample_id]
+        #         except KeyError:
+        #             mat_sp = mat_sp_d["test"][sample_id]
+        # else:
+        mat_sp = mat_sp_d[sample_id]["train"]
         target_train_set_d[sample_id] = SpotDataset(mat_sp)
         dataloader_target_train_d[sample_id] = torch.utils.data.DataLoader(
             target_train_set_d[sample_id],
@@ -712,7 +727,10 @@ def train_adversarial_iters(
     dataloader_source_train,
     dataloader_source_val,
     dataloader_target_train,
+    dataloader_target_val=None,
 ):
+    if dataloader_target_val is None:
+        dataloader_target_val = dataloader_target_train
     model.to(device)
     model.advtraining()
 
@@ -817,7 +835,7 @@ def train_adversarial_iters(
             model.eval()
             with torch.no_grad():
                 source_results_val, target_results_val = run_epoch(
-                    dataloader_source_val, dataloader_target_train, model
+                    dataloader_source_val, dataloader_target_val, model
                 )
 
             for k in results_history_source_val:
@@ -1082,6 +1100,40 @@ if data_params["train_using_all_st_samples"]:
         dataloader_source_val,
         dataloader_target_train,
     )
+elif data_params.get("samp_split", False):
+    tqdm.write(f"Adversarial training for slides {mat_sp_d['train'].keys()}: ")
+    save_folder = os.path.join(advtrain_folder, "samp_split")
+    if not os.path.isdir(save_folder):
+        os.makedirs(save_folder)
+
+    model = DANN(
+        sc_mix_d["train"].shape[1],
+        ncls_source=lab_mix_d["train"].shape[1],
+        **model_params["dann_kwargs"],
+    )
+    model.apply(initialize_weights)
+
+    if train_params["pretraining"]:
+        best_pre_checkpoint = torch.load(os.path.join(pretrain_folder, f"final_model.pth"))
+        model.load_state_dict(best_pre_checkpoint["model"].state_dict())
+    model.to(device)
+
+    model.advtraining()
+    tqdm.write(repr(model))
+
+    training_history = train_adversarial_iters(
+        model,
+        save_folder,
+        dataloader_source_train,
+        dataloader_source_val,
+        dataloader_target_train,
+        dataloader_target_val,
+    )
+
+    with open(os.path.join(save_folder, "training_history.pkl"), "wb") as f:
+        pickle.dump(training_history, f)
+
+    plot_results(*training_history, save_folder)
 
 else:
     for sample_id in st_sample_id_l:
