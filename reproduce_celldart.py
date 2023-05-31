@@ -56,7 +56,6 @@ LOG_FNAME = args.log_fname
 # data_params = {}
 # # Data path and parameters
 # data_params["data_dir"] = "data"
-# data_params["train_using_all_st_samples"] = False
 # data_params["n_markers"] = 20
 # data_params["all_genes"] = False
 
@@ -176,7 +175,7 @@ selected_dir = data_loading.get_selected_dir(
 )
 
 # Load spatial data
-mat_sp_d, mat_sp_train, st_sample_id_l = data_loading.load_spatial(selected_dir, **data_params)
+mat_sp_d, mat_sp_meta_d, st_sample_id_l = data_loading.load_spatial(selected_dir, **data_params)
 
 # Load sc data
 sc_mix_d, lab_mix_d, sc_sub_dict, sc_sub_dict2 = data_loading.load_sc(selected_dir, **data_params)
@@ -256,22 +255,6 @@ elif data_params.get("samp_split", False):
     dataloader_target_test = torch.utils.data.DataLoader(
         target_test_set, shuffle=False, **target_dataloader_kwargs
     )
-    # target_test_set_d = {}
-    # dataloader_target_test_d = {}
-    # for split in data_loading.SPLITS:
-    #     for sample_id in mat_sp_d[split].keys():
-    #         target_train_set_d[sample_id] = SpotDataset(deepcopy(mat_sp_d[split][sample_id]))
-    #         dataloader_target_train_d[sample_id] = torch.utils.data.DataLoader(
-    #             target_train_set_d[sample_id],
-    #             shuffle=True,
-    #             **target_dataloader_kwargs,
-    #         )
-    #         target_test_set_d[sample_id] = SpotDataset(deepcopy(mat_sp_d[split][sample_id]))
-    #         dataloader_target_test_d[sample_id] = torch.utils.data.DataLoader(
-    #             target_test_set_d[sample_id],
-    #             shuffle=False,
-    #             **target_dataloader_kwargs,
-    #         )
 else:
     target_test_set_d = {}
     dataloader_target_test_d = {}
@@ -291,11 +274,11 @@ else:
         )
 
 
-if data_params["train_using_all_st_samples"]:
-    target_train_set = SpotDataset(mat_sp_train)
-    dataloader_target_train = torch.utils.data.DataLoader(
-        target_train_set, shuffle=False, **target_dataloader_kwargs
-    )
+# if data_params["train_using_all_st_samples"]:
+#     target_train_set = SpotDataset(mat_sp_train)
+#     dataloader_target_train = torch.utils.data.DataLoader(
+#         target_train_set, shuffle=False, **target_dataloader_kwargs
+#     )
 
 
 # %% [markdown]
@@ -771,25 +754,26 @@ def train_adversarial(
 
 
 # %%
-if data_params["train_using_all_st_samples"]:
-    tqdm.write(f"Adversarial training for all ST slides")
-    save_folder = advtrain_folder
+# if data_params["train_using_all_st_samples"]:
+#     tqdm.write(f"Adversarial training for all ST slides")
+#     save_folder = advtrain_folder
 
-    best_checkpoint = torch.load(os.path.join(pretrain_folder, f"final_model.pth"))
-    model = best_checkpoint["model"]
-    model.to(device)
-    model.advtraining()
+#     best_checkpoint = torch.load(os.path.join(pretrain_folder, f"final_model.pth"))
+#     model = best_checkpoint["model"]
+#     model.to(device)
+#     model.advtraining()
 
-    train_adversarial(
-        model,
-        save_folder,
-        sc_mix_d["train"],
-        lab_mix_d["train"],
-        mat_sp_train,
-        dataloader_source_train,
-        dataloader_target_train,
-    )
-elif data_params.get("samp_split", False):
+#     train_adversarial(
+#         model,
+#         save_folder,
+#         sc_mix_d["train"],
+#         lab_mix_d["train"],
+#         mat_sp_train,
+#         dataloader_source_train,
+#         dataloader_target_train,
+#     )
+# el
+if data_params.get("samp_split", False):
     tqdm.write(f"Adversarial training for slides {mat_sp_d['train'].keys()}: ")
     save_folder = os.path.join(advtrain_folder, "samp_split")
     if not os.path.isdir(save_folder):

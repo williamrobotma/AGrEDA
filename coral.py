@@ -68,7 +68,6 @@ LOG_FNAME = args.log_fname
 # data_params = {}
 # # Data path and parameters
 # data_params["data_dir"] = "data"
-# data_params["train_using_all_st_samples"] = False
 # data_params["n_markers"] = 20
 # data_params["all_genes"] = False
 
@@ -192,7 +191,7 @@ selected_dir = data_loading.get_selected_dir(
 )
 
 # Load spatial data
-mat_sp_d, mat_sp_train, st_sample_id_l = data_loading.load_spatial(selected_dir, **data_params)
+mat_sp_d, mat_sp_meta_d, st_sample_id_l = data_loading.load_spatial(selected_dir, **data_params)
 
 # Load sc data
 sc_mix_d, lab_mix_d, sc_sub_dict, sc_sub_dict2 = data_loading.load_sc(selected_dir, **data_params)
@@ -301,11 +300,11 @@ else:
         )
 
 
-if data_params["train_using_all_st_samples"]:
-    target_train_set = SpotDataset(mat_sp_train)
-    dataloader_target_train = torch.utils.data.DataLoader(
-        target_train_set, shuffle=True, **target_dataloader_kwargs
-    )
+# if data_params["train_using_all_st_samples"]:
+#     target_train_set = SpotDataset(mat_sp_train)
+#     dataloader_target_train = torch.utils.data.DataLoader(
+#         target_train_set, shuffle=True, **target_dataloader_kwargs
+#     )
 
 
 # %% [markdown]
@@ -915,31 +914,32 @@ def plot_results(save_folder, results_history_out=None):
 
 
 # %%
-if data_params["train_using_all_st_samples"]:
-    tqdm.write(f"Adversarial training for all ST slides")
-    save_folder = advtrain_folder
+# if data_params["train_using_all_st_samples"]:
+#     tqdm.write(f"Adversarial training for all ST slides")
+#     save_folder = advtrain_folder
 
-    model = CORAL(
-        sc_mix_d["train"].shape[1],
-        ncls_source=lab_mix_d["train"].shape[1],
-        **model_params["coral_kwargs"],
-    )
-    model.apply(initialize_weights)
-    if train_params.get("pretraining", False):
-        best_pre_checkpoint = torch.load(os.path.join(pretrain_folder, f"final_model.pth"))
-        model.load_state_dict(best_pre_checkpoint["model"].state_dict())
-    model.to(device)
+#     model = CORAL(
+#         sc_mix_d["train"].shape[1],
+#         ncls_source=lab_mix_d["train"].shape[1],
+#         **model_params["coral_kwargs"],
+#     )
+#     model.apply(initialize_weights)
+#     if train_params.get("pretraining", False):
+#         best_pre_checkpoint = torch.load(os.path.join(pretrain_folder, f"final_model.pth"))
+#         model.load_state_dict(best_pre_checkpoint["model"].state_dict())
+#     model.to(device)
 
-    model.advtraining()
+#     model.advtraining()
 
-    train_adversarial_iters(
-        model,
-        save_folder,
-        dataloader_source_train,
-        dataloader_source_val,
-        dataloader_target_train,
-    )
-elif data_params.get("samp_split", False):
+#     train_adversarial_iters(
+#         model,
+#         save_folder,
+#         dataloader_source_train,
+#         dataloader_source_val,
+#         dataloader_target_train,
+#     )
+# el
+if data_params.get("samp_split", False):
     tqdm.write(f"Adversarial training for slides {mat_sp_d['train'].keys()}: ")
     save_folder = os.path.join(advtrain_folder, "samp_split")
     if not os.path.isdir(save_folder):

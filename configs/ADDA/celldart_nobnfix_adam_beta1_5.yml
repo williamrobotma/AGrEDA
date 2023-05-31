@@ -8,7 +8,6 @@ data_params:
   scaler_name: celldart
   st_split: false
   samp_split: true
-  train_using_all_st_samples: false
 model_params:
   adda_kwargs:
     bn_momentum: 0.99

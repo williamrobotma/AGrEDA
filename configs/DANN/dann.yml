@@ -8,7 +8,6 @@ data_params:
   scaler_name: standard
   st_split: false
   samp_split: true
-  train_using_all_st_samples: false
 model_params:
   dann_kwargs:
     alpha_: 1

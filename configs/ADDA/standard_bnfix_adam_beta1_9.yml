@@ -7,7 +7,6 @@ data_params:
   sample_id_n: "151673"
   scaler_name: standard
   st_split: false
-  train_using_all_st_samples: false
 model_params:
   adda_kwargs:
     bn_momentum: 0.01
