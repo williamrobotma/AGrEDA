@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 
+set -x
 # ./scripts/data/preprocess_pdac_GSE111672.py
 
 # ./prep_data.py -s standard --dset pdac --st_id GSE111672 --sc_id GSE111672 --nmix 50
@@ -10,13 +11,13 @@
 
 # ./prep_data.py -s standard --dset dlpfc --samp_split
 # ./prep_data.py -s minmax --dset dlpfc --samp_split
-# python -m src.da_utils.scripts.data.preprocessing_spotless
-# python -m src.da_utils.scripts.data.preprocessing_mouse_GSE115746
+# # python -m src.da_utils.scripts.data.preprocessing_spotless
+# # python -m src.da_utils.scripts.data.preprocessing_mouse_GSE115746
 
-./prep_data.py -s minmax --dset mouse_cortex --st_id spotless_mouse_cortex --sc_id spotless_mouse_cortex --samp_split --nmix 10
-./prep_data.py -s standard --dset mouse_cortex --st_id spotless_mouse_cortex --sc_id spotless_mouse_cortex --samp_split --nmix 10
-./prep_data.py -s minmax --dset mouse_cortex --st_id spotless_mouse_cortex --sc_id GSE115746 --samp_split --nmix 10
-./prep_data.py -s standard --dset mouse_cortex --st_id spotless_mouse_cortex --sc_id GSE115746 --samp_split --nmix 10
+# ./prep_data.py -s minmax --dset mouse_cortex --st_id spotless_mouse_cortex --sc_id spotless_mouse_cortex --samp_split --nmix 10
+# ./prep_data.py -s standard --dset mouse_cortex --st_id spotless_mouse_cortex --sc_id spotless_mouse_cortex --samp_split --nmix 10
+# ./prep_data.py -s minmax --dset mouse_cortex --st_id spotless_mouse_cortex --sc_id GSE115746 --samp_split --nmix 10
+# ./prep_data.py -s standard --dset mouse_cortex --st_id spotless_mouse_cortex --sc_id GSE115746 --samp_split --nmix 10
 
 # ./coral.py -f coral.yml -l "log.txt"
 # ./eval_config.py --njobs -1 -f coral.yml -n CORAL
@@ -26,9 +27,6 @@
 
 # ./coral.py -f coral_pdac_peng.yml -l "log.txt"
 # ./eval_config.py -n CORAL -f coral_pdac_peng.yml --njobs -1  -t
-
-
-
 
 
 # ./reproduce_celldart.py -f bnfix_minmax_samp_split.yml -l "log.txt"
@@ -49,6 +47,12 @@
 
 # ./coral.py -f coral_spotless_sc.yml -l "log.txt"
 # ./eval_config.py -n CORAL -f coral_spotless_sc.yml --njobs -1 -t
+
+# ./reproduce_celldart.py -f bnfix_minmax_spotless.yml -l "log.txt"
+# ./eval_config.py -n CellDART -f bnfix_minmax_spotless.yml --njobs -1 -t
+
+./coral.py -f coral_spotless.yml -l "log.txt"
+./eval_config.py -n CORAL -f coral_spotless.yml --njobs -1 -t
 
 # ./adda.py -f standard_bnfix_adam_beta1_5_spotless_sc.yml -l "log.txt"
 # ./eval_config.py -n ADDA -f standard_bnfix_adam_beta1_5_spotless_sc.yml --njobs -1 -t

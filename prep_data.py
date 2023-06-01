@@ -452,7 +452,7 @@ def split_st(selected_dir, stsplit=False, samp_split=False, rng=None):
 
         # concatenate all samples together
         adata_st = ad.concat(adata_train_sample_d, label="sample_id")
-        adata_st.obs.insert(1, "sample_id", adata_st.pop("sample_id"))
+        adata_st.obs.insert(1, "sample_id", adata_st.obs.pop("sample_id"))
 
         # save to file
         adata_st.write_h5ad(out_path)
@@ -478,7 +478,7 @@ def split_st(selected_dir, stsplit=False, samp_split=False, rng=None):
             label="split",
             keys=["train", "val", "test"],
         )
-        adata_st.obs.insert(0, "split", adata_st.pop("split"))
+        adata_st.obs.insert(0, "split", adata_st.obs.pop("split"))
 
         # sort by sample_id then split
         samp_splits_l = []
@@ -496,7 +496,7 @@ def split_st(selected_dir, stsplit=False, samp_split=False, rng=None):
         adata_st.obs.insert(0, "split", "train")
         adata_st = adata_st[adata_st.obs.sort_values("sample_id").index]
 
-    adata_st.obs.insert(0, "sample_id", adata_st.pop("sample_id"))
+    adata_st.obs.insert(0, "sample_id", adata_st.obs.pop("sample_id"))
     adata_st.write_h5ad(out_path)
 
 
@@ -539,35 +539,33 @@ def log_scale_st(selected_dir, scaler_name, stsplit=False, samp_split=False, one
     out_path = os.path.join(preprocessed_data_dir, st_fname)
 
     adata_st = sc.read_h5ad(in_path)
+    adata_st.X = adata_st.X.toarray()
 
     if samp_split or (stsplit and one_model):
-        adata_splits = (
-            adata_st[adata_st.obs["split"] == split].X.to_array() for split in data_loading.SPLITS
-        )
+        adata_splits = (adata_st[adata_st.obs["split"] == split].X for split in data_loading.SPLITS)
         scaled = scale(scaler, *(adata_split for adata_split in adata_splits))
         for split, scaled_split in zip(data_loading.SPLITS, scaled):
             adata_st[adata_st.obs["split"] == split].X = scaled_split
 
     elif one_model:
-        adata_st.X = next(scale(scaler, adata_st.X.toarray()))
+        adata_st.X = next(scale(scaler, adata_st.X))
     else:  # just stsplit or none
         for sample_id in adata_st.obs["sample_id"].unique():
             adata_samp = adata_st[adata_st.obs["sample_id"] == sample_id]
             if stsplit:
                 adata_splits = (
-                    adata_samp[adata_samp.obs["split"] == split].X.toarray()
-                    for split in data_loading.SPLITS
+                    adata_samp[adata_samp.obs["split"] == split].X for split in data_loading.SPLITS
                 )
             else:
                 # easy len 1 generator
-                adata_splits = (adata_samp.X.toarray() for _ in range(1))
+                adata_splits = (adata_samp.X for _ in range(1))
 
             scaled = scale(scaler, *adata_splits)
 
             # if not stplit scaled is len 1 and zip will quit after "train"
             for split, scaled_split in zip(data_loading.SPLITS, scaled):
                 adata_st[
-                    adata_st.obs["split"] == split and adata_st.obs["sample_id"] == sample_id
+                    (adata_st.obs["split"] == split) & (adata_st.obs["sample_id"] == sample_id)
                 ].X = scaled_split
 
     adata_st.write_h5ad(out_path)
@@ -614,7 +612,6 @@ if __name__ == "__main__":
         action="store_true",
         help="Use single model for all samples. Ignored if --samp_split is used.",
     )
-    parser.add_argument("--stsplit", action="store_true", help="Split ST data by spot.")
     parser.add_argument("--allgenes", "-a", action="store_true", help="Turn off marker selection.")
     parser.add_argument(
         "--nmarkers",

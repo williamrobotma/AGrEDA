@@ -4,7 +4,7 @@ data_params:
   dset: "mouse_cortex"
   n_markers: 20
   n_mix: 10
-  n_spots: 20000
+  n_spots: 2000
   sample_id_n: "151673"
   scaler_name: standard
   sc_id: "GSE115746"

@@ -47,8 +47,10 @@ parser.add_argument("--log_fname", "-l", default=None, help="optional log file n
 
 # %%
 # CONFIG_FNAME = "coral.yml"
-# NUM_WORKERS = 16
 # CUDA_INDEX = None
+# NUM_WORKERS = 0
+# TMP_DIR = None
+# LOG_FNAME = "log.txt"
 
 args = parser.parse_args()
 CONFIG_FNAME = args.config_fname
