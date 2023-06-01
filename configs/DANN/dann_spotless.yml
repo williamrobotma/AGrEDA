@@ -1,11 +1,14 @@
 data_params:
   all_genes: false
   data_dir: data
+  dset: "mouse_cortex"
   n_markers: 20
-  n_mix: 8
-  n_spots: 200000
+  n_mix: 10
+  n_spots: 2000
   sample_id_n: "151673"
   scaler_name: standard
+  sc_id: "spotless_mouse_cortex"
+  st_id: "spotless_mouse_cortex"
   st_split: false
   samp_split: true
 model_params:
@@ -17,28 +20,28 @@ model_params:
       - 1024
     dis_hidden_layer_sizes:
       - 1024
-  model_version: Standard1
+  model_version: dann_spotless
 lib_params:
-  manual_seed: 25098
+  manual_seed: 349
 train_params:
   adv_opt_kwargs:
     betas:
       - 0.5
       - 0.999
     eps: 1.0e-07
-    lr: 0.0002
-  batch_size: 512
+    lr: 0.00002
+  batch_size: 16
   early_stop_crit: 100
   early_stop_crit_adv: 500
   epochs: 500
   initial_train_epochs: 100
-  initial_train_lr: 0.001
+  initial_train_lr: 0.0001
   lambda: 1
   min_epochs: 40.0
   min_epochs_adv: 100
   plateau_kwargs:
     factor: 0.5
-    min_lr: 2.0e-05
+    min_lr: 2.0e-06
     patience: 50
     verbose: true
   pretraining: false

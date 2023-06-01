@@ -56,7 +56,6 @@ LOG_FNAME = args.log_fname
 # data_params = {}
 # # Data path and parameters
 # data_params["data_dir"] = "data"
-# data_params["train_using_all_st_samples"] = False
 # data_params["n_markers"] = 20
 # data_params["all_genes"] = False
 
@@ -123,8 +122,15 @@ data_params = config["data_params"]
 model_params = config["model_params"]
 train_params = config["train_params"]
 
+rewrite_config = False
 if not "pretraining" in train_params:
     train_params["pretraining"] = True
+    rewrite_config = True
+if not "lr" in train_params:
+    train_params["lr"] = 0.001
+    rewrite_config = True
+
+if rewrite_config:
     with open(os.path.join("configs", MODEL_NAME, CONFIG_FNAME), "w") as f:
         yaml.safe_dump(config, f)
 
@@ -169,7 +175,7 @@ selected_dir = data_loading.get_selected_dir(
 )
 
 # Load spatial data
-mat_sp_d, mat_sp_train, st_sample_id_l = data_loading.load_spatial(selected_dir, **data_params)
+mat_sp_d, mat_sp_meta_d, st_sample_id_l = data_loading.load_spatial(selected_dir, **data_params)
 
 # Load sc data
 sc_mix_d, lab_mix_d, sc_sub_dict, sc_sub_dict2 = data_loading.load_sc(selected_dir, **data_params)
@@ -235,7 +241,7 @@ if data_params["st_split"]:
             **target_dataloader_kwargs,
         )
 elif data_params.get("samp_split", False):
-    mat_sp_train = np.concatenate([v for v in mat_sp_d["train"].values()])
+    mat_sp_train = np.concatenate(list(mat_sp_d["train"].values()))
     target_train_set = SpotDataset(deepcopy(mat_sp_train))
     target_val_set = SpotDataset(deepcopy(next(iter(mat_sp_d["val"].values()))))
     target_test_set = SpotDataset(deepcopy(next(iter(mat_sp_d["test"].values()))))
@@ -249,7 +255,6 @@ elif data_params.get("samp_split", False):
     dataloader_target_test = torch.utils.data.DataLoader(
         target_test_set, shuffle=False, **target_dataloader_kwargs
     )
-
 else:
     target_test_set_d = {}
     dataloader_target_test_d = {}
@@ -269,11 +274,11 @@ else:
         )
 
 
-if data_params["train_using_all_st_samples"]:
-    target_train_set = SpotDataset(mat_sp_train)
-    dataloader_target_train = torch.utils.data.DataLoader(
-        target_train_set, shuffle=False, **target_dataloader_kwargs
-    )
+# if data_params["train_using_all_st_samples"]:
+#     target_train_set = SpotDataset(mat_sp_train)
+#     dataloader_target_train = torch.utils.data.DataLoader(
+#         target_train_set, shuffle=False, **target_dataloader_kwargs
+#     )
 
 
 # %% [markdown]
@@ -302,7 +307,12 @@ if not os.path.isdir(pretrain_folder):
 
 
 # %%
-pre_optimizer = torch.optim.Adam(model.parameters(), lr=0.001, betas=(0.9, 0.999), eps=1e-07)
+pre_optimizer = torch.optim.Adam(
+    model.parameters(),
+    lr=train_params["lr"],
+    betas=(0.9, 0.999),
+    eps=1e-07,
+)
 
 criterion_clf = nn.KLDivLoss(reduction="batchmean")
 
@@ -530,7 +540,13 @@ def train_adversarial(
     mat_sp_train_s,
     dataloader_source_train_eval,
     dataloader_target_train_eval,
+    dataloader_source_val=None,
+    dataloader_target_val=None,
 ):
+    if dataloader_source_val is None:
+        dataloader_source_val = dataloader_source_train_eval
+    if dataloader_target_val is None:
+        dataloader_target_val = dataloader_target_train_eval
     model.to(device)
     model.advtraining()
     model.set_encoder("source")
@@ -550,14 +566,14 @@ def train_adversarial(
             model.dis.parameters(),
             model.clf.parameters(),
         ),
-        lr=0.001,
+        lr=train_params["lr"],
         betas=(0.9, 0.999),
         eps=1e-07,
     )
 
     dis_optimizer = torch.optim.Adam(
         chain(model.source_encoder.parameters(), model.dis.parameters()),
-        lr=train_params["alpha_lr"] * 0.001,
+        lr=train_params["alpha_lr"] * train_params["lr"],
         betas=(0.9, 0.999),
         eps=1e-07,
     )
@@ -707,9 +723,22 @@ def train_adversarial(
                     model,
                 )
 
+                source_loss_val = compute_acc(dataloader_source_val, model)
+                _, dis_accu_val = compute_acc_dis(
+                    dataloader_source_val,
+                    dataloader_target_val,
+                    model,
+                )
+
                 # Print the results
+
+                out_string = (
+                    f"iter: {iters} "
+                    f"source loss: {source_loss:.4f} dis accu: {dis_accu:.4f} -- "
+                    f"val source loss: {source_loss_val:.4f} val dis accu: {dis_accu_val:.4f}"
+                )
                 tqdm.write(
-                    f"iter: {iters} source loss: {source_loss} dis accu: {dis_accu}",
+                    out_string,
                     file=dup_stdout,
                 )
 
@@ -725,25 +754,26 @@ def train_adversarial(
 
 
 # %%
-if data_params["train_using_all_st_samples"]:
-    tqdm.write(f"Adversarial training for all ST slides")
-    save_folder = advtrain_folder
+# if data_params["train_using_all_st_samples"]:
+#     tqdm.write(f"Adversarial training for all ST slides")
+#     save_folder = advtrain_folder
 
-    best_checkpoint = torch.load(os.path.join(pretrain_folder, f"final_model.pth"))
-    model = best_checkpoint["model"]
-    model.to(device)
-    model.advtraining()
+#     best_checkpoint = torch.load(os.path.join(pretrain_folder, f"final_model.pth"))
+#     model = best_checkpoint["model"]
+#     model.to(device)
+#     model.advtraining()
 
-    train_adversarial(
-        model,
-        save_folder,
-        sc_mix_d["train"],
-        lab_mix_d["train"],
-        mat_sp_train,
-        dataloader_source_train,
-        dataloader_target_train,
-    )
-elif data_params.get("samp_split", False):
+#     train_adversarial(
+#         model,
+#         save_folder,
+#         sc_mix_d["train"],
+#         lab_mix_d["train"],
+#         mat_sp_train,
+#         dataloader_source_train,
+#         dataloader_target_train,
+#     )
+# el
+if data_params.get("samp_split", False):
     tqdm.write(f"Adversarial training for slides {mat_sp_d['train'].keys()}: ")
     save_folder = os.path.join(advtrain_folder, "samp_split")
     if not os.path.isdir(save_folder):
@@ -762,6 +792,8 @@ elif data_params.get("samp_split", False):
         mat_sp_train,
         dataloader_source_train,
         dataloader_target_train,
+        dataloader_source_val,
+        dataloader_target_val,
     )
 else:
     for sample_id in st_sample_id_l:
@@ -775,15 +807,25 @@ else:
         model = best_checkpoint["model"]
         model.to(device)
         model.advtraining()
-
+        # if data_params.get("samp_split", False):
+        #     try:
+        #         mat_sp = mat_sp_d["train"][sample_id]
+        #     except KeyError:
+        #         try:
+        #             mat_sp = mat_sp_d["val"][sample_id]
+        #         except KeyError:
+        #             mat_sp = mat_sp_d["test"][sample_id]
+        # else:
+        mat_sp = mat_sp_d[sample_id]["train"]
         train_adversarial(
             model,
             save_folder,
             sc_mix_d["train"],
             lab_mix_d["train"],
-            mat_sp_d[sample_id]["train"],
+            mat_sp,
             dataloader_source_train,
             dataloader_target_train_d[sample_id],
+            dataloader_source_val,
         )
 
 # %%

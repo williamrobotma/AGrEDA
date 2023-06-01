@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from typing import Union
 
 import torch
+from sklearn.metrics.pairwise import paired_cosine_distances
 from torch import nn
 
 from src.da_models.model_utils.losses import JSD
@@ -61,6 +62,12 @@ def get_metric_ctp(metric_name):
     """
     if metric_name == "jsd":
         return _untorch_metric(JSD())
+    elif metric_name == "cos":
+
+        def avg_cosine_distance(x, y):
+            return paired_cosine_distances(x, y).mean()
+
+        return avg_cosine_distance
     raise ValueError(f"Unknown metric: {metric_name}")
 
 
@@ -140,4 +147,9 @@ class ModelWrapper:
                 encoder = self.model.target_encoder
 
         with torch.no_grad():
-            return out_func(input, encoder, device=self.lib_config.device).detach().cpu().numpy()
+            return (
+                encoder(torch.as_tensor(input, dtype=torch.float32, device=self.lib_config.device))
+                .detach()
+                .cpu()
+                .numpy()
+            )

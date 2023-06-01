@@ -10,7 +10,6 @@ data_params:
   sc_id: "CA001063"
   st_id: "GSE111672"
   st_split: false
-  train_using_all_st_samples: false
 model_params:
   coral_kwargs:
     batchnorm: true

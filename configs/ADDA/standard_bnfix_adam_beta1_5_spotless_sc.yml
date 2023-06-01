@@ -1,28 +1,34 @@
 data_params:
   all_genes: false
   data_dir: data
+  dset: "mouse_cortex"
   n_markers: 20
-  n_mix: 8
-  n_spots: 20000
+  n_mix: 10
+  n_spots: 2000
   sample_id_n: "151673"
   scaler_name: standard
+  sc_id: "GSE115746"
+  st_id: "spotless_mouse_cortex"
   st_split: false
+  samp_split: true
 model_params:
   adda_kwargs:
     bn_momentum: 0.01
     emb_dim: 64
-  model_version: standard_bnfix_adam_beta1_9
+  model_version: standard_bnfix_adam_beta1_5_spotless_sc
 lib_params:
-  manual_seed: 19
+  manual_seed: 12865
 train_params:
-  adam_beta1: 0.9
+  adam_beta1: 0.5
   alpha: 2
-  batch_size: 1024
+  batch_size: 16
   dis_loop_factor: 5
   early_stop_crit: 100
   early_stop_crit_adv: 200
-  enc_lr: 0.0002
+  enc_lr: 0.00002
   epochs: 200
+  initial_train_lr: 0.0002
   initial_train_epochs: 100
   min_epochs: 40.0
   min_epochs_adv: 80.0
+  pretraining: true
