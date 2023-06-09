@@ -523,19 +523,17 @@ def log_scale_st(selected_dir, scaler_name, stsplit=False, samp_split=False, one
         os.makedirs(preprocessed_data_dir)
 
     if samp_split:
-        st_fname = "mat_sp_samp_split_d.h5ad"
+        st_fname = "mat_sp_samp_split_d"
     elif stsplit:
-        if one_model:
-            st_fname = "mat_sp_split_d_one_model.h5ad"
-        else:
-            st_fname = "mat_sp_split_d.h5ad"
+        st_fname = "mat_sp_split_d"
     else:
-        if one_model:
-            st_fname = "mat_sp_train_d_one_model.h5ad"
-        else:
-            st_fname = "mat_sp_train_d.h5ad"
+        st_fname = "mat_sp_train_d"
 
-    in_path = os.path.join(unscaled_data_dir, st_fname)
+    in_path = os.path.join(unscaled_data_dir, f"{st_fname}.h5ad")
+
+    if one_model:
+        st_fname = f"{st_fname}_one_model.h5ad"
+
     out_path = os.path.join(preprocessed_data_dir, st_fname)
 
     adata_st = sc.read_h5ad(in_path)
