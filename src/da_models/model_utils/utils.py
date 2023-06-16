@@ -117,8 +117,15 @@ class ModelWrapper:
 
     def __init__(self, model_dir, name="final_model"):
         model_path = os.path.join(model_dir, f"{name}.pth")
-        check_point_da = torch.load(model_path, map_location=self.lib_config.device)
-        model = check_point_da["model"]
+        if "checkpt" in name:
+            final_model_path = os.path.join(model_dir, "final_model.pth")
+            check_point_da = torch.load(final_model_path, map_location=self.lib_config.device)
+            model = check_point_da["model"]
+            model.load_state_dict(torch.load(model_path, map_location=self.lib_config.device))
+        else:
+            check_point_da = torch.load(model_path, map_location=self.lib_config.device)
+            model = check_point_da["model"]
+
         model.to(self.lib_config.device)
         model.eval()
         self.model = model

@@ -1,6 +1,8 @@
 .venv/
 .venv-*/
+wheels/
 __pycache__/
 .git/
-wheels/
-data/
+.vscode/
+configs/generated/
+data/preprocessed/

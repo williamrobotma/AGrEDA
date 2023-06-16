@@ -7,6 +7,10 @@ wheels/
 data/dlpfc/sc_dlpfc/
 data/dlpfc/spatialLIBD_data/
 data/pdac/GSE111672/
+data/pdac/zenodo6024273/
+data/mouse_cortex/GSE111672/
+data/mouse_cortex/spotless/
+data/mouse_olfactory/spotless/
 data/**/preprocessed/
 data/*.tsv
 data/*.csv
