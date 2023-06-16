@@ -142,6 +142,9 @@ dmypy.json
 
 /pyvenv.cfg
 
+# generated config files
+/configs/generated/
+
 # slurm files
 *.out
 sinfo-requirements.txt
