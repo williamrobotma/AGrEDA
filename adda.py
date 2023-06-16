@@ -10,8 +10,10 @@
 # %%
 import argparse
 import datetime
+import glob
 import os
 from copy import deepcopy
+import tarfile
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -39,6 +41,7 @@ parser = argparse.ArgumentParser(
     description="Creating something like CellDART but it actually follows Adda in PyTorch as a first step"
 )
 parser.add_argument("--config_fname", "-f", help="Name of the config file to use")
+parser.add_argument("--configs_dir", "-cdir", type=str, default="configs", help="config dir")
 parser.add_argument(
     "--num_workers", type=int, default=0, help="Number of workers to use for dataloaders."
 )
@@ -49,6 +52,7 @@ parser.add_argument("--log_fname", "-l", default=None, help="optional log file n
 # %%
 args = parser.parse_args()
 CONFIG_FNAME = args.config_fname
+CONFIGS_DIR = args.configs_dir
 CUDA_INDEX = args.cuda
 NUM_WORKERS = args.num_workers
 TMP_DIR = args.tmpdir
@@ -136,7 +140,7 @@ MODEL_NAME = "ADDA"
 # with open(os.path.join("configs", MODEL_NAME, CONFIG_FNAME), "w") as f:
 #     yaml.safe_dump(config, f)
 
-with open(os.path.join("configs", MODEL_NAME, CONFIG_FNAME), "r") as f:
+with open(os.path.join(CONFIGS_DIR, MODEL_NAME, CONFIG_FNAME), "r") as f:
     config = yaml.safe_load(f)
 
 lib_params = config["lib_params"]
@@ -153,7 +157,7 @@ if not "initial_train_lr" in train_params:
     rewrite_config = True
 
 if rewrite_config:
-    with open(os.path.join("configs", MODEL_NAME, CONFIG_FNAME), "w") as f:
+    with open(os.path.join(CONFIGS_DIR, MODEL_NAME, CONFIG_FNAME), "w") as f:
         yaml.safe_dump(config, f)
 
 print(yaml.safe_dump(config))
@@ -615,7 +619,7 @@ def train_adversarial_iters(
     )
 
     dataloader_lengths = [
-        len(dataloader_source_train),
+        # len(dataloader_source_train),
         len(dataloader_target_train),
         len(dataloader_target_train_dis) * train_params["dis_loop_factor"],
     ]
@@ -782,6 +786,9 @@ def train_adversarial_iters(
                 results_val = compute_acc_dis(dataloader_source_val, dataloader_target_val, model)
             evaluation.recurse_running_dict(results_val, results_history_val)
 
+            if epoch % 10 == 9 or epoch >= train_params["epochs"] - 1 or epoch < 20:
+                torch.save(model.state_dict(), os.path.join(save_folder, f"checkpt-{epoch}.pth"))
+
             # Print the results
             outer.update(1)
             out_string = (
@@ -807,6 +814,11 @@ def train_adversarial_iters(
 
     # Save final model
     torch.save(checkpoint, os.path.join(save_folder, f"final_model.pth"))
+
+    with tarfile.open(os.path.join(save_folder, f"checkpts.tar.gz"), "w:gz") as tar:
+        for name in glob.glob(os.path.join(save_folder, "checkpt*.pth")):
+            tar.add(name, arcname=os.path.basename(name))
+            os.unlink(name)
 
     return results_history, results_history_running, results_history_val
 

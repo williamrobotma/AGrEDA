@@ -4,6 +4,7 @@
 import argparse
 import glob
 import logging
+import math
 import os
 import pickle
 import warnings
@@ -17,6 +18,8 @@ from sklearn import model_selection, preprocessing
 
 from src.da_utils import data_loading, data_processing, misc
 
+logger = logging.getLogger(__name__)
+
 SPLIT_RATIOS = (0.8, 0.1, 0.1)
 DATA_DIR = "./data"
 # SPATIALLIBD_BASEPATH = "spatialLIBD"
@@ -24,8 +27,6 @@ DATA_DIR = "./data"
 
 
 SCALER_OPTS = ("minmax", "standard", "celldart")
-
-logger = logging.getLogger(__name__)
 
 
 # %%
@@ -458,19 +459,35 @@ def split_st(selected_dir, stsplit=False, samp_split=False, rng=None):
         adata_st.write_h5ad(out_path)
 
         return
-
     # not samp_split
     if stsplit:
+        holdout_frac = 0.2
+
+        # ensure that holdout proportion is at least 2 cells (1 test, 1 val)
+        true_holdout_frac = math.ceil(len(adata_st) * holdout_frac) / len(adata_st)
+        min_holdout_size = adata_st.obs["sample_id"].value_counts().min()
+        if min_holdout_size * true_holdout_frac < 2:
+            holdout_frac = 2 / min_holdout_size
+
+            warnings.warn(
+                "Holdout proportion too small. Increasing to 2 cells per sample.\n"
+                "Using train/val/test split of "
+                f"{1 - holdout_frac}/{holdout_frac/2}/{holdout_frac/2}.",
+                UserWarning,
+            )
+
         adata_st_train, adata_st_val = model_selection.train_test_split(
             adata_st,
-            test_size=0.2,
+            test_size=holdout_frac,
             random_state=rng_integers(2**32),
+            # stratify=data_processing.safe_stratify(adata_st.obs["sample_id"]),
             stratify=adata_st.obs["sample_id"],
         )
         adata_st_val, adata_st_test = model_selection.train_test_split(
             adata_st_val,
             test_size=0.5,
             random_state=rng_integers(2**32),
+            # stratify=data_processing.safe_stratify(adata_st_val.obs["sample_id"]),
             stratify=adata_st_val.obs["sample_id"],
         )
         adata_st = ad.concat(
@@ -533,6 +550,8 @@ def log_scale_st(selected_dir, scaler_name, stsplit=False, samp_split=False, one
 
     if one_model:
         st_fname = f"{st_fname}_one_model.h5ad"
+    else:
+        st_fname = f"{st_fname}.h5ad"
 
     out_path = os.path.join(preprocessed_data_dir, st_fname)
 
@@ -569,33 +588,7 @@ def log_scale_st(selected_dir, scaler_name, stsplit=False, samp_split=False, one
     adata_st.write_h5ad(out_path)
 
 
-# def log_scale_all_st(selected_dir, scaler_name):
-#     """Log scales all spatial data.
-
-#     Args:
-#         selected_dir: Directory containing selected data.
-#         scaler_name: Name of scaler to use.
-
-#     """
-#     scaler = get_scaler(scaler_name)
-
-#     adata_st = sc.read_h5ad(os.path.join(selected_dir, "st.h5ad"))
-
-#     adata_st.X = next(scale(scaler, adata_st.X.toarray()))
-
-#     preprocessed_data_dir = os.path.join(selected_dir, scaler_name)
-#     if not os.path.isdir(preprocessed_data_dir):
-#         os.makedirs(preprocessed_data_dir)
-
-#     print("Saving all spatial data...")
-#     adata_st.write_h5ad(os.path.join(preprocessed_data_dir, "mat_sp_train_s.h5ad"))
-
-
 if __name__ == "__main__":
-    # logging.basicConfig(
-    #     level=logging.DEBUG, format="%(asctime)s:%(levelname)s:%(name)s:%(message)s"
-    # )
-
     parser = argparse.ArgumentParser(description="Preps the data into sets.")
 
     parser.add_argument(
@@ -647,4 +640,11 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s:%(levelname)s:%(name)s:%(message)s",
+    )
+
     main(args)
+
+# %%
