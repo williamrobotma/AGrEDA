@@ -138,8 +138,12 @@ dmypy.json
 /model_cell_dart/
 /results/
 /logs/
+*.zip
 
 /pyvenv.cfg
+
+# generated config files
+/configs/generated/
 
 # slurm files
 *.out

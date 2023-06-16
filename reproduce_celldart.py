@@ -27,6 +27,7 @@ script_start_time = datetime.datetime.now(datetime.timezone.utc)
 
 parser = argparse.ArgumentParser(description="Reproduce CellDART for ST")
 parser.add_argument("--config_fname", "-f", type=str, help="Name of the config file to use")
+parser.add_argument("--configs_dir", "-cdir", type=str, default="configs", help="config dir")
 parser.add_argument(
     "--num_workers", type=int, default=0, help="Number of workers to use for dataloaders."
 )
@@ -114,7 +115,7 @@ MODEL_NAME = "CellDART"
 #     "train_params": train_params,
 # }
 
-with open(os.path.join("configs", MODEL_NAME, CONFIG_FNAME), "r") as f:
+with open(os.path.join(args.configs_dir, MODEL_NAME, CONFIG_FNAME), "r") as f:
     config = yaml.safe_load(f)
 
 lib_params = config["lib_params"]
@@ -131,7 +132,7 @@ if not "lr" in train_params:
     rewrite_config = True
 
 if rewrite_config:
-    with open(os.path.join("configs", MODEL_NAME, CONFIG_FNAME), "w") as f:
+    with open(os.path.join(args.configs_dir, MODEL_NAME, CONFIG_FNAME), "w") as f:
         yaml.safe_dump(config, f)
 
 tqdm.write(yaml.safe_dump(config))
@@ -713,7 +714,7 @@ def train_adversarial(
 
             # Save checkpoint every 100
             if iters % 100 == 99 or iters >= train_params["n_iter"] - 1:
-                # torch.save(checkpoint, os.path.join(save_folder, f"checkpt{iters}.pth"))
+                torch.save(checkpoint, os.path.join(save_folder, f"checkpt{iters}.pth"))
 
                 model.eval()
                 source_loss = compute_acc(dataloader_source_train_eval, model)
@@ -833,3 +834,5 @@ with open(os.path.join(model_folder, "config.yml"), "w") as f:
     yaml.safe_dump(config, f)
 
 temp_folder_holder.copy_out()
+
+tqdm.write(f"Script run time: {datetime.datetime.now(datetime.timezone.utc) - script_start_time}")
