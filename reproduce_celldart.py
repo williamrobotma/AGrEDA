@@ -717,7 +717,10 @@ def train_adversarial(
 
             # Save checkpoint every 100
             if iters % 1000 == 99 or iters >= train_params["n_iter"] - 1:
-                torch.save(model.state_dict(), os.path.join(save_folder, f"checkpt-{iters}.pth"))
+                torch.save(
+                    {"model": model.state_dict()},
+                    os.path.join(save_folder, f"checkpt-{iters}.pth"),
+                )
 
                 model.eval()
                 source_loss = compute_acc(dataloader_source_train_eval, model)

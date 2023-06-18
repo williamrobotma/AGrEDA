@@ -113,22 +113,36 @@ class ModelWrapper:
     @classmethod
     def configurate(cls, lib_config):
         cls.lib_config = lib_config
-        cls.lib_config.device = get_torch_device(cuda_index=lib_config.cuda_index)
 
-    def __init__(self, model_dir, name="final_model"):
-        model_path = os.path.join(model_dir, f"{name}.pth")
-        if "checkpt" in name:
-            final_model_path = os.path.join(model_dir, "final_model.pth")
-            check_point_da = torch.load(final_model_path, map_location=self.lib_config.device)
-            model = check_point_da["model"]
-            model.load_state_dict(torch.load(model_path, map_location=self.lib_config.device))
-        else:
+        if cls.lib_config.cuda_index is not None and f"index={lib_config.cuda_index}" not in repr(
+            cls.lib_config.device
+        ):
+            raise ValueError(
+                f"Device index mismatch: {cls.lib_config.device.idx} != {lib_config.cuda_index}"
+            )
+
+    def __init__(self, model_or_model_dir, name="final_model"):
+        if isinstance(model_or_model_dir, str):
+            model_path = os.path.join(model_or_model_dir, f"{name}.pth")
+
             check_point_da = torch.load(model_path, map_location=self.lib_config.device)
-            model = check_point_da["model"]
+            try:
+                check_point_da["model"].to(self.lib_config.device)
+            except AttributeError:
+                final_model_path = os.path.join(model_or_model_dir, "final_model.pth")
+                final_model_chkpt = torch.load(
+                    final_model_path, map_location=self.lib_config.device
+                )
+                self.model = final_model_chkpt["model"]
+                self.model.load_state_dict(check_point_da["model"])
+                self.model.to(self.lib_config.device)
+            else:
+                self.model = check_point_da["model"]
+        else:
+            self.model = model_or_model_dir
+            self.model.to(self.lib_config.device)
 
-        model.to(self.lib_config.device)
-        model.eval()
-        self.model = model
+        self.model.eval()
 
     def get_predictions(self, input, source_encoder=False):
         if source_encoder:
