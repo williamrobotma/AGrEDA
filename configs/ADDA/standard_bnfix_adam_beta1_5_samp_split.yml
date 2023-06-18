@@ -26,9 +26,9 @@ train_params:
   early_stop_crit: 100
   early_stop_crit_adv: 200
   enc_lr: 0.00002
-  epochs: 5
+  epochs: 200
   initial_train_lr: 0.0002
-  initial_train_epochs: 10
+  initial_train_epochs: 200
   min_epochs: 40.0
   min_epochs_adv: 80.0
   reverse_val: true
