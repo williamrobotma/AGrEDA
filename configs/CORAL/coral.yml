@@ -31,3 +31,4 @@ train_params:
     lr: 0.001
     weight_decay: 0.3
   two_step: true
+  reverse_val: true

@@ -27,3 +27,4 @@ train_params:
   min_epochs_adv: 10
   n_iter: 3000
   pretraining: true
+  reverse_val: true

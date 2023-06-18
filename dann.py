@@ -8,15 +8,18 @@
 #  Creating something like CellDART but it actually follows DANN in PyTorch
 
 import argparse
-
-# %%
 import datetime
+import glob
 import os
 import pickle
+import shutil
+import tarfile
+from collections import OrderedDict
 from copy import deepcopy
 
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 import torch
 import yaml
 from torch import nn
@@ -25,6 +28,8 @@ from tqdm.autonotebook import tqdm
 from src.da_models.dann import DANN
 from src.da_models.model_utils.datasets import SpotDataset
 from src.da_models.model_utils.utils import (
+    LibConfig,
+    ModelWrapper,
     get_torch_device,
     initialize_weights,
     set_requires_grad,
@@ -162,7 +167,7 @@ train_params = config["train_params"]
 
 # %%
 device = get_torch_device(CUDA_INDEX)
-
+ModelWrapper.configurate(LibConfig(device, CUDA_INDEX))
 
 # %%
 torch_seed = lib_params.get("manual_seed", int(script_start_time.timestamp()))
@@ -198,10 +203,16 @@ selected_dir = data_loading.get_selected_dir(
 )
 
 # Load spatial data
-mat_sp_d, mat_sp_meta_d, st_sample_id_l = data_loading.load_spatial(selected_dir, **data_params)
+mat_sp_d, mat_sp_meta_d, st_sample_id_l = data_loading.load_spatial(
+    selected_dir,
+    **data_params,
+)
 
 # Load sc data
-sc_mix_d, lab_mix_d, sc_sub_dict, sc_sub_dict2 = data_loading.load_sc(selected_dir, **data_params)
+sc_mix_d, lab_mix_d, sc_sub_dict, sc_sub_dict2 = data_loading.load_sc(
+    selected_dir,
+    **data_params,
+)
 
 
 # %% [markdown]
@@ -212,98 +223,65 @@ sc_mix_d, lab_mix_d, sc_sub_dict, sc_sub_dict2 = data_loading.load_sc(selected_d
 
 # %%
 ### source dataloaders
-source_train_set = SpotDataset(sc_mix_d["train"], lab_mix_d["train"])
-source_val_set = SpotDataset(sc_mix_d["val"], lab_mix_d["val"])
-source_test_set = SpotDataset(sc_mix_d["test"], lab_mix_d["test"])
-
 source_dataloader_kwargs = dict(
     num_workers=NUM_WORKERS, pin_memory=True, batch_size=train_params["batch_size"]
 )
 
-dataloader_source_train = torch.utils.data.DataLoader(
-    source_train_set, shuffle=True, **source_dataloader_kwargs
-)
-dataloader_source_val = torch.utils.data.DataLoader(
-    source_val_set, shuffle=False, **source_dataloader_kwargs
-)
-dataloader_source_test = torch.utils.data.DataLoader(
-    source_test_set, shuffle=False, **source_dataloader_kwargs
-)
+source_set_d = {}
+dataloader_source_d = {}
+for split in sc_mix_d:
+    source_set_d[split] = SpotDataset(sc_mix_d[split], lab_mix_d[split])
+    dataloader_source_d[split] = torch.utils.data.DataLoader(
+        source_set_d[split],
+        shuffle=(split == "train"),
+        **source_dataloader_kwargs,
+    )
 
 ### target dataloaders
 target_dataloader_kwargs = source_dataloader_kwargs
 
-target_train_set_d = {}
-dataloader_target_train_d = {}
-if data_params["st_split"]:
-    target_val_set_d = {}
-    target_test_set_d = {}
+if data_params.get("samp_split", False) or data_params.get("one_model", False):
+    target_d = {}
+    if "train" in mat_sp_d:
+        # keys of dict are splits
+        for split in mat_sp_d:
+            target_d[split] = np.concatenate(list(mat_sp_d[split].values()))
+    else:
+        # keys of subdicts are splits
+        for split in next(iter(mat_sp_d.values())):
+            target_d[split] = np.concatenate((v[split] for v in mat_sp_d.values()))
 
-    dataloader_target_val_d = {}
-    dataloader_target_test_d = {}
-    for sample_id in st_sample_id_l:
-        target_train_set_d[sample_id] = SpotDataset(mat_sp_d[sample_id]["train"])
-        target_val_set_d[sample_id] = SpotDataset(mat_sp_d[sample_id]["val"])
-        target_test_set_d[sample_id] = SpotDataset(mat_sp_d[sample_id]["test"])
-
-        dataloader_target_train_d[sample_id] = torch.utils.data.DataLoader(
-            target_train_set_d[sample_id],
-            shuffle=True,
+    dataloader_target_d = {}
+    target_set_d = {}
+    for split in target_d:
+        target_set_d[split] = SpotDataset(target_d[split])
+        dataloader_target_d[split] = torch.utils.data.DataLoader(
+            target_set_d[split],
+            shuffle=("train" in split),
             **target_dataloader_kwargs,
         )
-        dataloader_target_val_d[sample_id] = torch.utils.data.DataLoader(
-            target_val_set_d[sample_id],
-            shuffle=False,
-            **target_dataloader_kwargs,
-        )
-        dataloader_target_test_d[sample_id] = torch.utils.data.DataLoader(
-            target_test_set_d[sample_id],
-            shuffle=False,
-            **target_dataloader_kwargs,
-        )
-elif data_params.get("samp_split", False):
-    mat_sp_train = np.concatenate(list(mat_sp_d["train"].values()))
-
-    target_train_set = SpotDataset(mat_sp_train)
-    target_val_set = SpotDataset(next(iter(mat_sp_d["val"].values())))
-    target_test_set = SpotDataset(next(iter(mat_sp_d["test"].values())))
-
-    dataloader_target_train = torch.utils.data.DataLoader(
-        target_train_set, shuffle=True, **target_dataloader_kwargs
-    )
-    dataloader_target_val = torch.utils.data.DataLoader(
-        target_val_set, shuffle=False, **target_dataloader_kwargs
-    )
-    dataloader_target_test = torch.utils.data.DataLoader(
-        target_test_set, shuffle=False, **target_dataloader_kwargs
-    )
 else:
-    target_test_set_d = {}
-    dataloader_target_test_d = {}
-    for sample_id in st_sample_id_l:
-        # if data_params.get("samp_split", False):
-        #     try:
-        #         mat_sp = mat_sp_d["train"][sample_id]
-        #     except KeyError:
-        #         try:
-        #             mat_sp = mat_sp_d["val"][sample_id]
-        #         except KeyError:
-        #             mat_sp = mat_sp_d["test"][sample_id]
-        # else:
-        mat_sp = mat_sp_d[sample_id]["train"]
-        target_train_set_d[sample_id] = SpotDataset(mat_sp)
-        dataloader_target_train_d[sample_id] = torch.utils.data.DataLoader(
-            target_train_set_d[sample_id],
-            shuffle=True,
-            **target_dataloader_kwargs,
-        )
+    target_d = {}
+    target_set_d = {}
+    dataloader_target_d = {}
 
-        target_test_set_d[sample_id] = SpotDataset(deepcopy(mat_sp))
-        dataloader_target_test_d[sample_id] = torch.utils.data.DataLoader(
-            target_test_set_d[sample_id],
-            shuffle=False,
-            **target_dataloader_kwargs,
-        )
+    for sample_id in st_sample_id_l:
+        target_d[sample_id] = {}
+        target_set_d[sample_id] = {}
+        dataloader_target_d[sample_id] = {}
+        for split, v in mat_sp_d[sample_id].items():
+            if split == "train" and v is mat_sp_d[sample_id]["test"]:
+                target_d[sample_id][split] = deepcopy(v)
+            else:
+                target_d[sample_id][split] = v
+
+            target_set_d[sample_id][split] = SpotDataset(target_d[sample_id][split])
+
+            dataloader_target_d[sample_id][split] = torch.utils.data.DataLoader(
+                target_set_d[sample_id][split],
+                shuffle=("train" in split),
+                **target_dataloader_kwargs,
+            )
 
 
 # %% [markdown]
@@ -344,16 +322,14 @@ def compute_acc(dataloader, model):
 
 
 # %%
-if train_params["pretraining"]:
-    pretrain_folder = os.path.join(model_folder, "pretrain")
-
-    model = DANN(
-        inp_emb=sc_mix_d["train"].shape[1],
-        ncls_source=lab_mix_d["train"].shape[1],
-        **model_params["dann_kwargs"],
-    )
-    model.apply(initialize_weights)
-    model.to(device)
+def pretrain(
+    pretrain_folder,
+    model,
+    dataloader_source_train,
+    dataloader_source_val=None,
+):
+    if dataloader_source_val is None:
+        dataloader_source_val = dataloader_source_train
 
     pre_optimizer = torch.optim.AdamW(
         model.parameters(),
@@ -371,8 +347,6 @@ if train_params["pretraining"]:
 
     model.pretraining()
 
-    if not os.path.isdir(pretrain_folder):
-        os.makedirs(pretrain_folder)
     # Initialize lists to store loss and accuracy values
     loss_history = []
     loss_history_val = []
@@ -380,10 +354,6 @@ if train_params["pretraining"]:
     loss_history_running = []
 
     lr_history_running = []
-
-    # Early Stopping
-    best_loss_val = np.inf
-    early_stop_count = 0
 
     # Train
     log_file_path = os.path.join(pretrain_folder, LOG_FNAME) if LOG_FNAME else None
@@ -454,26 +424,11 @@ if train_params["pretraining"]:
             if curr_loss_val < best_loss_val:
                 best_loss_val = curr_loss_val
                 torch.save(checkpoint, os.path.join(pretrain_folder, f"best_model.pth"))
-                early_stop_count = 0
 
                 out_string += "<-- new best val loss"
 
             tqdm.write(out_string)
 
-            # Save checkpoint every 10
-            if epoch % 10 == 0 or epoch >= train_params["initial_train_epochs"] - 1:
-                torch.save(checkpoint, os.path.join(pretrain_folder, f"checkpt{epoch}.pth"))
-
-            # check to see if validation loss has plateau'd
-            if (
-                early_stop_count >= train_params["early_stop_crit"]
-                and epoch >= train_params["min_epochs"] - 1
-            ):
-                tqdm.write(f"Validation loss plateaued after {early_stop_count} at epoch {epoch}")
-                torch.save(checkpoint, os.path.join(pretrain_folder, f"earlystop{epoch}.pth"))
-                break
-
-            early_stop_count += 1
     inner.close()
     outer.close()
     lr_history_running[-1].append(pre_scheduler.get_last_lr()[-1])
@@ -481,6 +436,39 @@ if train_params["pretraining"]:
     # Save final model
     best_checkpoint = torch.load(os.path.join(pretrain_folder, f"best_model.pth"))
     torch.save(best_checkpoint, os.path.join(pretrain_folder, f"final_model.pth"))
+    return (
+        loss_history,
+        loss_history_val,
+        loss_history_running,
+        lr_history_running,
+    ), best_checkpoint
+
+
+pretrain_folder = os.path.join(model_folder, "pretrain")
+
+if train_params["pretraining"]:
+    if not os.path.isdir(pretrain_folder):
+        os.makedirs(pretrain_folder)
+
+    model = DANN(
+        inp_emb=sc_mix_d["train"].shape[1],
+        ncls_source=lab_mix_d["train"].shape[1],
+        **model_params["dann_kwargs"],
+    )
+    model.apply(initialize_weights)
+    model.to(device)
+
+    (
+        loss_history,
+        loss_history_val,
+        loss_history_running,
+        lr_history_running,
+    ), _ = pretrain(
+        pretrain_folder,
+        model,
+        dataloader_source_d["train"],
+        dataloader_source_d["val"],
+    )
 
 
 # %%
@@ -678,7 +666,7 @@ def run_epoch(
     target_results["dis_accu"] = []
     target_results["weights"] = []
 
-    n_iters = max(len(dataloader_source), len(dataloader_target))
+    n_iters = len(dataloader_target)
 
     s_iter = iter(dataloader_source)
     t_iter = iter(dataloader_target)
@@ -727,6 +715,8 @@ def train_adversarial_iters(
     dataloader_source_val,
     dataloader_target_train,
     dataloader_target_val=None,
+    checkpoints=False,
+    epoch_override=None,
 ):
     if dataloader_target_val is None:
         dataloader_target_val = dataloader_target_train
@@ -738,7 +728,7 @@ def train_adversarial_iters(
         optimizer, **train_params["plateau_kwargs"]
     )
 
-    max_len_dataloader = max(len(dataloader_source_train), len(dataloader_target_train))
+    max_len_dataloader = len(dataloader_target_train)
 
     iters_val = max(len(dataloader_source_val), len(dataloader_target_train))
 
@@ -774,11 +764,13 @@ def train_adversarial_iters(
     best_loss_val_unstable = np.inf
     dis_stable_found = False
     early_stop_count = 0
+
+    epochs = epoch_override if epoch_override is not None else train_params["epochs"]
     log_file_path = os.path.join(save_folder, LOG_FNAME) if LOG_FNAME else None
     with DupStdout().dup_to_file(log_file_path, "w") as dup_stdout:
         # Train
         tqdm.write("Start adversarial training...")
-        outer = tqdm(total=train_params["epochs"], desc="Epochs", position=0)
+        outer = tqdm(total=epochs, desc="Epochs", position=0)
         inner = tqdm(total=max_len_dataloader, desc=f"Batch", position=1)
         tqdm.write(" Epoch ||| Predictor       ||| Discriminator ")
         tqdm.write(
@@ -799,7 +791,12 @@ def train_adversarial_iters(
             "optimizer": optimizer,
             "scheduler": scheduler,
         }
-        for epoch in range(train_params["epochs"]):
+        if checkpoints:
+            torch.save(
+                {"model": model.state_dict(), "epoch": -1},
+                os.path.join(save_folder, f"checkpt--1.pth"),
+            )
+        for epoch in range(epochs):
             checkpoint["epoch"] = epoch
 
             # Train mode
@@ -883,23 +880,18 @@ def train_adversarial_iters(
                 better_val_loss and (dis_stable or not dis_stable_found)
             ):
                 best_loss_val = results_history_source_val["clf_loss"][-1]
-                torch.save(checkpoint, os.path.join(save_folder, f"best_model.pth"))
+                # torch.save(checkpoint, os.path.join(save_folder, f"best_model.pth"))
                 early_stop_count = 0
                 out_string += f"<-- new best {'stable' if dis_stable else 'unstable'} val clf loss"
 
             tqdm.write(out_string)
 
             # Save checkpoint every 10
-            if epoch % 10 == 0 or epoch >= train_params["epochs"] - 1:
-                torch.save(checkpoint, os.path.join(save_folder, f"checkpt{epoch}.pth"))
-
-            # check to see if validation loss has plateau'd
-            # if early_stop_count >= EARLY_STOP_CRIT_ADV and epoch > MIN_EPOCHS_ADV - 1:
-            #     tqdm.write(
-            #         f"Loss plateaued after {early_stop_count} at epoch {epoch}"
-            #     )
-            #     torch.save(checkpoint, os.path.join(save_folder, f"earlystop_{epoch}.pth"))
-            #     break
+            if (epoch % 10 == 9 or epoch >= train_params["epochs"] - 1) and checkpoints:
+                torch.save(
+                    {"model": model.state_dict(), "epoch": epoch},
+                    os.path.join(save_folder, f"checkpt-{epoch}.pth"),
+                )
 
             early_stop_count += 1
 
@@ -920,8 +912,8 @@ def train_adversarial_iters(
     inner.close()
     outer.close()
     # Save final model
-    best_checkpoint = torch.load(os.path.join(save_folder, f"best_model.pth"))
-    torch.save(best_checkpoint, os.path.join(save_folder, f"final_model.pth"))
+    # best_checkpoint = torch.load(os.path.join(save_folder, f"best_model.pth"))
+    torch.save(checkpoint, os.path.join(save_folder, f"final_model.pth"))
 
     return (
         results_running_history_source,
@@ -930,7 +922,7 @@ def train_adversarial_iters(
         results_history_target,
         results_history_source_val,
         results_history_target_val,
-    )
+    ), checkpoint
 
 
 # %%
@@ -946,7 +938,8 @@ def plot_results(
     n_epochs = len(results_history_source_val["clf_loss"])
     best_checkpoint = torch.load(os.path.join(save_folder, f"final_model.pth"))
     best_epoch = best_checkpoint["epoch"]
-
+    if best_epoch < 0:
+        return  # no training happened
     # best_acc_val = accu_history_val[best_epoch]
 
     fig, axs = plt.subplots(3, 1, sharex=True, figsize=(9, 9), layout="constrained")
@@ -1068,44 +1061,15 @@ def plot_results(
     plt.show(block=False)
 
 
-# %%
-# st_sample_id_l = [SAMPLE_ID_N]
-
-
-# %%
-# if data_params["train_using_all_st_samples"]:
-#     print(f"Adversarial training for all ST slides")
-#     save_folder = advtrain_folder
-
-#     model = DANN(
-#         sc_mix_d["train"].shape[1],
-#         ncls_source=lab_mix_d["train"].shape[1],
-#         **model_params["dann_kwargs"],
-#     )
-#     model.apply(initialize_weights)
-#     if train_params["pretraining"]:
-#         best_pre_checkpoint = torch.load(os.path.join(pretrain_folder, f"final_model.pth"))
-#         model.load_state_dict(best_pre_checkpoint["model"].state_dict())
-#     model.to(device)
-
-#     model.advtraining()
-
-#     tqdm.write(repr(model))
-
-#     train_adversarial_iters(
-#         model,
-#         save_folder,
-#         dataloader_source_train,
-#         dataloader_source_val,
-#         dataloader_target_train,
-#     )
-# el
-if data_params.get("samp_split", False):
-    tqdm.write(f"Adversarial training for slides {mat_sp_d['train'].keys()}: ")
-    save_folder = os.path.join(advtrain_folder, "samp_split")
-    if not os.path.isdir(save_folder):
-        os.makedirs(save_folder)
-
+def load_train_plot(
+    pretrain_folder,
+    save_folder,
+    dataloader_source_train,
+    dataloader_source_val,
+    dataloader_target_train,
+    dataloader_target_val,
+    **adv_train_kwargs,
+):
     model = DANN(
         sc_mix_d["train"].shape[1],
         ncls_source=lab_mix_d["train"].shape[1],
@@ -1119,21 +1083,172 @@ if data_params.get("samp_split", False):
     model.to(device)
 
     model.advtraining()
-    tqdm.write(repr(model))
 
-    training_history = train_adversarial_iters(
+    if adv_train_kwargs.get("checkpoints", False):
+        tqdm.write(repr(model))
+
+    training_history, checkpoint = train_adversarial_iters(
         model,
         save_folder,
         dataloader_source_train,
         dataloader_source_val,
         dataloader_target_train,
         dataloader_target_val,
+        **adv_train_kwargs,
     )
 
     with open(os.path.join(save_folder, "training_history.pkl"), "wb") as f:
         pickle.dump(training_history, f)
 
     plot_results(*training_history, save_folder)
+
+    return checkpoint
+
+
+def reverse_val(
+    target_d,
+    save_folder,
+):
+    rv_scores_d = OrderedDict()
+    for name in sorted(glob.glob(os.path.join(save_folder, f"checkpt-*.pth"))):
+        model_name = os.path.basename(name).rstrip(".pth")
+        epoch = int(model_name[len("checkpt-") :])
+        tqdm.write(f"  {model_name}")
+
+        model = ModelWrapper(save_folder, model_name)
+
+        dataloader_target_now_source_d = {}
+        pred_target_d = OrderedDict()
+        for split in target_d:
+            pred_target_d[split] = model.get_predictions(target_d[split])
+
+            dataloader_target_now_source_d[split] = torch.utils.data.DataLoader(
+                SpotDataset(target_d[split], pred_target_d[split]),
+                shuffle=("train" in split),
+                **source_dataloader_kwargs,
+            )
+
+        rv_pretrain_folder = os.path.join(save_folder, f"reverse_val-{model_name}-pretrain")
+        if not os.path.isdir(rv_pretrain_folder):
+            os.makedirs(rv_pretrain_folder)
+
+        if train_params.get("pretraining", False):
+            rv_pretrain_folder = os.path.join(save_folder, f"reverse_val-{model_name}-pretrain")
+            if not os.path.isdir(rv_pretrain_folder):
+                os.makedirs(rv_pretrain_folder)
+            model = DANN(
+                inp_emb=sc_mix_d["train"].shape[1],
+                ncls_source=lab_mix_d["train"].shape[1],
+                **model_params["dann_kwargs"],
+            )
+            model.apply(initialize_weights)
+            model.to(device)
+
+            pretrain(
+                rv_pretrain_folder,
+                model,
+                dataloader_target_now_source_d["train"],
+                dataloader_target_now_source_d.get("val", None),
+            )
+        else:
+            rv_pretrain_folder = pretrain_folder
+
+        rv_save_folder = os.path.join(save_folder, f"reverse_val-{model_name}")
+        if not os.path.isdir(rv_save_folder):
+            os.makedirs(rv_save_folder)
+
+        checkpoint = load_train_plot(
+            model,
+            rv_save_folder,
+            dataloader_target_now_source_d["train"],
+            dataloader_target_now_source_d.get("val", dataloader_target_now_source_d["train"]),
+            dataloader_source_d["train"],
+            dataloader_source_d["val"],
+            checkpoints=False,
+            epoch_override=epoch + 1,
+        )
+
+        # model = ModelWrapper(model)
+        rv_scores_d[epoch] = OrderedDict()
+        for split in ("train", "val"):
+            rv_scores_d[epoch][split] = compute_acc(
+                dataloader_source_d[split],
+                checkpoint["model"],
+            )
+
+    rv_scores_df = pd.DataFrame.from_dict(rv_scores_d, orient="index").sort_index()
+
+    tqdm.write("Reverse validation scores: ")
+    tqdm.write(repr(rv_scores_df))
+    best_epoch = rv_scores_df["val"].idxmin()
+    tqdm.write(f"Best epoch: {best_epoch} ({rv_scores_df['val'].min():.4f})")
+
+    rv_scores_df.to_csv(os.path.join(save_folder, f"reverse_val_scores.csv"))
+
+    best_epoch_df = rv_scores_df.loc[[best_epoch]]
+    best_epoch_df.index = pd.Index([model_params["model_version"]])
+    best_epoch_df["best_epoch"] = best_epoch
+    best_epoch_df["best_epoch_rv"] = best_epoch
+    best_epoch_df["config_fname"] = CONFIG_FNAME
+
+    tqdm.write("Best Epoch: ")
+    tqdm.write(repr(best_epoch_df))
+
+    best_epoch_df.to_csv(os.path.join(save_folder, f"reverse_val_best_epoch.csv"))
+
+    best_checkpoint = torch.load(os.path.join(save_folder, f"checkpt-{best_epoch}.pth"))
+    final_checkpoint = torch.load(os.path.join(save_folder, f"final_model.pth"))
+
+    model = final_checkpoint["model"]
+    model.load_state_dict(best_checkpoint["model"])
+
+    torch.save(
+        {"model": model, "epoch": best_epoch},
+        os.path.join(save_folder, f"best_model.pth"),
+    )
+    shutil.copyfile(
+        os.path.join(save_folder, f"best_model.pth"),
+        os.path.join(save_folder, f"final_model.pth"),
+    )
+    with tarfile.open(os.path.join(save_folder, f"reverse_val.tar.gz"), "w:gz") as tar:
+        for name in glob.glob(os.path.join(save_folder, f"reverse_val*")):
+            if os.path.isdir(name):
+                tar.add(name, arcname=os.path.basename(name))
+                shutil.rmtree(name)
+
+
+if data_params.get("samp_split", False) or data_params.get("one_model", False):
+    if "train" in mat_sp_d:
+        tqdm.write(f"Adversarial training for slides {mat_sp_d['train'].keys()}: ")
+        save_folder = os.path.join(advtrain_folder, "samp_split")
+    else:
+        tqdm.write(f"Adversarial training for slides {next(iter(mat_sp_d.values()))}: ")
+        save_folder = os.path.join(advtrain_folder, "one_model")
+
+    if not os.path.isdir(save_folder):
+        os.makedirs(save_folder)
+
+    load_train_plot(
+        pretrain_folder,
+        save_folder,
+        dataloader_source_d["train"],
+        dataloader_source_d["val"],
+        dataloader_target_d["train"],
+        dataloader_target_d.get("val", None),
+        checkpoints=True,
+    )
+
+    if train_params["reverse_val"]:
+        tqdm.write(f"Reverse validating ...")
+
+        reverse_val(
+            target_d,
+            save_folder,
+        )
+    with tarfile.open(os.path.join(save_folder, f"checkpts.tar.gz"), "w:gz") as tar:
+        for name in glob.glob(os.path.join(save_folder, f"checkpt*.pth")):
+            tar.add(name, arcname=os.path.basename(name))
+            os.unlink(name)
 
 else:
     for sample_id in st_sample_id_l:
@@ -1143,33 +1258,27 @@ else:
         if not os.path.isdir(save_folder):
             os.makedirs(save_folder)
 
-        model = DANN(
-            sc_mix_d["train"].shape[1],
-            ncls_source=lab_mix_d["train"].shape[1],
-            **model_params["dann_kwargs"],
-        )
-        model.apply(initialize_weights)
-
-        if train_params["pretraining"]:
-            best_pre_checkpoint = torch.load(os.path.join(pretrain_folder, f"final_model.pth"))
-            model.load_state_dict(best_pre_checkpoint["model"].state_dict())
-        model.to(device)
-
-        model.advtraining()
-        tqdm.write(repr(model))
-
-        training_history = train_adversarial_iters(
-            model,
+        load_train_plot(
+            pretrain_folder,
             save_folder,
-            dataloader_source_train,
-            dataloader_source_val,
-            dataloader_target_train_d[sample_id],
+            dataloader_source_d["train"],
+            dataloader_source_d["val"],
+            dataloader_target_d[sample_id]["train"],
+            dataloader_target_d[sample_id].get("val", None),
+            checkpoints=True,
         )
 
-        with open(os.path.join(save_folder, "training_history.pkl"), "wb") as f:
-            pickle.dump(training_history, f)
+        if train_params["reverse_val"]:
+            tqdm.write(f"Reverse validating ...")
 
-        plot_results(*training_history, save_folder)
+            reverse_val(
+                target_d[sample_id],
+                save_folder,
+            )
+        with tarfile.open(os.path.join(save_folder, f"checkpts.tar.gz"), "w:gz") as tar:
+            for name in glob.glob(os.path.join(save_folder, f"checkpt*.pth")):
+                tar.add(name, arcname=os.path.basename(name))
+                os.unlink(name)
 
 
 # %%

@@ -1,0 +1,16 @@
+data_params:
+  all_genes: false
+  data_dir: data
+  dset: dlpfc
+  samp_split: true
+  sc_id: GSE144136
+  scaler_name: standard
+  st_id: spatialLIBD
+  st_split: false
+lib_params: {}
+model_params: {}
+train_params:
+  adam_beta1: 0.5
+  epochs: 200
+  initial_train_epochs: 200
+  pretraining: true

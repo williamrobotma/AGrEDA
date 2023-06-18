@@ -1041,7 +1041,7 @@ def reverse_val(
                 checkpoint["model"],
             )
 
-    rv_scores_df = pd.DataFrame.from_dict(rv_scores_d, orient="index")
+    rv_scores_df = pd.DataFrame.from_dict(rv_scores_d, orient="index").sort_index()
 
     tqdm.write("Reverse validation scores: ")
     tqdm.write(repr(rv_scores_df))
@@ -1049,9 +1049,17 @@ def reverse_val(
     tqdm.write(f"Best epoch: {best_epoch} ({rv_scores_df['val'].min():.4f})")
 
     rv_scores_df.to_csv(os.path.join(save_folder, f"reverse_val_scores.csv"))
-    best_epoch_series = rv_scores_df.loc[best_epoch]
-    best_epoch_series.index = [(model_params["name"], best_epoch)]
-    best_epoch_series.to_csv(os.path.join(save_folder, f"reverse_val_best_epoch.csv"))
+
+    best_epoch_df = rv_scores_df.loc[[best_epoch]]
+    best_epoch_df.index = pd.Index([model_params["model_version"]])
+    best_epoch_df["best_epoch"] = best_epoch
+    best_epoch_df["best_epoch_rv"] = best_epoch
+    best_epoch_df["config_fname"] = CONFIG_FNAME
+
+    tqdm.write("Best Epoch: ")
+    tqdm.write(repr(best_epoch_df))
+
+    best_epoch_df.to_csv(os.path.join(save_folder, f"reverse_val_best_epoch.csv"))
 
     best_checkpoint = torch.load(os.path.join(save_folder, f"checkpt-{best_epoch}.pth"))
     final_checkpoint = torch.load(os.path.join(save_folder, f"final_model.pth"))
