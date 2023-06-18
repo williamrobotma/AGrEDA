@@ -45,6 +45,14 @@ if __name__ == "__main__":
         action="store_true",
         help="evaluate early stopping. Default: False",
     )
+    parser.add_argument(
+        "--reverse_val",
+        "-r",
+        action="store_true",
+        help="use best model through reverse validation. Will use provided"
+        "config file to search across models, then use the one loaded. Default: False",
+    )
+
     args = parser.parse_args()
 
     script_start_time = datetime.datetime.now(datetime.timezone.utc)

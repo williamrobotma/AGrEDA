@@ -1,14 +1,18 @@
 """Model utility functions."""
+import glob
 import os
 import warnings
 from dataclasses import dataclass
 from typing import Union
 
+import pandas as pd
 import torch
+import yaml
 from sklearn.metrics.pairwise import paired_cosine_distances
 from torch import nn
 
 from src.da_models.model_utils.losses import JSD
+from src.da_utils import data_loading
 
 
 def set_requires_grad(model, requires_grad=True):
@@ -113,22 +117,40 @@ class ModelWrapper:
     @classmethod
     def configurate(cls, lib_config):
         cls.lib_config = lib_config
-        cls.lib_config.device = get_torch_device(cuda_index=lib_config.cuda_index)
 
-    def __init__(self, model_dir, name="final_model"):
-        model_path = os.path.join(model_dir, f"{name}.pth")
-        if "checkpt" in name:
-            final_model_path = os.path.join(model_dir, "final_model.pth")
-            check_point_da = torch.load(final_model_path, map_location=self.lib_config.device)
-            model = check_point_da["model"]
-            model.load_state_dict(torch.load(model_path, map_location=self.lib_config.device))
-        else:
+        if cls.lib_config.cuda_index is not None and f"index={lib_config.cuda_index}" not in repr(
+            cls.lib_config.device
+        ):
+            raise ValueError(
+                f"Device index mismatch: {cls.lib_config.device.idx} != {lib_config.cuda_index}"
+            )
+
+    def __init__(self, model_or_model_dir, name="final_model"):
+        if isinstance(model_or_model_dir, str):
+            model_path = os.path.join(model_or_model_dir, f"{name}.pth")
+
             check_point_da = torch.load(model_path, map_location=self.lib_config.device)
-            model = check_point_da["model"]
+            try:
+                check_point_da["model"].to(self.lib_config.device)
+            except AttributeError:
+                final_model_path = os.path.join(model_or_model_dir, "final_model.pth")
+                final_model_chkpt = torch.load(
+                    final_model_path, map_location=self.lib_config.device
+                )
+                self.model = final_model_chkpt["model"]
+                self.model.load_state_dict(check_point_da["model"])
+                self.model.to(self.lib_config.device)
+            else:
+                self.model = check_point_da["model"]
+            try:
+                self.epoch = check_point_da["epoch"]
+            except KeyError:
+                self.epoch = check_point_da.get("iters")
+        else:
+            self.model = model_or_model_dir
+            self.model.to(self.lib_config.device)
 
-        model.to(self.lib_config.device)
-        model.eval()
-        self.model = model
+        self.model.eval()
 
     def get_predictions(self, input, source_encoder=False):
         if source_encoder:
@@ -160,3 +182,59 @@ class ModelWrapper:
                 .cpu()
                 .numpy()
             )
+
+
+def get_best_params_file(model_name, dset, sc_id, st_id, configs_dir="configs"):
+    pattern = os.path.join(
+        "model",
+        model_name,
+        dset,
+        f"{sc_id}_{st_id}",
+        "**",
+        "reverse_val_best_epoch.csv",
+    )
+
+    results = []
+    for rv_result_path in glob.glob(pattern, recursive=True):
+        results.append(pd.read_csv(rv_result_path, index_col=0))
+
+    results_df = pd.concat(results, axis=0)
+    best_hp = results_df["val"].idxmin()
+    config_fname = results_df.loc[best_hp, "config_fname"]
+    with open(os.path.join(configs_dir, model_name, config_fname), "r") as f:
+        config = yaml.safe_load(f)
+
+    lib_params = config["lib_params"]
+    data_params = config["data_params"]
+    model_params = config["model_params"]
+
+    torch_seed = lib_params.get("manual_seed")
+    lib_seed_path = str(torch_seed) if "manual_seed" in lib_params else "random"
+
+    model_folder = data_loading.get_model_rel_path(
+        model_name,
+        model_params["model_version"],
+        lib_seed_path=lib_seed_path,
+        **data_params,
+    )
+
+    model_folder
+
+    model_path = os.path.join(
+        "model",
+        model_folder,
+        "advtrain",
+        "samp_split" if data_params.get("samp_split") else "",
+        "final_model.pth",
+    )
+    checkpoint = torch.load(model_path)
+
+    try:
+        epoch = checkpoint["epoch"]
+    except KeyError:
+        epoch = checkpoint.get("iters")
+
+    if int(epoch) != int(results_df.loc[best_hp, "best_epoch"]):
+        raise ValueError("Epoch mismatch")
+
+    return config_fname, results_df, best_hp
