@@ -432,9 +432,9 @@ def split_st(selected_dir, stsplit=False, samp_split=False, rng=None):
 
         holdout_idxs = [rng_integers(len(st_sample_id_l) - len(exclude_sids))]
         # Ensure that the holdout samples are different
-        while holdout_idxs[0] == (i_2 := rng_integers(len(st_sample_id_l))):
-            pass
-        holdout_idxs.append(i_2)
+        # while holdout_idxs[0] == (i_2 := rng_integers(len(st_sample_id_l))):
+        #     pass
+        # holdout_idxs.append(i_2)
 
         holdout_candidate_sids = [sid for sid in st_sample_id_l if sid not in exclude_sids]
         holdout_sids = [holdout_candidate_sids[i] for i in holdout_idxs]
@@ -446,7 +446,7 @@ def split_st(selected_dir, stsplit=False, samp_split=False, rng=None):
             adata_train_sample_d[sid] = adata_st[adata_st.obs.sample_id == sid]
             adata_train_sample_d[sid].obs.drop(columns="sample_id", inplace=True)
             adata_train_sample_d[sid].obs.insert(loc=0, column="split", value="train")
-        for sid, split in zip(holdout_sids, ["val", "test"]):
+        for sid, split in zip(holdout_sids, ["test"]):
             adata_train_sample_d[sid] = adata_st[adata_st.obs.sample_id == sid]
             adata_train_sample_d[sid].obs.drop(columns="sample_id", inplace=True)
             adata_train_sample_d[sid].obs.insert(loc=0, column="split", value=split)
@@ -461,39 +461,39 @@ def split_st(selected_dir, stsplit=False, samp_split=False, rng=None):
         return
     # not samp_split
     if stsplit:
-        holdout_frac = 0.2
+        holdout_frac = 0.1
 
-        # ensure that holdout proportion is at least 2 cells (1 test, 1 val)
+        # ensure that holdout proportion is at least 1 cell (1 test)
         true_holdout_frac = math.ceil(len(adata_st) * holdout_frac) / len(adata_st)
         min_holdout_size = adata_st.obs["sample_id"].value_counts().min()
-        if min_holdout_size * true_holdout_frac < 2:
-            holdout_frac = 2 / min_holdout_size
+        if min_holdout_size * true_holdout_frac < 1:
+            holdout_frac = 1 / min_holdout_size
 
             warnings.warn(
-                "Holdout proportion too small. Increasing to 2 cells per sample.\n"
-                "Using train/val/test split of "
-                f"{1 - holdout_frac}/{holdout_frac/2}/{holdout_frac/2}.",
+                "Holdout proportion too small. Increasing to 1 cells per sample.\n"
+                "Using train/test split of "
+                f"{1 - holdout_frac}/{holdout_frac}.",
                 UserWarning,
             )
 
-        adata_st_train, adata_st_val = model_selection.train_test_split(
+        adata_st_train, adata_st_test = model_selection.train_test_split(
             adata_st,
             test_size=holdout_frac,
             random_state=rng_integers(2**32),
             # stratify=data_processing.safe_stratify(adata_st.obs["sample_id"]),
             stratify=adata_st.obs["sample_id"],
         )
-        adata_st_val, adata_st_test = model_selection.train_test_split(
-            adata_st_val,
-            test_size=0.5,
-            random_state=rng_integers(2**32),
-            # stratify=data_processing.safe_stratify(adata_st_val.obs["sample_id"]),
-            stratify=adata_st_val.obs["sample_id"],
-        )
+        # adata_st_val, adata_st_test = model_selection.train_test_split(
+        #     adata_st_val,
+        #     test_size=0.5,
+        #     random_state=rng_integers(2**32),
+        #     # stratify=data_processing.safe_stratify(adata_st_val.obs["sample_id"]),
+        #     stratify=adata_st_val.obs["sample_id"],
+        # )
         adata_st = ad.concat(
-            [adata_st_train, adata_st_val, adata_st_test],
+            [adata_st_train, adata_st_test],
             label="split",
-            keys=["train", "val", "test"],
+            keys=["train", "test"],
         )
         adata_st.obs.insert(0, "split", adata_st.obs.pop("split"))
 
@@ -502,7 +502,7 @@ def split_st(selected_dir, stsplit=False, samp_split=False, rng=None):
         for sid in st_sample_id_l:
             # get split column for this sample
             samp_to_split = adata_st.obs["split"][adata_st.obs["sample_id"] == sid]
-            for split in data_loading.SPLITS:
+            for split in ["train", "test"]:
                 # get split for sample and accumulate
                 samp_splits_l.append(samp_to_split[samp_to_split == split])
 
@@ -559,9 +559,9 @@ def log_scale_st(selected_dir, scaler_name, stsplit=False, samp_split=False, one
     adata_st.X = adata_st.X.toarray()
 
     if samp_split or (stsplit and one_model):
-        adata_splits = (adata_st[adata_st.obs["split"] == split].X for split in data_loading.SPLITS)
+        adata_splits = (adata_st[adata_st.obs["split"] == split].X for split in ("train", "test"))
         scaled = scale(scaler, *(adata_split for adata_split in adata_splits))
-        for split, scaled_split in zip(data_loading.SPLITS, scaled):
+        for split, scaled_split in zip(("train", "test"), scaled):
             adata_st[adata_st.obs["split"] == split].X = scaled_split
 
     elif one_model:
@@ -571,7 +571,7 @@ def log_scale_st(selected_dir, scaler_name, stsplit=False, samp_split=False, one
             adata_samp = adata_st[adata_st.obs["sample_id"] == sample_id]
             if stsplit:
                 adata_splits = (
-                    adata_samp[adata_samp.obs["split"] == split].X for split in data_loading.SPLITS
+                    adata_samp[adata_samp.obs["split"] == split].X for split in ("train", "test")
                 )
             else:
                 # easy len 1 generator
@@ -580,7 +580,7 @@ def log_scale_st(selected_dir, scaler_name, stsplit=False, samp_split=False, one
             scaled = scale(scaler, *adata_splits)
 
             # if not stplit scaled is len 1 and zip will quit after "train"
-            for split, scaled_split in zip(data_loading.SPLITS, scaled):
+            for split, scaled_split in zip(("train", "test"), scaled):
                 adata_st[
                     (adata_st.obs["split"] == split) & (adata_st.obs["sample_id"] == sample_id)
                 ].X = scaled_split
