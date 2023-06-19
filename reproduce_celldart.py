@@ -709,7 +709,7 @@ def train_adversarial(
             model.source_encoder.load_state_dict(source_encoder_weights, strict=False)
 
             # Save checkpoint every 100
-            if (iters % 1000 == 99 or iters >= n_iter - 1) and checkpoints:
+            if (iters % 1000 == 999 or iters >= n_iter - 1) and checkpoints:
                 torch.save(
                     {"model": model.state_dict()},
                     os.path.join(save_folder, f"checkpt-{iters}.pth"),

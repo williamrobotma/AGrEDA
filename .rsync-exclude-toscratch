@@ -28,3 +28,4 @@ data/*.zip
 logs/
 model/**/checkpt*.pth
 results/
+archive/

@@ -6,3 +6,4 @@ __pycache__/
 .vscode/
 configs/generated/
 data/preprocessed/
+archive/
