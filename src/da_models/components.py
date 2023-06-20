@@ -15,7 +15,8 @@ ADDA_ENC_HIDDEN_LAYER_SIZES = (
 def get_act_from_str(act):
     """Get activation function module from string.
 
-    If act is not a string, or doesn't match, return act.
+    If act is not a string or None, or doesn't match, return act. If None,
+    return identity function.
 
     Args:
         act (str or nn.Module): Activation function.
@@ -24,6 +25,8 @@ def get_act_from_str(act):
         nn.Module: Activation function module or act if not a string.
 
     """
+    if act is None:
+        return nn.Identity()
     if isinstance(act, str):
         act = act.lower()
         if act == "elu":
