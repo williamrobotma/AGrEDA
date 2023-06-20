@@ -2,7 +2,7 @@
 
 from torch import nn
 
-from src.da_models.components import MLP
+from src.da_models.components import MLP, get_act_from_str
 
 ENC_HIDDEN_LAYER_SIZES = (
     1024,
@@ -34,40 +34,51 @@ class CORAL(nn.Module):
     def __init__(
         self,
         inp_dim,
-        # emb_dim,
+        emb_dim,
         ncls_source,
         enc_hidden_layer_sizes=ENC_HIDDEN_LAYER_SIZES,
-        # enc_out_act="elu",
-        # predictor_hidden_layer_sizes=PREDICTOR_HIDDEN_LAYER_SIZES,
+        enc_out_act=False,
+        use_predictor=False,
+        predictor_hidden_layer_sizes=PREDICTOR_HIDDEN_LAYER_SIZES,
         **kwargs
     ):
         super().__init__()
+
+        if not emb_dim:
+            emb_dim = ncls_source
         self.encoder = MLP(
-            inp_dim,
-            ncls_source,
-            hidden_layer_sizes=enc_hidden_layer_sizes,
-            output_act=None,
-            **kwargs
+            inp_dim, emb_dim, hidden_layer_sizes=enc_hidden_layer_sizes, output_act=None, **kwargs
         )
         self.source_encoder = self.target_encoder = self.encoder
 
-        # self.clf = MLP(
-        #     emb_dim,
-        #     ncls_source,
-        #     hidden_layer_sizes=predictor_hidden_layer_sizes,
-        #     output_act=None,
-        #     **kwargs
-        # )
+        if enc_out_act:
+            self.encoder_output_act = get_act_from_str(kwargs.get("hidden_act"))
+        else:
+            self.encoder_output_act = nn.Identity()
+
+        if use_predictor:
+            self.clf = MLP(
+                emb_dim,
+                ncls_source,
+                hidden_layer_sizes=predictor_hidden_layer_sizes,
+                output_act=None,
+                **kwargs
+            )
+        else:
+            self.clf = nn.Identity()
 
         self.output_act = nn.LogSoftmax(dim=1)
 
     def forward(self, x):
-        x = self.encoder(x)
-        # x = self.clf(x)
+        xl = []
 
-        output = self.output_act(x)
+        xl.append(self.encoder(x))
+        x = self.encoder_output_act(xl[-1])
 
-        return output, x
+        xl.append(self.clf(x))
+        x = self.output_act(xl[-1])
+
+        return x, xl
 
     def pretraining(self):
         pass
