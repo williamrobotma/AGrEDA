@@ -22,6 +22,7 @@ model_params:
     hidden_act: leakyrelu
     emb_dim: 64
     enc_out_act: leakyrelu
+    use_predictor: true
     predictor_hidden_layer_sizes: null
   model_version: coral_spotless
 lib_params:
