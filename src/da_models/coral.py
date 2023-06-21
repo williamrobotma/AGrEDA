@@ -37,7 +37,7 @@ class CORAL(nn.Module):
         emb_dim,
         ncls_source,
         enc_hidden_layer_sizes=ENC_HIDDEN_LAYER_SIZES,
-        enc_out_act="elu",
+        enc_out_act=False,
         use_predictor=False,
         predictor_hidden_layer_sizes=PREDICTOR_HIDDEN_LAYER_SIZES,
         **kwargs
@@ -47,15 +47,14 @@ class CORAL(nn.Module):
         if not emb_dim:
             emb_dim = ncls_source
         self.encoder = MLP(
-            inp_dim,
-            emb_dim,
-            hidden_layer_sizes=enc_hidden_layer_sizes,
-            output_act=None,
-            **kwargs
+            inp_dim, emb_dim, hidden_layer_sizes=enc_hidden_layer_sizes, output_act=None, **kwargs
         )
         self.source_encoder = self.target_encoder = self.encoder
 
-        self.encoder_output_act = get_act_from_str(enc_out_act)
+        if enc_out_act:
+            self.encoder_output_act = get_act_from_str(kwargs.get("hidden_act"))
+        else:
+            self.encoder_output_act = nn.Identity()
 
         if use_predictor:
             self.clf = MLP(

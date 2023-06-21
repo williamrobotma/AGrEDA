@@ -64,10 +64,10 @@ class DANN(nn.Module):
         ncls_source,
         enc_hidden_layer_sizes=ENC_HIDDEN_LAYER_SIZES,
         enc_hidden_act="leakyrelu",
-        enc_out_act="elu",
+        enc_out_act=True,
         predictor_hidden_layer_sizes=PREDICTOR_HIDDEN_LAYER_SIZES,
         predictor_hidden_act="leakyrelu",
-        dis_hidden_layer_sizes=DIS_HIDDEN_LAYER_SIZES,
+        dis_hidden_layer_sizes=None,
         dis_hidden_act="leakyrelu",
         dropout=0.5,
         dis_dropout_factor=1,
@@ -83,6 +83,11 @@ class DANN(nn.Module):
         # self.dis = DannDiscriminator(emb_dim, **kwargs)
         # self.clf = DannPredictor(emb_dim, ncls_source, **kwargs)
         common_kwargs = dict(batchnorm=batchnorm, bn_kwargs={"momentum": bn_momentum}, **kwargs)
+        if dis_hidden_layer_sizes is None:
+            dis_hidden_layer_sizes = list(reversed(enc_hidden_layer_sizes))
+        if enc_out_act:
+            enc_out_act = enc_hidden_act
+
         self.encoder = MLP(
             inp_dim,
             emb_dim,
