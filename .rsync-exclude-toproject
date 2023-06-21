@@ -5,5 +5,5 @@ __pycache__/
 .git/
 .vscode/
 configs/generated/
-data/preprocessed/
+data/**/preprocessed/
 archive/

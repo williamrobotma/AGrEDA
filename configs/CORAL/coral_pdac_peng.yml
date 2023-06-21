@@ -18,8 +18,10 @@ model_params:
     enc_hidden_layer_sizes:
       - 1024
       - 512
-      - 64
     hidden_act: leakyrelu
+    emb_dim: 64
+    enc_out_act: leakyrelu
+    predictor_hidden_layer_sizes: null
   model_version: coral_pdac
 lib_params:
   manual_seed: 345678
