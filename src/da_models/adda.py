@@ -34,7 +34,7 @@ class ADDAST(nn.Module):
 
     """
 
-    def __init__(self, inp_dim, emb_dim, ncls_source, bn_momentum=0.99, is_adda=False):
+    def __init__(self, inp_dim, emb_dim=64, ncls_source=33, bn_momentum=0.99, is_adda=False):
         super().__init__()
 
         clf_args = (emb_dim, ncls_source)

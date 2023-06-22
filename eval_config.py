@@ -5,6 +5,8 @@ import argparse
 import datetime
 import logging
 
+import torch
+
 from src.da_models.model_utils.utils import get_metric_ctp
 from src.da_utils.evaluator import Evaluator
 
@@ -18,6 +20,8 @@ metric_ctp = get_metric_ctp("cos")
 
 
 def main(args):
+    torch.set_num_threads(args.njobs)
+
     evaluator = Evaluator(vars(args), metric_ctp)
     evaluator.eval_spots()
     evaluator.evaluate_embeddings()

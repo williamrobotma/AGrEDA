@@ -29,3 +29,4 @@ logs/
 model/**/checkpt*.pth
 results/
 archive/
+*.code-workspace

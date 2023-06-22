@@ -53,6 +53,7 @@ parser.add_argument(
 parser.add_argument("--cuda", "-c", default=None, help="gpu index to use")
 parser.add_argument("--tmpdir", "-d", default=None, help="optional temporary model directory")
 parser.add_argument("--log_fname", "-l", default=None, help="optional log file name")
+parser.add_argument("--num_threads", "-t", default=None, help="number of threads to use")
 
 # %%
 args = parser.parse_args()
@@ -62,6 +63,7 @@ CUDA_INDEX = args.cuda
 NUM_WORKERS = args.num_workers
 TMP_DIR = args.tmpdir
 LOG_FNAME = args.log_fname
+NUM_THREADS = args.num_threads
 # CONFIG_FNAME = "celldart1_bnfix.yml"
 # NUM_WORKERS = 0
 # CUDA_INDEX = None
@@ -168,7 +170,8 @@ print(yaml.safe_dump(config))
 
 
 # %%
-
+if NUM_THREADS:
+    torch.set_num_threads(NUM_THREADS)
 
 device = get_torch_device(CUDA_INDEX)
 ModelWrapper.configurate(LibConfig(device, CUDA_INDEX))
