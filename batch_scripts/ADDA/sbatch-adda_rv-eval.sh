@@ -3,16 +3,19 @@
 #SBATCH --account=rrg-aminemad
 #SBATCH --cpus-per-task=32  # Cores proportional to GPUs: 6 on Cedar, 16 on Graham.
 #SBATCH --mem=127500M      
-#SBATCH --time=0-03:00:00
+#SBATCH --time=0-00:30:00
 
-#SBATCH --output=logs/ADDA/generated/gen_v1-eval-%N-%j.out
-# #SBATCH --error=logs/ADDA/generated/gen_v1-%a-%N-%A.out
+#SBATCH --output=logs/ADDA/generated_test/gen_v1-eval-%N-%j.out
+# #SBATCH --error=logs/ADDA/generated_test/gen_v1-%a-%N-%A.out
 
 set -x
 
 start=`date +%s`
 
+export BLIS_NUM_THREADS=1
+export MKL_NUM_THREADS=$SLURM_CPUS_PER_TASK
 export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
+
 # num_workers=$(($SLURM_CPUS_PER_TASK/2))
 
 module load python/3.8
@@ -25,7 +28,7 @@ pip install --no-index -r requirements_cc.txt
 endbuild=`date +%s`
 echo "build time: $(($endbuild-$start))"
 
-./eval_config.py -n "ADDA" -f  "basic_config.yml" -l "log.txt" -cdir "configs/generated" -d "$SLURM_TMPDIR/tmp_model" --test --reverse_val --njobs -1
+./eval_config.py -n "ADDA" -f  "basic_config.yml" -cdir "configs/generated" -d "$SLURM_TMPDIR/tmp_results" --test --reverse_val --njobs -1
 
 end=`date +%s`
 echo "script time: $(($end-$start))"

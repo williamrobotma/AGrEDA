@@ -46,12 +46,14 @@ parser = argparse.ArgumentParser(
     description=("Creating something like CellDART but it actually follows DANN in PyTorch")
 )
 parser.add_argument("--config_fname", "-f", type=str, help="Name of the config file to use")
+parser.add_argument("--configs_dir", "-cdir", type=str, default="configs", help="config dir")
 parser.add_argument(
     "--num_workers", type=int, default=0, help="Number of workers to use for dataloaders."
 )
 parser.add_argument("--cuda", "-c", default=None, help="gpu index to use")
 parser.add_argument("--tmpdir", "-d", default=None, help="optional temporary model directory")
 parser.add_argument("--log_fname", "-l", default=None, help="optional log file name")
+parser.add_argument("--num_threads", "-t", default=None, help="number of threads to use")
 
 # %%
 # CUDA_INDEX = 2
@@ -60,10 +62,12 @@ parser.add_argument("--log_fname", "-l", default=None, help="optional log file n
 
 args = parser.parse_args()
 CONFIG_FNAME = args.config_fname
+CONFIGS_DIR = args.configs_dir
 CUDA_INDEX = args.cuda
 NUM_WORKERS = args.num_workers
 TMP_DIR = args.tmpdir
 LOG_FNAME = args.log_fname
+NUM_THREADS = args.num_threads
 
 # %%
 # lib_params = {}
@@ -153,7 +157,7 @@ MODEL_NAME = "DANN"
 # with open(os.path.join("configs", MODEL_NAME, CONFIG_FNAME), "w") as f:
 #     yaml.safe_dump(config, f)
 
-with open(os.path.join("configs", MODEL_NAME, CONFIG_FNAME), "r") as f:
+with open(os.path.join(CONFIGS_DIR, MODEL_NAME, CONFIG_FNAME), "r") as f:
     config = yaml.safe_load(f)
 
 
@@ -166,6 +170,9 @@ train_params = config["train_params"]
 
 
 # %%
+if NUM_THREADS:
+    torch.set_num_threads(NUM_THREADS)
+
 device = get_torch_device(CUDA_INDEX)
 ModelWrapper.configurate(LibConfig(device, CUDA_INDEX))
 
