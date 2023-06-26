@@ -1,8 +1,7 @@
 #!/bin/bash
 
-#SBATCH --account=rrg-aminemad
 #SBATCH --cpus-per-task=32  # Cores proportional to GPUs: 6 on Cedar, 16 on Graham.
-#SBATCH --mem=127500M      
+#SBATCH --mem=32G  
 #SBATCH --time=0-00:30:00
 
 #SBATCH --output=logs/CellDART/generated_test/gen_v1-eval-%N-%j.out

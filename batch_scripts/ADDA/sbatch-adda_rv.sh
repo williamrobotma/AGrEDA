@@ -1,11 +1,10 @@
 #!/bin/bash
 
-#SBATCH --account=rrg-aminemad
-# #SBATCH --gpus=1 
-#SBATCH --cpus-per-task=64  # Cores proportional to GPUs: 6 on Cedar, 16 on Graham.
+#SBATCH --gpus=1 
+#SBATCH --cpus-per-task=1  # Cores proportional to GPUs: 6 on Cedar, 16 on Graham.
 # #SBATCH --ntasks-per-node=1
-#SBATCH --mem=32G        
-#SBATCH --time=0-25:00:00
+#SBATCH --mem=16G        
+#SBATCH --time=0-10:00:00
 #SBATCH --array=1-996:5
 
 #SBATCH --output=logs/ADDA/generated_test/gen_v1-%a-%N-%A.out
@@ -34,7 +33,7 @@ echo "build time: $(($endbuild-$start))"
 
 for CONFIG_FILE in $CONFIG_FILES; do
     echo "ADDA config file: ${CONFIG_FILE}"
-    ./adda.py -f "${CONFIG_FILE}" -l "log.txt" -cdir "configs/generated" -d "$SLURM_TMPDIR/tmp_model" -t $SLURM_CPUS_PER_TASK
+    ./adda.py -f "${CONFIG_FILE}" -l "log.txt" -cdir "configs/generated" -d "$SLURM_TMPDIR/tmp_model" -t $SLURM_CPUS_PER_TASK --num_workers 1
 done
 
 end=`date +%s`

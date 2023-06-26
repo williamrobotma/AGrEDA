@@ -1,10 +1,9 @@
 #!/bin/bash
 
-#SBATCH --account=rrg-aminemad
-# #SBATCH --gpus=1 
-#SBATCH --cpus-per-task=64  # Cores proportional to GPUs: 6 on Cedar, 16 on Graham.
+#SBATCH --gpus=1 
+#SBATCH --cpus-per-task=1  # Cores proportional to GPUs: 6 on Cedar, 16 on Graham.
 # #SBATCH --ntasks-per-node=1
-#SBATCH --mem=16G             
+#SBATCH --mem=8G             
 #SBATCH --time=0-03:00:00
 #SBATCH --array=1-991:10
 
@@ -33,7 +32,7 @@ echo "build time: $(($endbuild-$start))"
 
 for CONFIG_FILE in $CONFIG_FILES; do
     echo "CORAL config file: ${CONFIG_FILE}"
-    ./coral.py -f "${CONFIG_FILE}" -l "log.txt" -cdir "configs/generated" -d "$SLURM_TMPDIR/tmp_model" -t $SLURM_CPUS_PER_TASK
+    ./coral.py -f "${CONFIG_FILE}" -l "log.txt" -cdir "configs/generated" -d "$SLURM_TMPDIR/tmp_model" -t $SLURM_CPUS_PER_TASK --num_workers 1
 done
 
 end=`date +%s`

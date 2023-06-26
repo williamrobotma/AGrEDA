@@ -37,8 +37,10 @@ SLEEP = 5
 
 
 if __name__ == "__main__":
-    for i in range(1, 1000, 10):
-        cmd = f'sbatch --output="./logs/CellDART/generated/gen_v1-{i}-eval.out" --export=SLURM_ARRAY_TASK_ID={i} ./batch_scripts/CellDART/sbatch-celldart-eval.sh'
+    for i in range(1, 8):
+        if i == 3:
+            continue
+        cmd = f"sbatch batch_scripts/CORAL/try{i}-sbatch-celldart_rv.sh"
         print("Running: " + cmd)
         os.system(cmd)
         sleep(SLEEP)

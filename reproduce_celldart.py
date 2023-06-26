@@ -55,7 +55,7 @@ CUDA_INDEX = args.cuda
 NUM_WORKERS = args.num_workers
 TMP_DIR = args.tmpdir
 LOG_FNAME = args.log_fname
-NUM_THREADS = args.num_threads
+NUM_THREADS = int(args.num_threads) if args.num_threads else None
 
 # CONFIG_FNAME = "celldart1_bnfix.yml"
 # CUDA_INDEX = None
@@ -714,11 +714,12 @@ def train_adversarial(
             model.source_encoder.load_state_dict(source_encoder_weights, strict=False)
 
             # Save checkpoint every 100
-            if (iters % 1000 == 999 or iters >= n_iter - 1) and checkpoints:
-                torch.save(
-                    {"model": model.state_dict()},
-                    os.path.join(save_folder, f"checkpt-{iters}.pth"),
-                )
+            if iters % 1000 == 999 or iters >= n_iter - 1:
+                if checkpoints:
+                    torch.save(
+                        {"model": model.state_dict()},
+                        os.path.join(save_folder, f"checkpt-{iters}.pth"),
+                    )
 
                 model.eval()
                 source_loss = compute_acc(dataloader_source_train_eval, model)
