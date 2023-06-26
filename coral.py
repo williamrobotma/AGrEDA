@@ -71,7 +71,7 @@ CUDA_INDEX = args.cuda
 NUM_WORKERS = args.num_workers
 TMP_DIR = args.tmpdir
 LOG_FNAME = args.log_fname
-NUM_THREADS = args.num_threads
+NUM_THREADS = int(args.num_threads) if args.num_threads else None
 
 # %%
 # lib_params = {}
@@ -596,7 +596,8 @@ def model_adv_loss(
     for logit_source, logit_target in logits:
         loss_dis.append(criterion_dis(logit_source, logit_target))
 
-    loss = loss_clf + loss_dis[0] * loss_lambdas[0] + loss_dis[1] * loss_lambdas[1]
+    loss_dis = loss_dis[0] * loss_lambdas[0] + loss_dis[1] * loss_lambdas[1]
+    loss = loss_clf + loss_dis
     update_weights(optimizer, loss)
 
     return loss, loss_dis, loss_clf

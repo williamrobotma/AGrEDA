@@ -7,3 +7,7 @@ __pycache__/
 configs/generated/
 data/**/preprocessed/
 archive/
+
+model/
+results/
+logs/

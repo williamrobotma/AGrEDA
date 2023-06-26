@@ -20,7 +20,7 @@ metric_ctp = get_metric_ctp("cos")
 
 
 def main(args):
-    torch.set_num_threads(args.njobs)
+    torch.set_num_threads(int(args.njobs))
 
     evaluator = Evaluator(vars(args), metric_ctp)
     evaluator.eval_spots()

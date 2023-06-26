@@ -1,8 +1,7 @@
 #!/bin/bash
 
-#SBATCH --account=rrg-aminemad
-# #SBATCH --gpus=1 
-#SBATCH --cpus-per-task=64  # Cores proportional to GPUs: 6 on Cedar, 16 on Graham.
+#SBATCH --gpus=1 
+#SBATCH --cpus-per-task=1  # Cores proportional to GPUs: 6 on Cedar, 16 on Graham.
 # #SBATCH --ntasks-per-node=1
 #SBATCH --mem=16G      
 #SBATCH --time=45:00:00
@@ -33,7 +32,7 @@ echo "build time: $(($endbuild-$start))"
 
 for CONFIG_FILE in $CONFIG_FILES; do
     echo "CellDART config file: ${CONFIG_FILE}"
-    ./reproduce_celldart.py -f "${CONFIG_FILE}" -l "log.txt" -cdir "configs/generated" -d "$SLURM_TMPDIR/tmp_model"  -t $SLURM_CPUS_PER_TASK
+    ./reproduce_celldart.py -f "${CONFIG_FILE}" -l "log.txt" -cdir "configs/generated" -d "$SLURM_TMPDIR/tmp_model"  -t $SLURM_CPUS_PER_TASK --num_workers 0
 done
 
 end=`date +%s`
