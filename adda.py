@@ -64,6 +64,7 @@ NUM_WORKERS = args.num_workers
 TMP_DIR = args.tmpdir
 LOG_FNAME = args.log_fname
 NUM_THREADS = int(args.num_threads) if args.num_threads else None
+MIN_EVAL_BS = 512
 # CONFIG_FNAME = "celldart1_bnfix.yml"
 # NUM_WORKERS = 0
 # CUDA_INDEX = None
@@ -231,8 +232,11 @@ sc_mix_d, lab_mix_d, sc_sub_dict, sc_sub_dict2 = data_loading.load_sc(
 # %%
 ### source dataloaders
 source_dataloader_kwargs = dict(
-    num_workers=NUM_WORKERS, pin_memory=True, batch_size=train_params["batch_size"]
+    num_workers=NUM_WORKERS,
+    pin_memory=True,
 )
+alt_bs = max(train_params.get("batch_size", 0), MIN_EVAL_BS)
+
 source_set_d = {}
 dataloader_source_d = {}
 for split in sc_mix_d:
@@ -240,12 +244,14 @@ for split in sc_mix_d:
     dataloader_source_d[split] = torch.utils.data.DataLoader(
         source_set_d[split],
         shuffle=(split == "train"),
+        batch_size=train_params.get("batch_size", MIN_EVAL_BS) if "train" in split else alt_bs,
         **source_dataloader_kwargs,
     )
 if train_params["reverse_val"]:
     dataloader_source_d["train_dis"] = torch.utils.data.DataLoader(
         SpotDataset(deepcopy(sc_mix_d["train"]), deepcopy(lab_mix_d["train"])),
         shuffle=True,
+        batch_size=train_params.get("batch_size", MIN_EVAL_BS),
         **source_dataloader_kwargs,
     )
 
@@ -271,6 +277,7 @@ if data_params.get("samp_split", False) or data_params.get("one_model", False):
         dataloader_target_d[split] = torch.utils.data.DataLoader(
             target_set_d[split],
             shuffle=("train" in split),
+            batch_size=train_params.get("batch_size", MIN_EVAL_BS) if "train" in split else alt_bs,
             **target_dataloader_kwargs,
         )
 else:
@@ -293,6 +300,9 @@ else:
             dataloader_target_d[sample_id][split] = torch.utils.data.DataLoader(
                 target_set_d[sample_id][split],
                 shuffle=("train" in split),
+                batch_size=train_params.get("batch_size", MIN_EVAL_BS)
+                if "train" in split
+                else alt_bs,
                 **target_dataloader_kwargs,
             )
             if split == "train":
@@ -301,6 +311,7 @@ else:
                 dataloader_target_d[sample_id]["train_dis"] = torch.utils.data.DataLoader(
                     target_set_d[sample_id]["train_dis"],
                     shuffle=True,
+                    batch_size=train_params.get("batch_size", MIN_EVAL_BS),
                     **target_dataloader_kwargs,
                 )
 
@@ -997,6 +1008,9 @@ def reverse_val(
             dataloader_target_now_source_d[split] = torch.utils.data.DataLoader(
                 SpotDataset(target_d[split], pred_target_d[split]),
                 shuffle=("train" in split),
+                batch_size=train_params.get("batch_size", MIN_EVAL_BS)
+                if "train" in split
+                else alt_bs,
                 **source_dataloader_kwargs,
             )
 

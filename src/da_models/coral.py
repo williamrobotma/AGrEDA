@@ -40,14 +40,21 @@ class CORAL(nn.Module):
         enc_out_act=False,
         use_predictor=False,
         predictor_hidden_layer_sizes=PREDICTOR_HIDDEN_LAYER_SIZES,
+        bn_momentum=0.1,
         **kwargs
     ):
         super().__init__()
 
+        common_kwargs = dict(bn_kwargs={"momentum": bn_momentum}, **kwargs)
+
         if not emb_dim:
             emb_dim = ncls_source
         self.encoder = MLP(
-            inp_dim, emb_dim, hidden_layer_sizes=enc_hidden_layer_sizes, output_act=None, **kwargs
+            inp_dim,
+            emb_dim,
+            hidden_layer_sizes=enc_hidden_layer_sizes,
+            output_act=None,
+            **common_kwargs
         )
         self.source_encoder = self.target_encoder = self.encoder
 
