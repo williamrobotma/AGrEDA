@@ -6,22 +6,17 @@ import datetime
 import logging
 
 import torch
+from joblib import effective_n_jobs
 
 from src.da_models.model_utils.utils import get_metric_ctp
 from src.da_utils.evaluator import Evaluator
 
-# self.args_dict['modelname'] = self.args_dict['modelname
-# self.args_dict['milisi'] = self.args_dict['milisi
-
 
 metric_ctp = get_metric_ctp("cos")
 
-# device = get_torch_device(self.args_dict['cuda)
-
 
 def main(args):
-    torch.set_num_threads(int(args.njobs))
-
+    torch.set_num_threads(effective_n_jobs(int(args.njobs)))
     evaluator = Evaluator(vars(args), metric_ctp)
     evaluator.eval_spots()
     evaluator.evaluate_embeddings()
