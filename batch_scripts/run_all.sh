@@ -1,31 +1,19 @@
 #!/usr/bin/env bash
 
-# ./prep_data.py --njobs -1
-# ./prep_data.py -s standard  --njobs -1
-# ./prep_data.py -s standard -a  --njobs -1
-# ./prep_data.py -s standard --stsplit  --njobs -1
-# ./prep_data.py -s standard -a --stsplit  --njobs -1
-# ./prep_data.py --njobs -1 --nspots 100000
-# ./prep_data.py -s standard  --njobs -1 --nspots 100000
-# ./prep_data.py -s standard -a  --njobs -1 --nspots 100000
-# ./prep_data.py -s standard --stsplit  --njobs -1 --nspots 100000
-# ./prep_data.py -s standard -a --stsplit --njobs -1 --nspots 100000
+set -x
 
-# nohup ./run_dann.sh > run_dann.log &
-# nohup ./run_dann_celldart.sh > run_dann_celldart.log &
-# nohup ./run_dann_celldart_nobnfix.sh > run_dann_celldart_nobnfix.log &
+# python -m src.da_utils.scripts.data.preprocessing_spotless
+# python -m src.da_utils.scripts.data.preprocessing_mouse_GSE115746
 
-# ./coral.py -f coral.yml -l "log.txt"
-# ./eval_config.py -n CORAL -f coral.yml --njobs -1 
+# jupyter nbconvert --ExecutePreprocessor.timeout=-1 --to notebook --inplace --execute gen_configs_spotless_celldart.ipynb
+# jupyter nbconvert --ExecutePreprocessor.timeout=-1 --to notebook --inplace --execute gen_configs_spotless_adda.ipynb
 
-# ./coral.py -f coral_pdac.yml -l "log.txt"
-# ./eval_config.py -n CORAL -f coral_pdac.yml --njobs -1
+# jupyter nbconvert --ExecutePreprocessor.timeout=-1 --to notebook --inplace --execute gen_configs_spotless_dann.ipynb
+# jupyter nbconvert --ExecutePreprocessor.timeout=-1 --to notebook --inplace --execute gen_configs_spotless_coral.ipynb
 
-# python -u adda.py -f "standard_bnfix_adam_beta1_5.yml" -l "log.txt"
-# python -u eval_config.py -n "ADDA" -f "standard_bnfix_adam_beta1_5.yml" --njobs -1
+# ./batch_scripts/run_prep.sh
 
-# python -u reproduce_celldart.py -f "bnfix_minmax.yml" -l "log.txt"
-# python -u eval_config.py -n "CellDART" -f "bnfix_minmax.yml" --njobs -1
-
-python -u dann.py -f "dann_legacy.yml" -l "log.txt"
-python -u eval_config.py -n "DANN" -f "dann_legacy.yml" --njobs -1 
+nohup ./batch_scripts/CellDART/run_CellDART-spotless.sh &> logs/CellDART/generated_spotless/run.out &
+nohup ./batch_scripts/ADDA/run_adda-spotless.sh &> logs/ADDA/generated_spotless/run.out &
+# nohup ./batch_scripts/CORAL/run_coral-spotless.sh &> logs/CORAL/generated_spotless/run.out &
+nohup ./batch_scripts/DANN/run_dann-spotless.sh &> logs/DANN/generated_spotless/run.out &
