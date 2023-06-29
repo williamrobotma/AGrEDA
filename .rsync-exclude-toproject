@@ -4,7 +4,7 @@ wheels/
 __pycache__/
 .git/
 .vscode/
-configs/generated/
+configs/generated*/
 data/**/preprocessed/
 archive/
 
