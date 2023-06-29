@@ -8,9 +8,9 @@
 #SBATCH --cpus-per-task=24  # Cores proportional to GPUs: 6 on Cedar, 16 on Graham.
 #SBATCH --mem=32G        
 #SBATCH --time=1:00:00
-#SBATCH --array=5,10,20,40,80
+# #SBATCH --array=5,10,20,40,80
 
-#SBATCH --output=logs/prep-nmarkers%a-%N-%A.out
+#SBATCH --output=logs/prep%N-%j.out
 # #SBATCH --error=logs/prep%N-%j.err
 
 set -x
@@ -42,19 +42,19 @@ pip install --no-index -r requirements_cc.txt
 # ./prep_data.py -s standard --dset pdac --st_id GSE111672 --sc_id GSE111672 --nmix 50 --stsplit --one_model --nmarkers $SLURM_ARRAY_TASK_ID
 # ./prep_data.py -s standard --dset pdac --st_id GSE111672 --sc_id CA001063 --nmix 50 --stsplit --one_model --nmarkers $SLURM_ARRAY_TASK_ID
 
-# for n in 5 10 20 40 80
-# do
-for m in 5 8 10 15 20
+for n in 5 10 20 40 80
 do
-    ./prep_data.py -s standard --dset dlpfc --st_id spatialLIBD --sc_id GSE144136 --nmix $m --samp_split --nmarkers $SLURM_ARRAY_TASK_ID
+    for m in 3 5 8
+    do
+        ./prep_data.py -s standard --dset dlpfc --st_id spatialLIBD --sc_id GSE144136 --nmix $m --samp_split --nmarkers $n
 
-    ./prep_data.py -s minmax --dset dlpfc --st_id spatialLIBD --sc_id GSE144136 --nmix $m --samp_split --nmarkers $SLURM_ARRAY_TASK_ID
+        ./prep_data.py -s minmax --dset dlpfc --st_id spatialLIBD --sc_id GSE144136 --nmix $m --samp_split --nmarkers $n
 
-    ./prep_data.py -s standard --dset mouse_cortex --st_id spotless_mouse_cortex --sc_id GSE115746 --nmix $m --samp_split --nmarkers $SLURM_ARRAY_TASK_ID
-    ./prep_data.py -s minmax --dset mouse_cortex --st_id spotless_mouse_cortex --sc_id GSE115746 --nmix $m --samp_split --nmarkers $SLURM_ARRAY_TASK_ID
+        # ./prep_data.py -s standard --dset mouse_cortex --st_id spotless_mouse_cortex --sc_id GSE115746 --nmix $m --samp_split --nmarkers $SLURM_ARRAY_TASK_ID
+        # ./prep_data.py -s minmax --dset mouse_cortex --st_id spotless_mouse_cortex --sc_id GSE115746 --nmix $m --samp_split --nmarkers $SLURM_ARRAY_TASK_ID
 
+    done
 done
-# done
 # ./prep_data.py -s standard --dset mouse_cortex --st_id spotless_mouse_cortex --sc_id GSE115746 --nmix 10 --nmarkers $SLURM_ARRAY_TASK_ID
 # ./prep_data.py -s standard --dset mouse_cortex --st_id spotless_mouse_cortex --sc_id GSE115746 --nmix 10 --samp_split --nmarkers $SLURM_ARRAY_TASK_ID
 # ./prep_data.py -s standard --dset mouse_cortex --st_id spotless_mouse_cortex --sc_id GSE115746 --nmix 10 --stsplit --nmarkers $SLURM_ARRAY_TASK_ID
