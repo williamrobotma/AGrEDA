@@ -1172,3 +1172,5 @@ with open(os.path.join(model_folder, "config.yml"), "w") as f:
     yaml.safe_dump(config, f)
 
 temp_folder_holder.copy_out()
+
+tqdm.write(f"Script run time: {datetime.datetime.now(datetime.timezone.utc) - script_start_time}")
