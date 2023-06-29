@@ -4,19 +4,18 @@
 #SBATCH --gpus=1 
 #SBATCH --cpus-per-task=1  # Cores proportional to GPUs: 6 on Cedar, 16 on Graham.
 #SBATCH --mem=16G      
-#SBATCH --time=0-06:00:00
+#SBATCH --time=0-02:00:00
 #SBATCH --array=1-991:10
 
-#SBATCH --output=logs/ADDA/generated/gen_v1-%a-%N-%A.out
-#SBATCH --error=logs/ADDA/generated/gen_v1-%a-%N-%A.err
+#SBATCH --output=logs/CellDART/generated_spotless/gen_v1-%a-%N-%A.out
+#SBATCH --error=logs/CellDART/generated_spotless/gen_v1-%a-%N-%A.err
 
 set -x
 
 start=`date +%s`
 
-CONFIG_FILES=$(sed -n "${SLURM_ARRAY_TASK_ID},$(($SLURM_ARRAY_TASK_ID+9))p" configs/generated/ADDA/a_list.txt)
+CONFIG_FILES=$(sed -n "${SLURM_ARRAY_TASK_ID},$(($SLURM_ARRAY_TASK_ID+9))p" configs/generated_spotless/CellDART/a_list.txt)
 export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
-num_workers=$(($SLURM_CPUS_PER_TASK/2))
 
 module load python/3.8
 virtualenv --no-download $SLURM_TMPDIR/env
@@ -30,12 +29,12 @@ echo "build time: $(($endbuild-$start))"
 
 for config_file in $CONFIG_FILES;
 do
-    echo "ADDA config file: ${config_file}"
-    ./adda.py -f "${config_file}" -l "log.txt" -cdir "configs/generated" -d "$SLURM_TMPDIR/tmp_model"
+    echo "CellDART config file no. ${n}: ${config_file}"
+    ./reproduce_celldart.py -f "${config_file}" -l "log.txt" -cdir "configs/generated_spotless" -d "$SLURM_TMPDIR/tmp_model"
 done
 
 echo "running eval"
-sbatch --output="./logs/ADDA/generated/gen_v1-${SLURM_ARRAY_TASK_ID}-eval.out" --export=SLURM_ARRAY_TASK_ID ./batch_scripts/ADDA/sbatch-adda_ht-eval.sh
+sbatch --output="./logs/CellDART/generated_spotless/gen_v1-${SLURM_ARRAY_TASK_ID}-eval.out" --export=SLURM_ARRAY_TASK_ID ./batch_scripts/CellDART/sbatch-celldart-ht-spotless-eval.sh
 
 end=`date +%s`
 echo "script time: $(($end-$start))" 
