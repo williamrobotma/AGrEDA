@@ -23,6 +23,7 @@ virtualenv --no-download $SLURM_TMPDIR/env
 source $SLURM_TMPDIR/env/bin/activate
 pip install --no-index --upgrade pip
 pip install --no-index -r requirements_cc.txt
+# ./gen_venv_cc.sh
 # source .venv/bin/activate
 
 # if ["$SLURM_ARRAY_TASK_ID" == "5"]; then
