@@ -831,7 +831,7 @@ def plot_results(save_folder, results_history_out=None):
         linewidth=0.5,
     )
     axs[0].plot(results_history_val["dis"]["loss"], label="validation")
-    axs[1].axvline(best_epoch, color="tab:green")
+    axs[0].axvline(best_epoch, color="tab:green")
 
     axs[0].set_ylim(bottom=0, top=max(results_history_val["dis"]["loss"]))
     axs[0].grid(which="major")
