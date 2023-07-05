@@ -2,7 +2,7 @@
 
 #SBATCH --account=rrg-aminemad
 #SBATCH --cpus-per-task=1  # Cores proportional to GPUs: 6 on Cedar, 16 on Graham.
-#SBATCH --mem=32G      
+#SBATCH --mem=16G      
 #SBATCH --time=0-03:00:00
 
 # #SBATCH --output=logs/DANN/generated_spotless/gen_v1-%a-eval-%N-%A.out
@@ -29,7 +29,7 @@ echo "build time: $(($endbuild-$start))"
 for config_file in $CONFIG_FILES;
 do
     echo "DANN config file no. ${n}: ${config_file}"
-    ./eval_config.py -n DANN -f "${config_file}" -cdir "configs/generated_spotless" --early_stopping --njobs=$SLURM_CPUS_PER_TASK -d "$SLURM_TMPDIR/tmp_results"
+    ./eval_config.py -n DANN -f "${config_file}" -cdir "configs/generated_spotless" --early_stopping -m --njobs=$SLURM_CPUS_PER_TASK -d "$SLURM_TMPDIR/tmp_results"
 done
 
 end=`date +%s`
