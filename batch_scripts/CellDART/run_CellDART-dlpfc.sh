@@ -2,7 +2,7 @@
 
 start=`date +%s`
 
-for n in {44..57}; do
+for n in {1..100}; do
 
     CONFIG_FILE=$(sed -n "${n}p" configs/generated_dlpfc/CellDART/a_list.txt)
     echo "CellDART config file no. ${n}: ${CONFIG_FILE}"
