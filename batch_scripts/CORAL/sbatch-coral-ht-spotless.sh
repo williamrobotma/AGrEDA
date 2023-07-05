@@ -30,7 +30,7 @@ echo "build time: $(($endbuild-$start))"
 for config_file in $CONFIG_FILES;
 do
     echo "CORAL config file no. ${n}: ${config_file}"
-    ./adda.py -f "${config_file}" -l "log.txt" -cdir "configs/generated_spotless" -d "$SLURM_TMPDIR/tmp_model"
+    ./coral.py -f "${config_file}" -l "log.txt" -cdir "configs/generated_spotless" -d "$SLURM_TMPDIR/tmp_model"
 done
 
 echo "running eval"

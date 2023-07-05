@@ -4,8 +4,9 @@
 #SBATCH --cpus-per-task=1  # Cores proportional to GPUs: 6 on Cedar, 16 on Graham.
 #SBATCH --mem=32G      
 #SBATCH --time=0-03:00:00
+#SBATCH --array=1-991:100
 
-# #SBATCH --output=logs/CORAL/generated_spotless/gen_v1-%a-eval-%N-%A.out
+#SBATCH --output="./logs/CORAL/generated_spotless/gen_v1-%a-eval.out"
 # #SBATCH --error=logs/CORAL/generated_spotless/gen_v1-%a-%N-%A.out
 
 set -x
@@ -29,7 +30,7 @@ echo "build time: $(($endbuild-$start))"
 for config_file in $CONFIG_FILES;
 do
     echo "CORAL config file no. ${n}: ${config_file}"
-    ./eval_config.py -n CORAL -f "${config_file}" -cdir "configs/generated_spotless" --early_stopping --njobs=$SLURM_CPUS_PER_TASK -d "$SLURM_TMPDIR/tmp_results"
+    ./eval_config.py -n CORAL -f "${config_file}" -cdir "configs/generated_spotless" --njobs=$SLURM_CPUS_PER_TASK -d "$SLURM_TMPDIR/tmp_results"
 done
 
 end=`date +%s`
