@@ -1039,8 +1039,8 @@ def reverse_val(
     rv_scores_df.to_csv(os.path.join(save_folder, f"reverse_val_best_epoch.csv"))
 
 
-if data_params.get("samp_split", False) or data_params.get("one_model", False):
-    if "train" in mat_sp_d:
+if data_params.get("samp_split") or data_params.get("one_model"):
+    if data_params.get("samp_split"):
         tqdm.write(f"Adversarial training for slides {mat_sp_d['train'].keys()}: ")
         save_folder = os.path.join(advtrain_folder, "samp_split")
     else:
