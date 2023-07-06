@@ -74,6 +74,7 @@ def main(args):
         selected_dir,
         stsplit=args.stsplit,
         samp_split=args.samp_split,
+        one_model=args.one_model,
         rng=16,
     )
     log_scale_st(
@@ -378,7 +379,7 @@ def log_scale_pseudospots(
     data_loading.save_pseudospots(lab_mix_d, sc_mix_s_d, preprocessed_data_dir, n_mix)
 
 
-def split_st(selected_dir, stsplit=False, samp_split=False, rng=None):
+def split_st(selected_dir, stsplit=False, samp_split=False, one_model=False, rng=None):
     """Split and save spatial data into train, val, and test sets if applicable.
 
     Args:
@@ -509,11 +510,19 @@ def split_st(selected_dir, stsplit=False, samp_split=False, rng=None):
         # concat list of series into one series and use to index adata
         adata_st = adata_st[pd.concat(samp_splits_l, axis="index").index]
 
-    else:
-        adata_st.obs.insert(0, "split", "train")
-        adata_st = adata_st[adata_st.obs.sort_values("sample_id").index]
+        adata_st.obs.insert(0, "sample_id", adata_st.obs.pop("sample_id"))
+        adata_st.write_h5ad(out_path)
 
-    adata_st.obs.insert(0, "sample_id", adata_st.obs.pop("sample_id"))
+        return
+
+    adata_st.obs.insert(0, "split", "train")
+    adata_st = adata_st[adata_st.obs.sort_values("sample_id").index]
+
+    if one_model:
+        adata_st.obs.insert(1, "sample_id", adata_st.obs.pop("sample_id"))
+    else:
+        adata_st.obs.insert(0, "sample_id", adata_st.obs.pop("sample_id"))
+
     adata_st.write_h5ad(out_path)
 
 
