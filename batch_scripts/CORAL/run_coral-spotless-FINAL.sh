@@ -9,18 +9,12 @@ jupyter nbconvert --ExecutePreprocessor.timeout=-1 --to notebook --inplace --exe
 
 CONFIG_FILE="gen_spotless_oracle-124973.yml"
 
+mkdir -p logs/CORAL/generated_spotless
 
 echo "CORAL config file: ${CONFIG_FILE}"
-
-SLURM_TMPDIR="tmp"
-mkdir -p $SLURM_TMPDIR
-python -u coral.py -f "${CONFIG_FILE}" -l "log.txt" -cdir "configs/generated_spotless" -c 2 -d "$SLURM_TMPDIR/tmp_model" 2> logs/CORAL/generated_spotless/training_FINAL.err 1> logs/CORAL/generated_spotless/training_FINAL.out
-rm -rf "$SLURM_TMPDIR"
-
+python -u coral.py -f "${CONFIG_FILE}" -l "log.txt" -cdir "configs/generated_spotless" 2> logs/CORAL/generated_spotless/training_FINAL.err 1> logs/CORAL/generated_spotless/training_FINAL.out
 echo "Evaluating"
-mkdir -p $SLURM_TMPDIR
-./eval_config.py -n CORAL -f "${CONFIG_FILE}" -cdir "configs/generated_spotless" --njobs 32 -c 2 -d "$SLURM_TMPDIR/tmp_results"
-rm -rf "$SLURM_TMPDIR"
+./eval_config.py -n CORAL -f "${CONFIG_FILE}" -cdir "configs/generated_spotless" --njobs 16 -t > logs/CORAL/generated_spotless/eval_FINAL.out
 
 
 end=`date +%s`
