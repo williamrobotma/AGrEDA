@@ -3,62 +3,80 @@
 # %%
 import argparse
 import glob
+import math
 import os
-import yaml
 
 import pandas as pd
+import yaml
+from joblib import Parallel, delayed, effective_n_jobs
 
 from src.da_utils import data_loading
 
-
 # %%
-parser = argparse.ArgumentParser(description="Chooses best result among generated configs.")
-parser.add_argument("--modelname", "-n", type=str, default="ADDA", help="model name")
-# parser.add_argument("--config_fname", "-f", type=str, help="Basic template config file to use")
-parser.add_argument("--configs_dir", "-cdir", type=str, default="configs", help="config dir")
-parser.add_argument(
-    "--early_stopping",
-    "-e",
-    action="store_true",
-    help="evaluate early stopping. Default: False",
-)
 
 
-# %%
-# args = parser.parse_args([
-#     "--modelname=CORAL",
-#     "--configs_dir=configs/generated_spotless/",
-# ])
-args = parser.parse_args()
+def main(args):
+    configs_dir = args.configs_dir
+    model_name = args.modelname
+    early_stopping = args.early_stopping
+    n_jobs = args.njobs
 
-CONFIGS_DIR = args.configs_dir
-MODEL_NAME = args.modelname
-EARLY_STOPPING = args.early_stopping
+    with open(os.path.join(configs_dir, model_name, "a_list.txt"), "r") as f:
+        config_files = f.read().splitlines()
 
+    batch_size = math.ceil(len(config_files) / effective_n_jobs(n_jobs))
+    scores_epochs = Parallel(n_jobs=n_jobs, verbose=1, batch_size=batch_size)(
+        delayed(get_score)(
+            args.results_folder,
+            configs_dir,
+            model_name,
+            early_stopping,
+            config_file,
+        )
+        for config_file in config_files
+    )
 
-# %%
-with open(os.path.join(CONFIGS_DIR, MODEL_NAME, "a_list.txt"), "r") as f:
-    config_files = f.read().splitlines()
+    df = pd.DataFrame.from_records(
+        scores_epochs,
+        columns=["score", "epoch"],
+        index=config_files,
+    )
 
-scores_epochs = []
-for config_file in config_files:
-    with open(os.path.join(CONFIGS_DIR, MODEL_NAME, config_file), "r") as f:
+    with open(os.path.join(configs_dir, model_name, config_files[0]), "r") as f:
+        data_params = yaml.safe_load(f)["data_params"]
+
+    if "spotless" in data_params.get("st_id", "spatialLIBD"):
+        best_config = df["score"].idxmin()  # cos distance
+    else:
+        best_config = df["score"].idxmax()
+
+    print("Best config:", best_config)
+    print(df.loc[best_config])
+
+    with open(os.path.join(configs_dir, model_name, best_config), "r") as f:
         config = yaml.safe_load(f)
+
+    print(yaml.dump(config))
+
+
+def get_score(rdir, configs_dir, model_name, early_stopping, config_file):
+    with open(os.path.join(configs_dir, model_name, config_file), "r") as f:
+        config = yaml.safe_load(f)
+
     lib_params = config["lib_params"]
     data_params = config["data_params"]
     model_params = config["model_params"]
-    train_params = config["train_params"]
 
     lib_seed_path = str(lib_params.get("manual_seed", "random"))
     model_rel_path = data_loading.get_model_rel_path(
-        MODEL_NAME,
+        model_name,
         model_params["model_version"],
         lib_seed_path=lib_seed_path,
         **data_params,
     )
-    results_folder = os.path.join("results", model_rel_path)
+    results_folder = os.path.join(rdir, model_rel_path)
 
-    if EARLY_STOPPING:
+    if early_stopping:
         results_fname = glob.glob(
             os.path.join(results_folder, "results_checkpt-*.csv"),
         )
@@ -76,7 +94,8 @@ for config_file in config_files:
         header=[0, 1, 2],
         index_col=[0, 1, 2],
     )
-    if EARLY_STOPPING:
+
+    if early_stopping:
         after_da_idx = results_df.index.get_level_values(0).unique()
         after_da_idx = [idx for idx in after_da_idx if "After DA" in idx]
         if len(after_da_idx) != 1:
@@ -94,26 +113,34 @@ for config_file in config_files:
         after_da_idx = "After DA (final model)"
         epoch = "final"
 
-    score = results_df.loc[after_da_idx, "Real Spots (Cosine Distance)"].to_numpy().mean()
+    if "spotless" in data_params.get("st_id", ""):
+        score_col = "Real Spots (Cosine Distance)"
+    elif "spatialLIBD" in data_params.get("st_id", ""):
+        score_col = "Real Spots (Mean AUC Ex1-10)"
+    else:
+        score_col = "Real Spots (Mean AUC celltype)"
 
-    scores_epochs.append((score, epoch))
+    score = results_df.loc[after_da_idx, score_col].to_numpy().mean()
+    return score, epoch
 
 
-# %%
-df = pd.DataFrame.from_records(
-    scores_epochs,
-    columns=["score", "epoch"],
-    index=config_files,
-)
-if "spotless" in data_params.get("st_id", "spatialLIBD"):
-    best_config = df["score"].idxmin()  # cos distance
-else:
-    best_config = df["score"].idxmax()
+if __name__ == "__main__":
+    # %%
+    parser = argparse.ArgumentParser(description="Chooses best result among generated configs.")
+    parser.add_argument("--modelname", "-n", type=str, default="ADDA", help="model name")
+    # parser.add_argument("--config_fname", "-f", type=str, help="Basic template config file to use")
+    parser.add_argument("--configs_dir", "-cdir", type=str, default="configs", help="config dir")
+    parser.add_argument(
+        "--early_stopping",
+        "-e",
+        action="store_true",
+        help="evaluate early stopping. Default: False",
+    )
+    parser.add_argument("--results_folder", type=str, default="results", help="results folder")
+    parser.add_argument(
+        "--njobs", type=int, default=-1, help="Number of jobs to use for parallel processing."
+    )
 
-print("Best config:", best_config)
-print(df.loc[best_config])
+    args = parser.parse_args()
 
-with open(os.path.join(CONFIGS_DIR, MODEL_NAME, best_config), "r") as f:
-    config = yaml.safe_load(f)
-
-print(yaml.dump(config))
+    main(args)
