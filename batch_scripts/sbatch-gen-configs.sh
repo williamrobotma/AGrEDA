@@ -4,7 +4,7 @@
 
 #SBATCH --cpus-per-task=1  # Cores proportional to GPUs: 6 on Cedar, 16 on Graham.
 #SBATCH --mem=8G
-#SBATCH --time=0:010:00
+#SBATCH --time=00:10:00
 
 #SBATCH --output=logs/prep-genconfigs-%N-%j.out
 
@@ -23,7 +23,7 @@ source ~/scratch/AGrEDA/.venv/bin/activate
 
 # if ["$SLURM_ARRAY_TASK_ID" == "5"]; then
 
-# jupyter nbconvert --ExecutePreprocessor.timeout=-1 --to notebook --inplace --execute gen_configs_adda.ipynb
-jupyter nbconvert --ExecutePreprocessor.timeout=-1 --to notebook --inplace --execute gen_configs_celldart.ipynb
-jupyter nbconvert --ExecutePreprocessor.timeout=-1 --to notebook --inplace --execute gen_configs_coral.ipynb
-jupyter nbconvert --ExecutePreprocessor.timeout=-1 --to notebook --inplace --execute gen_configs_dann.ipynb
+jupyter nbconvert --ExecutePreprocessor.timeout=-1 --to notebook --inplace --execute gen_configs_pdac_adda.ipynb
+jupyter nbconvert --ExecutePreprocessor.timeout=-1 --to notebook --inplace --execute gen_configs_pdac_celldart.ipynb
+jupyter nbconvert --ExecutePreprocessor.timeout=-1 --to notebook --inplace --execute gen_configs_pdac_coral.ipynb
+jupyter nbconvert --ExecutePreprocessor.timeout=-1 --to notebook --inplace --execute gen_configs_pdac_dann.ipynb
