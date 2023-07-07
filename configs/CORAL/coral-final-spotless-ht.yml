@@ -1,0 +1,39 @@
+data_params:
+  all_genes: false
+  data_dir: data
+  dset: mouse_cortex
+  n_markers: 80
+  n_mix: 5
+  n_spots: 100000
+  samp_split: true
+  sc_id: GSE115746
+  scaler_name: standard
+  st_id: spotless_mouse_cortex
+  st_split: false
+lib_params:
+  manual_seed: 577401088
+model_params:
+  coral_kwargs:
+    batchnorm: true
+    batchnorm_after_act: true
+    bn_momentum: 0.1
+    dropout: 0.1
+    emb_dim: 32
+    enc_hidden_layer_sizes:
+      - 256
+      - 128
+    enc_out_act: false
+    hidden_act: leakyrelu
+    predictor_hidden_layer_sizes: null
+    use_predictor: true
+  model_version: final
+train_params:
+  batch_size: 8
+  epochs: 200
+  lambda:
+    - 0
+    - 100
+  opt_kwargs:
+    lr: 0.0001
+    weight_decay: 0.5
+  reverse_val: false
