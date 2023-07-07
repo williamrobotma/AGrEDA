@@ -1,0 +1,31 @@
+data_params:
+  all_genes: false
+  data_dir: data
+  dset: mouse_cortex
+  n_markers: 80
+  n_mix: 5
+  n_spots: 100000
+  samp_split: true
+  sc_id: GSE115746
+  scaler_name: standard
+  st_id: spotless_mouse_cortex
+  st_split: false
+lib_params:
+  # manual_seed: 1113984013
+  manual_seed: 7
+model_params:
+  adda_kwargs:
+    bn_momentum: 0.1
+    emb_dim: 64
+  model_version: final
+train_params:
+  adam_beta1: 0.5
+  alpha: 5
+  batch_size: 8
+  dis_loop_factor: 5
+  enc_lr: 0.0002
+  epochs: 10
+  initial_train_epochs: 100
+  initial_train_lr: 0.0002
+  pretraining: true
+  reverse_val: false
