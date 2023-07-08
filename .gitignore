@@ -134,9 +134,8 @@ dmypy.json
 
 # data models and results directories
 /data/
-/model/
-/model_cell_dart/
-/results/
+/model*/
+/results*/
 /logs/
 *.zip
 

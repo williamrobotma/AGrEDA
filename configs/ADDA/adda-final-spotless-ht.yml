@@ -24,7 +24,7 @@ train_params:
   batch_size: 8
   dis_loop_factor: 5
   enc_lr: 0.0002
-  epochs: 10
+  epochs: 200
   initial_train_epochs: 100
   initial_train_lr: 0.0002
   pretraining: true
