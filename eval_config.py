@@ -51,6 +51,13 @@ if __name__ == "__main__":
         help="use best model through reverse validation. Will use provided"
         "config file to search across models, then use the one loaded. Default: False",
     )
+    parser.add_argument("--model_dir", default="model", help="model directory")
+    parser.add_argument("--results_dir", default="results", help="results directory")
+    parser.add_argument(
+        "--seed_override",
+        default=None,
+        help="seed to use for torch and numpy; overrides that in config file",
+    )
 
     args = parser.parse_args()
 

@@ -34,7 +34,7 @@ train_params:
   batch_size: 8
   early_stop_crit: 100
   early_stop_crit_adv: 500
-  epochs: 10
+  epochs: 500
   lambda: 1
   min_epochs: 40
   min_epochs_adv: 100

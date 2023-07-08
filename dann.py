@@ -54,13 +54,18 @@ parser.add_argument("--cuda", "-c", default=None, help="gpu index to use")
 parser.add_argument("--tmpdir", "-d", default=None, help="optional temporary model directory")
 parser.add_argument("--log_fname", "-l", default=None, help="optional log file name")
 parser.add_argument("--num_threads", "-t", default=None, help="number of threads to use")
+parser.add_argument("--model_dir", default="model", help="model directory")
+parser.add_argument(
+    "--seed_override",
+    default=None,
+    help="seed to use for torch and numpy; overrides that in config file",
+)
 
 # %%
-# CUDA_INDEX = 2
-# NUM_WORKERS = 4
-# CONFIG_FNAME = "dann.yml"
-
 args = parser.parse_args()
+MODEL_DIR = args.model_dir
+SEED_OVERRIDE = args.seed_override
+
 CONFIG_FNAME = args.config_fname
 CONFIGS_DIR = args.configs_dir
 CUDA_INDEX = args.cuda
@@ -69,6 +74,11 @@ TMP_DIR = args.tmpdir
 LOG_FNAME = args.log_fname
 NUM_THREADS = int(args.num_threads) if args.num_threads else None
 MIN_EVAL_BS = 512
+
+# %%
+# CUDA_INDEX = 2
+# NUM_WORKERS = 4
+# CONFIG_FNAME = "dann.yml"
 
 # %%
 # lib_params = {}
@@ -178,8 +188,12 @@ device = get_torch_device(CUDA_INDEX)
 ModelWrapper.configurate(LibConfig(device, CUDA_INDEX))
 
 # %%
-torch_seed = lib_params.get("manual_seed", int(script_start_time.timestamp()))
-lib_seed_path = str(torch_seed) if "manual_seed" in lib_params else "random"
+if SEED_OVERRIDE is None:
+    torch_seed = lib_params.get("manual_seed", int(script_start_time.timestamp()))
+    lib_seed_path = str(torch_seed) if "manual_seed" in lib_params else "random"
+else:
+    torch_seed = int(SEED_OVERRIDE)
+    lib_seed_path = str(torch_seed)
 
 torch.manual_seed(torch_seed)
 np.random.seed(torch_seed)
@@ -192,7 +206,7 @@ model_folder = data_loading.get_model_rel_path(
     lib_seed_path=lib_seed_path,
     **data_params,
 )
-model_folder = os.path.join("model", model_folder)
+model_folder = os.path.join(MODEL_DIR, model_folder)
 
 temp_folder_holder = TempFolderHolder()
 model_folder = temp_folder_holder.set_output_folder(TMP_DIR, model_folder)
