@@ -7,7 +7,6 @@ __pycache__/
 configs/generated*/
 data/**/preprocessed/
 archive/
+pyvenv.cfg
 
-model/
-results/
 logs/
