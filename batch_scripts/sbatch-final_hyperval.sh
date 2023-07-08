@@ -11,7 +11,7 @@
 set -x
 source .venv/bin/activate
 
-./hyperval_generated.py -n ADDA -cdir configs/generated_spotless -e > logs/ADDA/generated_spotless/final_hyperval.txt
-./hyperval_generated.py -n CellDART -cdir configs/generated_spotless -e > logs/CellDART/generated_spotless/final_hyperval.txt
-./hyperval_generated.py -n DANN -cdir configs/generated_spotless -e > logs/DANN/generated_spotless/final_hyperval.txt
-# ./hyperval_generated.py -n CORAL -cdir configs/generated_spotless > logs/CORAL/generated_spotless/final_hyperval.txt
+./hyperval_generated.py -n ADDA -cdir configs/generated_pdac -e > logs/ADDA/generated_pdac/final_hyperval.txt
+./hyperval_generated.py -n CellDART -cdir configs/generated_pdac -e > logs/CellDART/generated_pdac/final_hyperval.txt
+./hyperval_generated.py -n DANN -cdir configs/generated_pdac -e > logs/DANN/generated_pdac/final_hyperval.txt
+./hyperval_generated.py -n CORAL -cdir configs/generated_pdac > logs/CORAL/generated_pdac/final_hyperval.txt
