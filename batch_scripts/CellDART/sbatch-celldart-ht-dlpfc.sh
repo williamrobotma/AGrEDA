@@ -7,8 +7,8 @@
 #SBATCH --time=0-01:30:00
 #SBATCH --array=1-991:10
 
-#SBATCH --output=logs/CellDART/generated_dlpfc/gen_v1-%a-eval.out
-# #SBATCH --error=logs/CellDART/generated_dlpfc/gen_v1-%a-%N-%A.err
+#SBATCH --output=logs/CellDART/generated_dlpfc/gen_v1-%a-%N-%A.out
+#SBATCH --error=logs/CellDART/generated_dlpfc/gen_v1-%a-%N-%A.err
 
 set -x
 

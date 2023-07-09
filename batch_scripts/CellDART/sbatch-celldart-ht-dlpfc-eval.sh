@@ -1,9 +1,9 @@
 #!/bin/bash
 
 #SBATCH --account=rrg-aminemad
-#SBATCH --cpus-per-task=1  # Cores proportional to GPUs: 6 on Cedar, 16 on Graham.
-#SBATCH --mem=32G      
-#SBATCH --time=0-01:00:00
+#SBATCH --cpus-per-task=8  # Cores proportional to GPUs: 6 on Cedar, 16 on Graham.
+#SBATCH --mem=20G      
+#SBATCH --time=0-01:40:00
 
 # #SBATCH --output=logs/CellDART/generated_dlpfc/gen_v1-%a-eval-%N-%A.out
 # #SBATCH --error=logs/CellDART/generated_dlpfc/gen_v1-%a-%N-%A.out
