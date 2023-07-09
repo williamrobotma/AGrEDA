@@ -34,11 +34,11 @@ for config_file in $CONFIG_FILES;
 do
     echo "DANN config file no. ${n}: ${config_file}"
     ./dann.py -f "${config_file}" -l "log.txt" -cdir "configs/generated_pdac" -d "$SLURM_TMPDIR/tmp_model"
-    # ./eval_config.py -n DANN -f "${config_file}" -cdir "configs/generated_pdac" --early_stopping --njobs=$SLURM_CPUS_PER_TASK -d "$SLURM_TMPDIR/tmp_results"
+    ./eval_config.py -n DANN -f "${config_file}" -cdir "configs/generated_pdac" -m --njobs=$SLURM_CPUS_PER_TASK -d "$SLURM_TMPDIR/tmp_results"
 done
 
-echo "running eval"
-sbatch --output="./logs/DANN/generated_pdac/gen_v1-${SLURM_ARRAY_TASK_ID}-eval.out" --export=SLURM_ARRAY_TASK_ID ./batch_scripts/DANN/sbatch-dann-ht-pdac-eval.sh
+# echo "running eval"
+# sbatch --output="./logs/DANN/generated_pdac/gen_v1-${SLURM_ARRAY_TASK_ID}-eval.out" --export=SLURM_ARRAY_TASK_ID ./batch_scripts/DANN/sbatch-dann-ht-pdac-eval.sh
 
 end=`date +%s`
 echo "script time: $(($end-$start))" 

@@ -4,8 +4,8 @@
 #SBATCH --gpus=1 
 #SBATCH --cpus-per-task=1  # Cores proportional to GPUs: 6 on Cedar, 16 on Graham.
 #SBATCH --mem=16G      
-#SBATCH --time=0-01:30:00
-#SBATCH --array=1-991:10
+#SBATCH --time=0-03:00:00
+#SBATCH --array=1-200:10
 
 #SBATCH --output=logs/ADDA/generated_pdac/gen_v1-%a-%N-%A.out
 #SBATCH --error=logs/ADDA/generated_pdac/gen_v1-%a-%N-%A.err
@@ -32,7 +32,7 @@ for config_file in $CONFIG_FILES;
 do
     echo "ADDA config file no. ${n}: ${config_file}"
     ./adda.py -f "${config_file}" -l "log.txt" -cdir "configs/generated_pdac" -d "$SLURM_TMPDIR/tmp_model"
-    ./eval_config.py -n ADDA -f "${config_file}" -cdir "configs/generated_pdac" --early_stopping --njobs=$SLURM_CPUS_PER_TASK -d "$SLURM_TMPDIR/tmp_results"
+    ./eval_config.py -n ADDA -f "${config_file}" -cdir "configs/generated_pdac" -m --njobs=$SLURM_CPUS_PER_TASK -d "$SLURM_TMPDIR/tmp_results"
 done
 
 echo "running eval"

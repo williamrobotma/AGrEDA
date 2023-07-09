@@ -23,7 +23,7 @@ source ~/scratch/AGrEDA/.venv/bin/activate
 
 # if ["$SLURM_ARRAY_TASK_ID" == "5"]; then
 
-jupyter nbconvert --ExecutePreprocessor.timeout=-1 --to notebook --inplace --execute gen_configs_adda.ipynb
-jupyter nbconvert --ExecutePreprocessor.timeout=-1 --to notebook --inplace --execute gen_configs_celldart.ipynb
-jupyter nbconvert --ExecutePreprocessor.timeout=-1 --to notebook --inplace --execute gen_configs_coral.ipynb
-jupyter nbconvert --ExecutePreprocessor.timeout=-1 --to notebook --inplace --execute gen_configs_dann.ipynb
+jupyter nbconvert --ExecutePreprocessor.timeout=-1 --to notebook --inplace --execute gen_configs_pdac_adda.ipynb
+jupyter nbconvert --ExecutePreprocessor.timeout=-1 --to notebook --inplace --execute gen_configs_pdac_celldart.ipynb
+jupyter nbconvert --ExecutePreprocessor.timeout=-1 --to notebook --inplace --execute gen_configs_pdac_coral.ipynb
+jupyter nbconvert --ExecutePreprocessor.timeout=-1 --to notebook --inplace --execute gen_configs_pdac_dann.ipynb
