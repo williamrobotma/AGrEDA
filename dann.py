@@ -908,7 +908,8 @@ def train_adversarial_iters(
                 better_val_loss and (dis_stable or not dis_stable_found)
             ):
                 best_loss_val = results_history_source_val["clf_loss"][-1]
-                # torch.save(checkpoint, os.path.join(save_folder, f"best_model.pth"))
+                if epoch_override is None:
+                    torch.save(checkpoint, os.path.join(save_folder, f"best_model.pth"))
                 early_stop_count = 0
                 out_string += f"<-- new best {'stable' if dis_stable else 'unstable'} val clf loss"
 
@@ -940,7 +941,8 @@ def train_adversarial_iters(
     inner.close()
     outer.close()
     # Save final model
-    # best_checkpoint = torch.load(os.path.join(save_folder, f"best_model.pth"))
+    if epoch_override is not None:
+        checkpoint = torch.load(os.path.join(save_folder, f"best_model.pth"))
     torch.save(checkpoint, os.path.join(save_folder, f"final_model.pth"))
 
     return (
