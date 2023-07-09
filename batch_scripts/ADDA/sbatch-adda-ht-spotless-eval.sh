@@ -3,7 +3,7 @@
 #SBATCH --account=rrg-aminemad
 #SBATCH --cpus-per-task=1  # Cores proportional to GPUs: 6 on Cedar, 16 on Graham.
 #SBATCH --mem=16G      
-#SBATCH --time=0-06:00:00
+#SBATCH --time=0-00:20:00
 
 # #SBATCH --output=logs/ADDA/generated_spotless/gen_v1-%a-eval-%N-%A.out
 # #SBATCH --error=logs/ADDA/generated_spotless/gen_v1-%a-%N-%A.out
@@ -12,7 +12,7 @@ set -x
 
 start=`date +%s`
 
-CONFIG_FILES=$(sed -n "${SLURM_ARRAY_TASK_ID},$(($SLURM_ARRAY_TASK_ID+99))p" configs/generated_spotless/ADDA/a_list.txt)
+CONFIG_FILES=$(sed -n "${SLURM_ARRAY_TASK_ID},$(($SLURM_ARRAY_TASK_ID+9))p" configs/generated_spotless/ADDA/a_list.txt)
 # export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
 # num_workers=$(($SLURM_CPUS_PER_TASK/2))
 

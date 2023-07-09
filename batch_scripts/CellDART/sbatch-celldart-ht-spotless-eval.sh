@@ -3,7 +3,7 @@
 #SBATCH --account=rrg-aminemad
 #SBATCH --cpus-per-task=1  # Cores proportional to GPUs: 6 on Cedar, 16 on Graham.
 #SBATCH --mem=16G      
-#SBATCH --time=0-00:45:00
+#SBATCH --time=0-00:30:00
 
 # #SBATCH --output=logs/CellDART/generated_spotless/gen_v1-%a-eval-%N-%A.out
 # #SBATCH --error=logs/CellDART/generated_spotless/gen_v1-%a-%N-%A.out

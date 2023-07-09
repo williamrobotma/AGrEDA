@@ -2,8 +2,8 @@
 
 #SBATCH --account=rrg-aminemad
 #SBATCH --cpus-per-task=1  # Cores proportional to GPUs: 6 on Cedar, 16 on Graham.
-#SBATCH --mem=32G      
-#SBATCH --time=0-03:00:00
+#SBATCH --mem=16G      
+#SBATCH --time=0-02:00:00
 #SBATCH --array=1-991:100
 
 #SBATCH --output="./logs/CORAL/generated_spotless/gen_v1-%a-eval.out"
