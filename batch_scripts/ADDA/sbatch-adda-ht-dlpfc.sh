@@ -3,8 +3,8 @@
 #SBATCH --account=rrg-aminemad
 # #SBATCH --gpus=1 
 #SBATCH --cpus-per-task=8  # Cores proportional to GPUs: 6 on Cedar, 16 on Graham.
-#SBATCH --mem=16G      
-#SBATCH --time=0-02:00:00
+#SBATCH --mem=20G      
+#SBATCH --time=0-01:40:00
 #SBATCH --array=1-991:10
 
 #SBATCH --output=logs/ADDA/generated_dlpfc/gen_v1-%a-eval.out
