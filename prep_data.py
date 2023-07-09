@@ -54,7 +54,7 @@ def main(args):
     print("Generating Pseudospots")
     print("-" * 80)
     sc_mix_d, lab_mix_d = gen_pseudo_spots(
-        selected_dir, n_mix=args.nmix, rng=623, n_jobs=args.njobs
+        selected_dir, n_mix=args.nmix, rng=args.ps_seed, n_jobs=args.njobs
     )
 
     print("Log scaling pseudospots")
@@ -66,6 +66,7 @@ def main(args):
         # n_spots=args.nspots,
         sc_mix_d=sc_mix_d,
         lab_mix_d=lab_mix_d,
+        seed_int=-1 if args.ps_seed == 623 else args.ps_seed,
     )
 
     print("Log scaling and maybe splitting spatial data")
@@ -295,11 +296,22 @@ def gen_pseudo_spots(
         Tuple of dictionaries containing the pseudo spots and their labels.
 
     """
+
+    if type(rng) == int:
+        if rng == 623:
+            seed_int = -1
+        else:
+            seed_int = rng
+    else:
+        seed_int = -1
+
     rng_integers = misc.check_integer_rng(rng)
 
     unscaled_data_dir = os.path.join(selected_dir, "unscaled")
     try:
-        sc_mix_d, lab_mix_d = data_loading.load_pseudospots(unscaled_data_dir, n_mix)
+        sc_mix_d, lab_mix_d = data_loading.load_pseudospots(
+            unscaled_data_dir, n_mix, seed_int=seed_int
+        )
         # lab_mix_d["train"][:n_spots]
         print("Unscaled pseudospots already exist. " "Skipping generation and loading from disk.")
         return sc_mix_d, lab_mix_d
@@ -335,7 +347,13 @@ def gen_pseudo_spots(
         os.makedirs(unscaled_data_dir)
 
     print("Saving unscaled pseudospots")
-    data_loading.save_pseudospots(lab_mix_d, sc_mix_d, unscaled_data_dir, n_mix)
+    data_loading.save_pseudospots(
+        lab_mix_d,
+        sc_mix_d,
+        unscaled_data_dir,
+        n_mix,
+        seed_int,
+    )
 
     return sc_mix_d, lab_mix_d
 
@@ -347,6 +365,7 @@ def log_scale_pseudospots(
     # n_spots=data_loading.DEFAULT_N_SPOTS,
     sc_mix_d=None,
     lab_mix_d=None,
+    seed_int=-1,
 ):
     """Log scales the pseudospots.
 
@@ -366,7 +385,9 @@ def log_scale_pseudospots(
 
     if sc_mix_d is None or lab_mix_d is None:
         unscaled_data_dir = os.path.join(selected_dir, "unscaled")
-        sc_mix_d, lab_mix_d = data_loading.load_pseudospots(unscaled_data_dir, n_mix=n_mix)
+        sc_mix_d, lab_mix_d = data_loading.load_pseudospots(
+            unscaled_data_dir, n_mix=n_mix, seed_int=seed_int
+        )
 
     scaled = scale(scaler, *(sc_mix_d[split] for split in data_loading.SPLITS))
     sc_mix_s_d = {split: next(scaled) for split in data_loading.SPLITS}
@@ -376,7 +397,13 @@ def log_scale_pseudospots(
     if not os.path.exists(preprocessed_data_dir):
         os.makedirs(preprocessed_data_dir)
 
-    data_loading.save_pseudospots(lab_mix_d, sc_mix_s_d, preprocessed_data_dir, n_mix)
+    data_loading.save_pseudospots(
+        lab_mix_d,
+        sc_mix_s_d,
+        preprocessed_data_dir,
+        n_mix,
+        seed_int,
+    )
 
 
 def split_st(selected_dir, stsplit=False, samp_split=False, one_model=False, rng=None):
@@ -645,6 +672,9 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--sc_id", type=str, default="GSE144136", help="sc set to use. Default: GSE144136."
+    )
+    parser.add_argument(
+        "--ps_seed", type=int, default=623, help="Seed to use for pseudospot generation."
     )
 
     args = parser.parse_args()

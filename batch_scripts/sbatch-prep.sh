@@ -7,7 +7,7 @@
 # #SBATCH --gpus=1 
 #SBATCH --cpus-per-task=32  # Cores proportional to GPUs: 6 on Cedar, 16 on Graham.
 #SBATCH --mem=32G        
-#SBATCH --time=1:00:00
+#SBATCH --time=1:30:00
 # #SBATCH --time=0:05:00
 # #SBATCH --array=5,10,20,40,80
 

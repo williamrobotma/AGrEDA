@@ -1,0 +1,29 @@
+data_params:
+  all_genes: false
+  data_dir: data
+  dset: pdac
+  n_markers: 80
+  n_mix: 30
+  n_spots: 100000
+  one_model: true
+  samp_split: false
+  sc_id: CA001063
+  scaler_name: minmax
+  st_id: GSE111672
+  st_split: false
+lib_params:
+  manual_seed: 245025975
+model_params:
+  celldart_kwargs:
+    bn_momentum: 0.1
+    emb_dim: 32
+  model_version: gen_pdac-14227
+train_params:
+  alpha: 2.0
+  alpha_lr: 1
+  batch_size: 512
+  initial_train_epochs: 10
+  lr: 0.001
+  n_iter: 10000
+  pretraining: true
+  reverse_val: false

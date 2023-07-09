@@ -52,9 +52,15 @@ parser.add_argument(
     default=None,
     help="seed to use for torch and numpy; overrides that in config file",
 )
+parser.add_argument(
+    "--ps_seed",
+    default=-1,
+    help="specific pseudospot seed to use; default of -1 corresponds to 623",
+)
 
 # %%
 args = parser.parse_args()
+PS_SEED = int(args.ps_seed)
 MODEL_DIR = args.model_dir
 SEED_OVERRIDE = args.seed_override
 CONFIG_FNAME = args.config_fname
@@ -212,6 +218,7 @@ mat_sp_d, mat_sp_meta_d, st_sample_id_l = data_loading.load_spatial(
 # Load sc data
 sc_mix_d, lab_mix_d, sc_sub_dict, sc_sub_dict2 = data_loading.load_sc(
     selected_dir,
+    seed_int=PS_SEED,
     **data_params,
 )
 
@@ -239,6 +246,25 @@ for split in sc_mix_d:
         batch_size=train_params.get("batch_size", MIN_EVAL_BS) if "train" in split else alt_bs,
         **source_dataloader_kwargs,
     )
+
+if train_params.get("batch_size", MIN_EVAL_BS) < MIN_EVAL_BS:
+    source_set_pretrain_d = {}
+    dataloader_source_pretrain_d = {}
+
+    for split in sc_mix_d:
+        source_set_pretrain_d[split] = SpotDataset(
+            deepcopy(sc_mix_d[split]), deepcopy(lab_mix_d[split])
+        )
+        dataloader_source_pretrain_d[split] = torch.utils.data.DataLoader(
+            source_set_pretrain_d[split],
+            shuffle=(split == "train"),
+            batch_size=MIN_EVAL_BS,
+            **source_dataloader_kwargs,
+        )
+else:
+    source_set_pretrain_d = source_set_d
+    dataloader_source_pretrain_d = dataloader_source_d
+
 
 target_dataloader_kwargs = dict(
     num_workers=NUM_WORKERS,
@@ -464,8 +490,8 @@ tqdm.write(repr(model.to(device)))
 pretrain(
     pretrain_folder,
     model,
-    dataloader_source_d["train"],
-    dataloader_source_d["val"],
+    dataloader_source_pretrain_d["train"],
+    dataloader_source_pretrain_d["val"],
 )
 
 
@@ -807,6 +833,17 @@ def reverse_val(
                 else alt_bs,
                 **source_dataloader_kwargs,
             )
+        if train_params.get("batch_size", MIN_EVAL_BS) < MIN_EVAL_BS:
+            dataloader_target_now_pretrain_source_d = {}
+            for split in target_d:
+                dataloader_target_now_pretrain_source_d[split] = torch.utils.data.DataLoader(
+                    SpotDataset(deepcopy(target_d[split]), deepcopy(pred_target_d[split])),
+                    shuffle=("train" in split),
+                    batch_size=MIN_EVAL_BS,
+                    **source_dataloader_kwargs,
+                )
+        else:
+            dataloader_target_now_pretrain_source_d = dataloader_target_now_source_d
 
         model = ADDAST(
             inp_dim=sc_mix_d["train"].shape[1],
@@ -825,8 +862,8 @@ def reverse_val(
         model = pretrain(
             rv_pretrain_folder,
             model,
-            dataloader_target_now_source_d["train"],
-            dataloader_target_now_source_d.get("val", None),
+            dataloader_target_now_pretrain_source_d["train"],
+            dataloader_target_now_pretrain_source_d.get("val", None),
         )
 
         rv_save_folder = os.path.join(save_folder, f"reverse_val-{model_name}")
