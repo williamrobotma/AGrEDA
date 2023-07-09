@@ -4,6 +4,7 @@ __pycache__/
 .ipynb_checkpoints/
 .git/
 wheels/
+configs/generated*/
 data/dlpfc/sc_dlpfc/
 data/dlpfc/spatialLIBD_data/
 data/pdac/GSE111672/
@@ -26,7 +27,7 @@ data/*.xml
 data/*.tar
 data/*.zip
 logs/
-model/**/checkpt*.pth
+model/
 results/
 archive/
 *.code-workspace
