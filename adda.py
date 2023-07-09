@@ -275,6 +275,24 @@ if train_params["reverse_val"]:
         **source_dataloader_kwargs,
     )
 
+if train_params.get("batch_size", MIN_EVAL_BS) < MIN_EVAL_BS:
+    source_set_pretrain_d = {}
+    dataloader_source_pretrain_d = {}
+
+    for split in sc_mix_d:
+        source_set_pretrain_d[split] = SpotDataset(
+            deepcopy(sc_mix_d[split]), deepcopy(lab_mix_d[split])
+        )
+        dataloader_source_pretrain_d[split] = torch.utils.data.DataLoader(
+            source_set_pretrain_d[split],
+            shuffle=(split == "train"),
+            batch_size=MIN_EVAL_BS,
+            **source_dataloader_kwargs,
+        )
+else:
+    source_set_pretrain_d = source_set_d
+    dataloader_source_pretrain_d = dataloader_source_d
+
 ### target dataloaders
 target_dataloader_kwargs = source_dataloader_kwargs
 
@@ -518,8 +536,8 @@ model.to(device)
 pretrain(
     pretrain_folder,
     model,
-    dataloader_source_d["train"],
-    dataloader_source_d["val"],
+    dataloader_source_pretrain_d["train"],
+    dataloader_source_pretrain_d["val"],
 )
 
 
@@ -1033,6 +1051,17 @@ def reverse_val(
                 else alt_bs,
                 **source_dataloader_kwargs,
             )
+        if train_params.get("batch_size", MIN_EVAL_BS) < MIN_EVAL_BS:
+            dataloader_target_now_pretrain_source_d = {}
+            for split in target_d:
+                dataloader_target_now_pretrain_source_d[split] = torch.utils.data.DataLoader(
+                    SpotDataset(deepcopy(target_d[split]), deepcopy(pred_target_d[split])),
+                    shuffle=("train" in split),
+                    batch_size=MIN_EVAL_BS,
+                    **source_dataloader_kwargs,
+                )
+        else:
+            dataloader_target_now_pretrain_source_d = dataloader_target_now_source_d
 
         model = ADDAST(
             inp_dim=sc_mix_d["train"].shape[1],
@@ -1050,8 +1079,8 @@ def reverse_val(
         model = pretrain(
             rv_pretrain_folder,
             model,
-            dataloader_target_now_source_d["train"],
-            dataloader_target_now_source_d.get("val", None),
+            dataloader_target_now_pretrain_source_d["train"],
+            dataloader_target_now_pretrain_source_d.get("val", None),
         )
 
         rv_save_folder = os.path.join(save_folder, f"reverse_val-{model_name}")

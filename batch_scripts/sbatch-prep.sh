@@ -8,6 +8,7 @@
 #SBATCH --cpus-per-task=20  # Cores proportional to GPUs: 6 on Cedar, 16 on Graham.
 #SBATCH --mem=32G        
 #SBATCH --time=1:30:00
+# #SBATCH --time=0:05:00
 # #SBATCH --array=5,10,20,40,80
 
 #SBATCH --output=logs/prep%N-%j.out
@@ -23,14 +24,9 @@ virtualenv --no-download $SLURM_TMPDIR/env
 source $SLURM_TMPDIR/env/bin/activate
 pip install --no-index --upgrade pip
 pip install --no-index -r requirements_cc.txt
-# ./gen_venv_cc.sh
+
 # source .venv/bin/activate
 
-
-mkdir -p ADDA/generated_spotless
-mkdir -p CellDART/generated_spotless
-mkdir -p CORAL/generated_spotless
-mkdir -p DANN/generated_spotless
 
 for n in 20 40 80
 do
@@ -45,6 +41,8 @@ do
 
         # ./prep_data.py -s standard --dset pdac --st_id GSE111672 --sc_id CA001063 --nmix $m --one_model --nmarkers $n --njobs 20
         # ./prep_data.py -s minmax --dset pdac --st_id GSE111672 --sc_id CA001063 --nmix $m --one_model --nmarkers $n --njobs 20
+
+        echo "pass"
 
     done
 done

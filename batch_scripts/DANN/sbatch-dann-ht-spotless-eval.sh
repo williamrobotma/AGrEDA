@@ -29,7 +29,7 @@ echo "build time: $(($endbuild-$start))"
 for config_file in $CONFIG_FILES;
 do
     echo "DANN config file no. ${n}: ${config_file}"
-    ./eval_config.py -n DANN -f "${config_file}" -cdir "configs/generated_spotless" --early_stopping -m --njobs=$SLURM_CPUS_PER_TASK -d "$SLURM_TMPDIR/tmp_results"
+    ./eval_config.py -n DANN -f "${config_file}" -cdir "configs/generated_spotless" -m --njobs=$SLURM_CPUS_PER_TASK -d "$SLURM_TMPDIR/tmp_results"
 done
 
 end=`date +%s`

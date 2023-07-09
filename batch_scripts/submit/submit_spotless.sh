@@ -3,6 +3,11 @@
 set -x
 
 
+mkdir -p logs/ADDA/generated_spotless
+mkdir -p logs/CellDART/generated_spotless
+mkdir -p logs/CORAL/generated_spotless
+mkdir -p logs/DANN/generated_spotless
+
 GENCONFIG_JOBID=$(sbatch "batch_scripts/sbatch-gen-configs.sh" | tr -dc '0-9')
 sleep 5
 PREP_JOBID=$(sbatch "batch_scripts/sbatch-prep.sh" | tr -dc '0-9')

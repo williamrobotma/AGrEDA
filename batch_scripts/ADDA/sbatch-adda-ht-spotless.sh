@@ -4,7 +4,7 @@
 #SBATCH --gpus=1 
 #SBATCH --cpus-per-task=1  # Cores proportional to GPUs: 6 on Cedar, 16 on Graham.
 #SBATCH --mem=16G      
-#SBATCH --time=0-20:00:00
+#SBATCH --time=0-01:30:00
 #SBATCH --array=1-991:10
 
 #SBATCH --output=logs/ADDA/generated_spotless/gen_v1-%a-%N-%A.out
@@ -31,11 +31,11 @@ for config_file in $CONFIG_FILES;
 do
     echo "ADDA config file no. ${n}: ${config_file}"
     ./adda.py -f "${config_file}" -l "log.txt" -cdir "configs/generated_spotless" -d "$SLURM_TMPDIR/tmp_model"
-    # ./eval_config.py -n ADDA -f "${config_file}" -cdir "configs/generated_spotless" --early_stopping --njobs=$SLURM_CPUS_PER_TASK -d "$SLURM_TMPDIR/tmp_results"
+    ./eval_config.py -n ADDA -f "${config_file}" -cdir "configs/generated_spotless" -m --njobs=$SLURM_CPUS_PER_TASK -d "$SLURM_TMPDIR/tmp_results"
 done
 
-echo "running eval"
-sbatch --output="./logs/ADDA/generated_spotless/gen_v1-${SLURM_ARRAY_TASK_ID}-eval.out" --export=SLURM_ARRAY_TASK_ID ./batch_scripts/ADDA/sbatch-adda-ht-spotless-eval.sh
+# echo "running eval"
+# sbatch --output="./logs/ADDA/generated_spotless/gen_v1-${SLURM_ARRAY_TASK_ID}-eval.out" --export=SLURM_ARRAY_TASK_ID ./batch_scripts/ADDA/sbatch-adda-ht-spotless-eval.sh
 
 end=`date +%s`
 echo "script time: $(($end-$start))" 
