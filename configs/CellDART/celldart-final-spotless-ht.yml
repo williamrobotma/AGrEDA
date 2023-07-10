@@ -2,7 +2,7 @@ data_params:
   all_genes: false
   data_dir: data
   dset: mouse_cortex
-  n_markers: 80
+  n_markers: 40
   n_mix: 5
   n_spots: 100000
   samp_split: true
@@ -11,18 +11,18 @@ data_params:
   st_id: spotless_mouse_cortex
   st_split: false
 lib_params:
-  manual_seed: 1693555476
+  manual_seed: 2305369564
 model_params:
   celldart_kwargs:
     bn_momentum: 0.1
     emb_dim: 64
-  model_version: final
+  model_version: gen_spotless_oracle-837
 train_params:
-  alpha: 2.0
-  alpha_lr: 2
+  alpha: 0.6
+  alpha_lr: 10
   batch_size: 8
   initial_train_epochs: 10
   lr: 0.01
-  n_iter: 30000
+  n_iter: 15000
   pretraining: true
   reverse_val: false

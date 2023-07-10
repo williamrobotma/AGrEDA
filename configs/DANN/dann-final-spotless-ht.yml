@@ -11,18 +11,17 @@ data_params:
   st_id: spotless_mouse_cortex
   st_split: false
 lib_params:
-  manual_seed: 3731364301
+  manual_seed: 2791702264
 model_params:
   dann_kwargs:
     alpha_: 1
-    dis_dropout_factor: 1
+    dis_dropout_factor: 0.5
     dropout: 0.2
     emb_dim: 64
     enc_hidden_layer_sizes:
-      - 512
-      - 512
+      - 1024
     enc_out_act: null
-  model_version: final
+  model_version: gen_spotless_oracle-212077
 train_params:
   adv_opt_kwargs:
     betas:
@@ -30,12 +29,12 @@ train_params:
       - 0.999
     eps: 1.0e-07
     lr: 0.002
-    weight_decay: 0.01
+    weight_decay: 0.1
   batch_size: 8
   early_stop_crit: 100
   early_stop_crit_adv: 500
   epochs: 500
-  lambda: 1
+  lambda: 2
   min_epochs: 40
   min_epochs_adv: 100
   plateau_kwargs:
