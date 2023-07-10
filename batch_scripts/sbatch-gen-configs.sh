@@ -3,7 +3,7 @@
 #SBATCH --account=rrg-aminemad
 
 #SBATCH --cpus-per-task=1  # Cores proportional to GPUs: 6 on Cedar, 16 on Graham.
-#SBATCH --mem=8G
+#SBATCH --mem=4G
 #SBATCH --time=00:15:00
 
 #SBATCH --output=logs/prep-genconfigs-%N-%j.out
@@ -19,8 +19,7 @@ set -x
 # pip install --no-index --upgrade pip
 # pip install --no-index -r requirements_cc.txt
 # ./gen_venv_cc.sh
-source ~/scratch/AGrEDA/.venv/bin/activate
-
+source ~/.venv-agreda/bin/activate
 # if ["$SLURM_ARRAY_TASK_ID" == "5"]; then
 
 jupyter nbconvert --ExecutePreprocessor.timeout=-1 --to notebook --inplace --execute gen_configs_pdac_adda.ipynb
