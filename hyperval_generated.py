@@ -46,17 +46,30 @@ def main(args):
         data_params = yaml.safe_load(f)["data_params"]
 
     if "spotless" in data_params.get("st_id", "spatialLIBD"):
-        best_config = df["score"].idxmin()  # cos distance
+        df = df.sort_values("score", ascending=True)  # cos distance
     else:
-        best_config = df["score"].idxmax()
+        df = df.sort_values("score", ascending=False)  # auc
+
+    best_config = df.iloc[0].name
 
     print("Best config:", best_config)
-    print(df.loc[best_config])
+    print("-" * 80)
+    print("Top 5:")
+    print(df.head(5))
 
     with open(os.path.join(configs_dir, model_name, best_config), "r") as f:
         config = yaml.safe_load(f)
 
+    print("-" * 80)
     print(yaml.dump(config))
+
+    if args.output_dir is not None:
+        os.makedirs(args.output_dir, exist_ok=True)
+
+        df.to_csv(os.path.join(args.output_dir, "final_scores.csv"))
+
+        with open(os.path.join(args.output_dir, "best_config.yml"), "w") as f:
+            yaml.safe_dump(config, f)
 
 
 def get_score(rdir, configs_dir, model_name, early_stopping, config_file):
@@ -137,6 +150,7 @@ if __name__ == "__main__":
         help="evaluate early stopping. Default: False",
     )
     parser.add_argument("--results_folder", type=str, default="results", help="results folder")
+    parser.add_argument("--output_dir", default=None, help="Output dir")
     parser.add_argument(
         "--njobs", type=int, default=-1, help="Number of jobs to use for parallel processing."
     )

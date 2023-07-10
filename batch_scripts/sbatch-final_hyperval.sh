@@ -9,9 +9,9 @@
 #SBATCH --output=logs/final_hyperval-%N-%j.out
 
 set -x
-source .venv/bin/activate
+source ~/.venv-agreda/bin/activate
 
-./hyperval_generated.py -n ADDA -cdir configs/generated_pdac -e > logs/ADDA/generated_pdac/final_hyperval.txt
-./hyperval_generated.py -n CellDART -cdir configs/generated_pdac -e > logs/CellDART/generated_pdac/final_hyperval.txt
-./hyperval_generated.py -n DANN -cdir configs/generated_pdac -e > logs/DANN/generated_pdac/final_hyperval.txt
-./hyperval_generated.py -n CORAL -cdir configs/generated_pdac > logs/CORAL/generated_pdac/final_hyperval.txt
+./hyperval_generated.py -n ADDA -cdir configs/generated_spotless --output_dir logs/ADDA/generated_spotless
+./hyperval_generated.py -n CellDART -cdir configs/generated_spotless --output_dir logs/CellDART/generated_spotless
+./hyperval_generated.py -n DANN -cdir configs/generated_spotless --output_dir logs/DANN/generated_spotless
+./hyperval_generated.py -n CORAL -cdir configs/generated_spotless --output_dir logs/CORAL/generated_spotless

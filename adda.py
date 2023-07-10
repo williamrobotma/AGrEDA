@@ -60,15 +60,9 @@ parser.add_argument(
     default=None,
     help="seed to use for torch and numpy; overrides that in config file",
 )
-parser.add_argument(
-    "--ps_seed",
-    default=-1,
-    help="specific pseudospot seed to use; default of -1 corresponds to 623",
-)
 
 # %%
 args = parser.parse_args()
-PS_SEED = int(args.ps_seed)
 MODEL_DIR = args.model_dir
 SEED_OVERRIDE = args.seed_override
 CONFIG_FNAME = args.config_fname
@@ -238,7 +232,6 @@ mat_sp_d, mat_sp_meta_d, st_sample_id_l = data_loading.load_spatial(
 # Load sc data
 sc_mix_d, lab_mix_d, sc_sub_dict, sc_sub_dict2 = data_loading.load_sc(
     selected_dir,
-    seed_int=PS_SEED,
     **data_params,
 )
 
