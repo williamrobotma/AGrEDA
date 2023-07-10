@@ -46,9 +46,9 @@ def main(args):
         data_params = yaml.safe_load(f)["data_params"]
 
     if "spotless" in data_params.get("st_id", "spatialLIBD"):
-        df = df.sort_values("score", ascending=True)  # cos distance
+        df = df.sort_values("score", ascending=True) # cos distance
     else:
-        df = df.sort_values("score", ascending=False)  # auc
+        df = df.sort_values("score", ascending=False) # auc
 
     best_config = df.iloc[0].name
 
@@ -67,7 +67,7 @@ def main(args):
         os.makedirs(args.output_dir, exist_ok=True)
 
         df.to_csv(os.path.join(args.output_dir, "final_scores.csv"))
-
+        
         with open(os.path.join(args.output_dir, "best_config.yml"), "w") as f:
             yaml.safe_dump(config, f)
 
