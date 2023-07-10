@@ -58,6 +58,11 @@ if __name__ == "__main__":
         default=None,
         help="seed to use for torch and numpy; overrides that in config file",
     )
+    parser.add_argument(
+        "--ps_seed",
+        default=-1,
+        help="specific pseudospot seed to use; default of -1 corresponds to 623",
+    )
 
     args = parser.parse_args()
 
