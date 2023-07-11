@@ -16,8 +16,8 @@ model_seeds=(2353 24385 284 86322 98237)
     --dset pdac \
     --st_id GSE111672 \
     --sc_id CA001063 \
-    --nmarkers 80 \
-    --nmix 30 \
+    --nmarkers 40 \
+    --nmix 70 \
     --one_model
 
 python -u coral.py \
@@ -47,8 +47,8 @@ for i in "${!ps_seeds[@]}"; do
         --dset pdac \
         --st_id GSE111672 \
         --sc_id CA001063 \
-        --nmarkers 80 \
-        --nmix 30 \
+        --nmarkers 40 \
+        --nmix 70 \
         --one_model \
         --ps_seed=$ps_seed
 

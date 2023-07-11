@@ -4,8 +4,8 @@
 #SBATCH --gpus=1 
 #SBATCH --cpus-per-task=1  # Cores proportional to GPUs: 6 on Cedar, 16 on Graham.
 #SBATCH --mem=16G      
-#SBATCH --time=0-02:00:00
-#SBATCH --array=1-200:100
+#SBATCH --time=0-00:40:00
+#SBATCH --array=1-200:25
 
 #SBATCH --output=logs/CORAL/generated_pdac/gen_v1-%a-%N-%A.out
 #SBATCH --error=logs/CORAL/generated_pdac/gen_v1-%a-%N-%A.err
@@ -14,7 +14,7 @@ set -x
 
 start=`date +%s`
 
-CONFIG_FILES=$(sed -n "${SLURM_ARRAY_TASK_ID},$(($SLURM_ARRAY_TASK_ID+99))p" configs/generated_pdac/CORAL/a_list.txt)
+CONFIG_FILES=$(sed -n "${SLURM_ARRAY_TASK_ID},$(($SLURM_ARRAY_TASK_ID+24))p" configs/generated_pdac/CORAL/a_list.txt)
 
 export BLIS_NUM_THREADS=1
 export MKL_NUM_THREADS=$SLURM_CPUS_PER_TASK

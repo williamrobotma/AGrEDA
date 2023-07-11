@@ -25,18 +25,18 @@ python -u adda.py \
     -l "log.txt" \
     -cdir "configs" \
     --model_dir="model_FINAL" \
-    -c 0 # 2>> logs/ADDA/training_FINAL.err 1>> logs/ADDA/training_FINAL.out
+    -c 0
 
 echo "Evaluating"
 ./eval_config.py \
     -n ADDA \
     -f "${CONFIG_FILE}" \
     -cdir "configs" \
-    --early_stopping -t \
+    -t \
     --model_dir="model_FINAL" \
     --results_dir="results_FINAL" \
     --njobs 16 \
-    -c 0 # >> logs/ADDA/eval_FINAL.out
+    -c 0
 
 for i in "${!ps_seeds[@]}"; do
     ps_seed=${ps_seeds[$i]}
@@ -60,20 +60,20 @@ for i in "${!ps_seeds[@]}"; do
         --model_dir="model_FINAL/std" \
         --seed_override=$model_seed \
         --ps_seed=$ps_seed \
-        -c 0 # 2>> logs/ADDA/training_FINAL.err 1>> logs/ADDA/training_FINAL.out
+        -c 0
 
     echo "Evaluating"
     ./eval_config.py \
         -n ADDA \
         -f "${CONFIG_FILE}" \
         -cdir "configs" \
-        --early_stopping -t \
+        -t \
         --model_dir="model_FINAL/std" \
         --seed_override=$model_seed \
         --ps_seed=$ps_seed \
         --results_dir="results_FINAL/std" \
         --njobs 16 \
-        -c 0 # >> logs/ADDA/eval_FINAL.out
+        -c 0
 done
 
 end=`date +%s`

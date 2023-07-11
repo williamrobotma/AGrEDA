@@ -12,20 +12,20 @@ data_params:
   st_id: GSE111672
   st_split: false
 lib_params:
-  manual_seed: 2494379989
+  manual_seed: 2454007770
 model_params:
   adda_kwargs:
-    bn_momentum: 0.1
+    bn_momentum: 0.01
     emb_dim: 32
-  model_version: final
+  model_version: gen_pdac-1635
 train_params:
   adam_beta1: 0.5
-  alpha: 1
+  alpha: 5
   batch_size: 256
-  dis_loop_factor: 10
+  dis_loop_factor: 5
   enc_lr: 0.0002
-  epochs: 200
-  initial_train_epochs: 100
+  epochs: 20
+  initial_train_epochs: 200
   initial_train_lr: 0.0001
   pretraining: true
   reverse_val: false
