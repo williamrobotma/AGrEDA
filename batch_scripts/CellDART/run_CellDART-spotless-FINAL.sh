@@ -16,8 +16,8 @@ model_seeds=(2353 24385 284 86322 98237)
     --dset mouse_cortex \
     --st_id spotless_mouse_cortex \
     --sc_id GSE115746 \
-    --nmarkers 80 \
-    --nmix 30 \
+    --nmarkers 40 \
+    --nmix 5 \
     --samp_split
 
 python -u reproduce_celldart.py \
@@ -33,7 +33,7 @@ echo "Evaluating"
     -n CellDART \
     -f "${CONFIG_FILE}" \
     -cdir "configs" \
-    --early_stopping -t \
+    -t \
     --model_dir="model_FINAL" \
     --results_dir="results_FINAL" \
     --njobs 16 \
@@ -48,13 +48,13 @@ for i in "${!ps_seeds[@]}"; do
         --dset mouse_cortex \
         --st_id spotless_mouse_cortex \
         --sc_id GSE115746 \
-        --nmarkers 80 \
-        --nmix 30 \
+        --nmarkers 40 \
+        --nmix 5 \
         --samp_split \
         --ps_seed=$ps_seed
 
 
-    python -u celldart.py \
+    python -u reproduce_celldart.py \
         -f "${CONFIG_FILE}" \
         -l "log.txt" \
         -cdir "configs" \
@@ -68,7 +68,7 @@ for i in "${!ps_seeds[@]}"; do
         -n CellDART \
         -f "${CONFIG_FILE}" \
         -cdir "configs" \
-        --early_stopping -t \
+        -t \
         --model_dir="model_FINAL/std" \
         --seed_override=$model_seed \
         --ps_seed=$ps_seed \

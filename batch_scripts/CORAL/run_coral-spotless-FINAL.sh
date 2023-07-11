@@ -16,7 +16,7 @@ model_seeds=(2353 24385 284 86322 98237)
     --dset mouse_cortex \
     --st_id spotless_mouse_cortex \
     --sc_id GSE115746 \
-    --nmarkers 80 \
+    --nmarkers 40 \
     --nmix 5 \
     --samp_split
 
@@ -49,7 +49,7 @@ for i in "${!ps_seeds[@]}"; do
         --dset mouse_cortex \
         --st_id spotless_mouse_cortex \
         --sc_id GSE115746 \
-        --nmarkers 80 \
+        --nmarkers 40 \
         --nmix 5 \
         --samp_split \
         --ps_seed=$ps_seed
