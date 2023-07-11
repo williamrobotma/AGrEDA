@@ -17,7 +17,7 @@ model_seeds=(2353 24385 284 86322 98237)
     --st_id GSE111672 \
     --sc_id CA001063 \
     --nmarkers 80 \
-    --nmix 30 \
+    --nmix 70 \
     --one_model
 
 python -u reproduce_celldart.py \
@@ -32,7 +32,7 @@ echo "Evaluating"
     -n CellDART \
     -f "${CONFIG_FILE}" \
     -cdir "configs" \
-    --early_stopping -t \
+    -t \
     --model_dir="model_FINAL" \
     --results_dir="results_FINAL" \
     --njobs 16 \
@@ -48,9 +48,10 @@ for i in "${!ps_seeds[@]}"; do
         --st_id GSE111672 \
         --sc_id CA001063 \
         --nmarkers 80 \
-        --nmix 30 \
+        --nmix 70 \
         --one_model \
         --ps_seed=$ps_seed
+
 
     python -u reproduce_celldart.py \
         -f "${CONFIG_FILE}" \
@@ -66,7 +67,7 @@ for i in "${!ps_seeds[@]}"; do
         -n CellDART \
         -f "${CONFIG_FILE}" \
         -cdir "configs" \
-        --early_stopping -t \
+        -t \
         --model_dir="model_FINAL/std" \
         --seed_override=$model_seed \
         --ps_seed=$ps_seed \

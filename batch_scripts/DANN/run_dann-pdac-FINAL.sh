@@ -17,7 +17,7 @@ model_seeds=(2353 24385 284 86322 98237)
     --st_id GSE111672 \
     --sc_id CA001063 \
     --nmarkers 40 \
-    --nmix 30 \
+    --nmix 50 \
     --one_model
 
 python -u dann.py \
@@ -32,7 +32,7 @@ echo "Evaluating"
     -n DANN \
     -f "${CONFIG_FILE}" \
     -cdir "configs" \
-    --early_stopping -t \
+    -t \
     --model_dir="model_FINAL" \
     --results_dir="results_FINAL" \
     --njobs 16 \
@@ -48,7 +48,7 @@ for i in "${!ps_seeds[@]}"; do
         --st_id GSE111672 \
         --sc_id CA001063 \
         --nmarkers 40 \
-        --nmix 30 \
+        --nmix 50 \
         --one_model \
         --ps_seed=$ps_seed
 
@@ -67,7 +67,7 @@ for i in "${!ps_seeds[@]}"; do
         -n DANN \
         -f "${CONFIG_FILE}" \
         -cdir "configs" \
-        --early_stopping -t \
+        -t \
         --model_dir="model_FINAL/std" \
         --seed_override=$model_seed \
         --ps_seed=$ps_seed \

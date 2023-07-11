@@ -32,7 +32,7 @@ echo "Evaluating"
     -n ADDA \
     -f "${CONFIG_FILE}" \
     -cdir "configs" \
-    --early_stopping -t \
+    -t \
     --model_dir="model_FINAL" \
     --results_dir="results_FINAL" \
     --njobs 16 \
@@ -52,6 +52,7 @@ for i in "${!ps_seeds[@]}"; do
         --one_model \
         --ps_seed=$ps_seed
 
+
     python -u adda.py \
         -f "${CONFIG_FILE}" \
         -l "log.txt" \
@@ -66,7 +67,7 @@ for i in "${!ps_seeds[@]}"; do
         -n ADDA \
         -f "${CONFIG_FILE}" \
         -cdir "configs" \
-        --early_stopping -t \
+        -t \
         --model_dir="model_FINAL/std" \
         --seed_override=$model_seed \
         --ps_seed=$ps_seed \
