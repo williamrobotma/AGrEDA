@@ -3,7 +3,7 @@ data_params:
   data_dir: data
   dset: pdac
   n_markers: 80
-  n_mix: 30
+  n_mix: 70
   n_spots: 100000
   one_model: true
   samp_split: false
@@ -12,18 +12,18 @@ data_params:
   st_id: GSE111672
   st_split: false
 lib_params:
-  manual_seed: 245025975
+  manual_seed: 2123428735
 model_params:
   celldart_kwargs:
-    bn_momentum: 0.1
+    bn_momentum: 0.01
     emb_dim: 32
-  model_version: gen_pdac-14227
+  model_version: gen_pdac-18486
 train_params:
-  alpha: 2.0
-  alpha_lr: 1
-  batch_size: 512
+  alpha: 0.6
+  alpha_lr: 5
+  batch_size: 128
   initial_train_epochs: 10
-  lr: 0.001
-  n_iter: 10000
+  lr: 0.01
+  n_iter: 15000
   pretraining: true
   reverse_val: false

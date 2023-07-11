@@ -26,7 +26,6 @@ python -u reproduce_celldart.py \
     -cdir "configs" \
     --model_dir="model_FINAL" \
     -c 1
-    # 2>> logs/CellDART/training_FINAL.err 1>> logs/CellDART/training_FINAL.out
 
 echo "Evaluating"
 ./eval_config.py \
@@ -61,7 +60,7 @@ for i in "${!ps_seeds[@]}"; do
         --model_dir="model_FINAL/std" \
         --seed_override=$model_seed \
         --ps_seed=$ps_seed \
-        -c 1 # 2>> logs/CellDART/training_FINAL.err 1>> logs/CellDART/training_FINAL.out
+        -c 1
 
     echo "Evaluating"
     ./eval_config.py \
@@ -73,7 +72,8 @@ for i in "${!ps_seeds[@]}"; do
         --seed_override=$model_seed \
         --ps_seed=$ps_seed \
         --results_dir="results_FINAL/std" \
-        --njobs 16 -c 1 # >> logs/CellDART/eval_FINAL.out
+        --njobs 16 \
+        -c 1
 done
 
 end=`date +%s`
