@@ -9,6 +9,7 @@ import os
 import pickle
 import warnings
 from collections import OrderedDict
+from pathlib import Path
 
 import anndata as ad
 import numpy as np
@@ -22,9 +23,6 @@ logger = logging.getLogger(__name__)
 
 SPLIT_RATIOS = (0.8, 0.1, 0.1)
 DATA_DIR = "./data"
-# SPATIALLIBD_BASEPATH = "spatialLIBD"
-# SC_DLPFC_PATH = os.path.join(DATA_DIR, "sc_dlpfc", "adata_sc_dlpfc.h5ad")
-
 
 SCALER_OPTS = ("minmax", "standard", "celldart")
 
@@ -97,6 +95,7 @@ def scale(scaler, *unscaled):
 
 
 def get_scaler(scaler_name):
+    """Get the scaler class from its name."""
     if scaler_name == "minmax":
         return preprocessing.MinMaxScaler
     if scaler_name == "standard":
@@ -211,7 +210,7 @@ def select_genes_and_split(
 
     print("Splitting single cell data")
     # drop cells with no labels
-    adata_sc = adata_sc[~adata_sc.obs["cell_type"].isna(), :]
+    adata_sc = adata_sc[~adata_sc.obs["cell_type"].isna().to_numpy(), :]
 
     adata_sc_train, adata_sc_eval = model_selection.train_test_split(
         adata_sc,
@@ -255,7 +254,7 @@ def select_genes_and_split(
     _create_lab_sc_sub_col(adata_sc_train, sc_sub_dict2)
 
     print("Saving sc adatas")
-    adata_sc.write(os.path.join(selected_dir, "sc.h5ad"))
+    adata_sc.write(Path(os.path.join(selected_dir, "sc.h5ad")))
     adata_sc_train.write(os.path.join(selected_dir, "sc_train.h5ad"))
     adata_sc_val.write(os.path.join(selected_dir, "sc_val.h5ad"))
     adata_sc_test.write(os.path.join(selected_dir, "sc_test.h5ad"))
@@ -297,7 +296,7 @@ def gen_pseudo_spots(
 
     """
 
-    if type(rng) == int:
+    if isinstance(rng, int):
         if rng == 623:
             seed_int = -1
         else:
@@ -334,7 +333,7 @@ def gen_pseudo_spots(
     total_spots = data_loading.DEFAULT_N_SPOTS / SPLIT_RATIOS[data_loading.SPLITS.index("train")]
     for split, ratio in zip(data_loading.SPLITS, SPLIT_RATIOS):
         sc_mix_d[split], lab_mix_d[split] = data_processing.random_mix(
-            adata_sc_d[split].X.toarray(),
+            adata_sc_d[split].X,
             adata_sc_d[split].obs["lab_sc_num"].to_numpy(),
             nmix=n_mix,
             n_samples=round(total_spots * ratio),
@@ -455,6 +454,9 @@ def split_st(selected_dir, stsplit=False, samp_split=False, one_model=False, rng
                 "Eng2019_ob_fov3",
                 "Eng2019_ob_fov4",
             }
+        elif "spatialLIBD" in selected_dir:
+            # these samples do not contain L1
+            exclude_sids = {"151669", "151670", "151671", "151672"}
         else:
             exclude_sids = set()
 
@@ -484,7 +486,7 @@ def split_st(selected_dir, stsplit=False, samp_split=False, one_model=False, rng
         adata_st.obs.insert(1, "sample_id", adata_st.obs.pop("sample_id"))
 
         # save to file
-        adata_st.write_h5ad(out_path)
+        adata_st.write_h5ad(Path(out_path))
 
         return
     # not samp_split
@@ -535,22 +537,22 @@ def split_st(selected_dir, stsplit=False, samp_split=False, one_model=False, rng
                 samp_splits_l.append(samp_to_split[samp_to_split == split])
 
         # concat list of series into one series and use to index adata
-        adata_st = adata_st[pd.concat(samp_splits_l, axis="index").index]
+        adata_st = adata_st[pd.concat(samp_splits_l, axis="index").index.to_numpy()]
 
         adata_st.obs.insert(0, "sample_id", adata_st.obs.pop("sample_id"))
-        adata_st.write_h5ad(out_path)
+        adata_st.write_h5ad(Path(out_path))
 
         return
 
     adata_st.obs.insert(0, "split", "train")
-    adata_st = adata_st[adata_st.obs.sort_values("sample_id").index]
+    adata_st = adata_st[adata_st.obs.sort_values("sample_id").index.to_numpy()]
 
     if one_model:
         adata_st.obs.insert(1, "sample_id", adata_st.obs.pop("sample_id"))
     else:
         adata_st.obs.insert(0, "sample_id", adata_st.obs.pop("sample_id"))
 
-    adata_st.write_h5ad(out_path)
+    adata_st.write_h5ad(Path(out_path))
 
 
 def log_scale_st(selected_dir, scaler_name, stsplit=False, samp_split=False, one_model=False):
@@ -592,7 +594,7 @@ def log_scale_st(selected_dir, scaler_name, stsplit=False, samp_split=False, one
     out_path = os.path.join(preprocessed_data_dir, st_fname)
 
     adata_st = sc.read_h5ad(in_path)
-    adata_st.X = adata_st.X.toarray()
+    adata_st.X = adata_st.X.toarray()  # type: ignore
 
     if samp_split or (stsplit and one_model):
         adata_splits = (adata_st[adata_st.obs["split"] == split].X for split in ("train", "test"))
@@ -621,7 +623,7 @@ def log_scale_st(selected_dir, scaler_name, stsplit=False, samp_split=False, one
                     (adata_st.obs["split"] == split) & (adata_st.obs["sample_id"] == sample_id)
                 ].X = scaled_split
 
-    adata_st.write_h5ad(out_path)
+    adata_st.write_h5ad(Path(out_path))
 
 
 if __name__ == "__main__":
