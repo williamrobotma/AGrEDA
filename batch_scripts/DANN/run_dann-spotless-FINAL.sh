@@ -19,6 +19,7 @@ model_seeds=(2353 24385 284 86322 98237)
     --nmarkers 80 \
     --nmix 5 \
     --samp_split \
+    --val_samp
     -c 3
 
 python -u dann.py \
@@ -51,6 +52,7 @@ for i in "${!ps_seeds[@]}"; do
         --nmarkers 80 \
         --nmix 5 \
         --samp_split \
+        --val_samp \
         --ps_seed=$ps_seed
 
 

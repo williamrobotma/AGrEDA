@@ -73,6 +73,7 @@ def main(args):
         selected_dir,
         stsplit=args.stsplit,
         samp_split=args.samp_split,
+        val_samp=args.val_samp,
         one_model=args.one_model,
         rng=16,
     )
@@ -405,7 +406,9 @@ def log_scale_pseudospots(
     )
 
 
-def split_st(selected_dir, stsplit=False, samp_split=False, one_model=False, rng=None):
+def split_st(
+    selected_dir, stsplit=False, samp_split=False, val_samp=False, one_model=False, rng=None
+):
     """Split and save spatial data into train, val, and test sets if applicable.
 
     Args:
@@ -417,6 +420,11 @@ def split_st(selected_dir, stsplit=False, samp_split=False, one_model=False, rng
     """
     if stsplit and samp_split:
         raise ValueError("Cannot use both stsplit and samp_split.")
+
+    if val_samp:
+        holdouts = ["val", "test"]
+    else:
+        holdouts = ["test"]
 
     rng_integers = misc.check_integer_rng(rng)
 
@@ -461,10 +469,11 @@ def split_st(selected_dir, stsplit=False, samp_split=False, one_model=False, rng
             exclude_sids = set()
 
         holdout_idxs = [rng_integers(len(st_sample_id_l) - len(exclude_sids))]
-        # Ensure that the holdout samples are different
-        # while holdout_idxs[0] == (i_2 := rng_integers(len(st_sample_id_l))):
-        #     pass
-        # holdout_idxs.append(i_2)
+        if val_samp:
+            # Ensure that the holdout samples are different
+            while holdout_idxs[0] == (i_2 := rng_integers(len(st_sample_id_l))):
+                pass
+            holdout_idxs.append(i_2)
 
         holdout_candidate_sids = [sid for sid in st_sample_id_l if sid not in exclude_sids]
         holdout_sids = [holdout_candidate_sids[i] for i in holdout_idxs]
@@ -476,7 +485,7 @@ def split_st(selected_dir, stsplit=False, samp_split=False, one_model=False, rng
             adata_train_sample_d[sid] = adata_st[adata_st.obs.sample_id == sid]
             adata_train_sample_d[sid].obs.drop(columns="sample_id", inplace=True)
             adata_train_sample_d[sid].obs.insert(loc=0, column="split", value="train")
-        for sid, split in zip(holdout_sids, ["test"]):
+        for sid, split in zip(holdout_sids, holdouts):
             adata_train_sample_d[sid] = adata_st[adata_st.obs.sample_id == sid]
             adata_train_sample_d[sid].obs.drop(columns="sample_id", inplace=True)
             adata_train_sample_d[sid].obs.insert(loc=0, column="split", value=split)
@@ -491,39 +500,47 @@ def split_st(selected_dir, stsplit=False, samp_split=False, one_model=False, rng
         return
     # not samp_split
     if stsplit:
-        holdout_frac = 0.1
+        holdout_frac = 0.1 * len(holdouts)
 
         # ensure that holdout proportion is at least 1 cell (1 test)
+        # or 2 cells (1 val, 1 test)
         true_holdout_frac = math.ceil(len(adata_st) * holdout_frac) / len(adata_st)
         min_holdout_size = adata_st.obs["sample_id"].value_counts().min()
-        if min_holdout_size * true_holdout_frac < 1:
-            holdout_frac = 1 / min_holdout_size
+        if min_holdout_size * true_holdout_frac < len(holdouts):
+            holdout_frac = len(holdouts) / min_holdout_size
 
             warnings.warn(
-                "Holdout proportion too small. Increasing to 1 cells per sample.\n"
-                "Using train/test split of "
+                f"Holdout proportion too small. Increasing to {len(holdouts)} cells per sample.\n"
+                f"Using train/{'/'.join(holdouts)} split of "
                 f"{1 - holdout_frac}/{holdout_frac}.",
                 UserWarning,
             )
 
-        adata_st_train, adata_st_test = model_selection.train_test_split(
+        adata_st_train, adata_st_val = model_selection.train_test_split(
             adata_st,
             test_size=holdout_frac,
             random_state=rng_integers(2**32),
             # stratify=data_processing.safe_stratify(adata_st.obs["sample_id"]),
             stratify=adata_st.obs["sample_id"],
         )
-        # adata_st_val, adata_st_test = model_selection.train_test_split(
-        #     adata_st_val,
-        #     test_size=0.5,
-        #     random_state=rng_integers(2**32),
-        #     # stratify=data_processing.safe_stratify(adata_st_val.obs["sample_id"]),
-        #     stratify=adata_st_val.obs["sample_id"],
-        # )
+
+        if val_samp:
+            adata_st_val, adata_st_test = model_selection.train_test_split(
+                adata_st_val,
+                test_size=0.5,
+                random_state=rng_integers(2**32),
+                # stratify=data_processing.safe_stratify(adata_st_val.obs["sample_id"]),
+                stratify=adata_st_val.obs["sample_id"],
+            )
+            adata_sts = [adata_st_train, adata_st_val, adata_st_test]
+        else:
+            adata_st_test = adata_st_val
+            adata_sts = [adata_st_train, adata_st_test]
+
         adata_st = ad.concat(
-            [adata_st_train, adata_st_test],
+            adata_sts,
             label="split",
-            keys=["train", "test"],
+            keys=["train"] + holdouts,
         )
         adata_st.obs.insert(0, "split", adata_st.obs.pop("split"))
 
@@ -532,7 +549,7 @@ def split_st(selected_dir, stsplit=False, samp_split=False, one_model=False, rng
         for sid in st_sample_id_l:
             # get split column for this sample
             samp_to_split = adata_st.obs["split"][adata_st.obs["sample_id"] == sid]
-            for split in ["train", "test"]:
+            for split in ["train"] + holdouts:
                 # get split for sample and accumulate
                 samp_splits_l.append(samp_to_split[samp_to_split == split])
 
@@ -544,6 +561,7 @@ def split_st(selected_dir, stsplit=False, samp_split=False, one_model=False, rng
 
         return
 
+    # no split
     adata_st.obs.insert(0, "split", "train")
     adata_st = adata_st[adata_st.obs.sort_values("sample_id").index.to_numpy()]
 
@@ -597,9 +615,10 @@ def log_scale_st(selected_dir, scaler_name, stsplit=False, samp_split=False, one
     adata_st.X = adata_st.X.toarray()  # type: ignore
 
     if samp_split or (stsplit and one_model):
-        adata_splits = (adata_st[adata_st.obs["split"] == split].X for split in ("train", "test"))
+        splits = adata_st.obs["split"].unique().tolist()
+        adata_splits = (adata_st[adata_st.obs["split"] == split].X for split in splits)
         scaled = scale(scaler, *(adata_split for adata_split in adata_splits))
-        for split, scaled_split in zip(("train", "test"), scaled):
+        for split, scaled_split in zip(splits, scaled):
             adata_st[adata_st.obs["split"] == split].X = scaled_split
 
     elif one_model:
@@ -608,9 +627,7 @@ def log_scale_st(selected_dir, scaler_name, stsplit=False, samp_split=False, one
         for sample_id in adata_st.obs["sample_id"].unique():
             adata_samp = adata_st[adata_st.obs["sample_id"] == sample_id]
             if stsplit:
-                adata_splits = (
-                    adata_samp[adata_samp.obs["split"] == split].X for split in ("train", "test")
-                )
+                adata_splits = (adata_samp[adata_samp.obs["split"] == split].X for split in splits)
             else:
                 # easy len 1 generator
                 adata_splits = (adata_samp.X for _ in range(1))
@@ -618,7 +635,7 @@ def log_scale_st(selected_dir, scaler_name, stsplit=False, samp_split=False, one
             scaled = scale(scaler, *adata_splits)
 
             # if not stplit scaled is len 1 and zip will quit after "train"
-            for split, scaled_split in zip(("train", "test"), scaled):
+            for split, scaled_split in zip(splits, scaled):
                 adata_st[
                     (adata_st.obs["split"] == split) & (adata_st.obs["sample_id"] == sample_id)
                 ].X = scaled_split
@@ -635,6 +652,11 @@ if __name__ == "__main__":
     parser.add_argument("--stsplit", action="store_true", help="Split ST data by spot.")
     parser.add_argument(
         "--samp_split", action="store_true", help="Split ST data by sample. Will use single model."
+    )
+    parser.add_argument(
+        "--val_samp",
+        action="store_true",
+        help="Whether to also hold out a validation sample. Ignored if --samp_split is not used.",
     )
     parser.add_argument(
         "--one_model",

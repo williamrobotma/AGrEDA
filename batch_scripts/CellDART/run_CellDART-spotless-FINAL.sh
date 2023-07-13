@@ -18,7 +18,8 @@ model_seeds=(2353 24385 284 86322 98237)
     --sc_id GSE115746 \
     --nmarkers 40 \
     --nmix 5 \
-    --samp_split
+    --samp_split \
+    --val_samp
 
 python -u reproduce_celldart.py \
     -f "${CONFIG_FILE}" \
@@ -50,6 +51,7 @@ for i in "${!ps_seeds[@]}"; do
         --nmarkers 40 \
         --nmix 5 \
         --samp_split \
+        --val_samp \
         --ps_seed=$ps_seed
 
 
