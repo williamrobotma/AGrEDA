@@ -51,6 +51,7 @@ for i in "${!ps_seeds[@]}"; do
         --nmarkers 40 \
         --nmix 5 \
         --samp_split \
+        --val_samp \
         --ps_seed=$ps_seed
 
 
