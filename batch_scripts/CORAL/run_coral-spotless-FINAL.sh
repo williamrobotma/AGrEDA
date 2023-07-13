@@ -16,9 +16,10 @@ model_seeds=(2353 24385 284 86322 98237)
     --dset mouse_cortex \
     --st_id spotless_mouse_cortex \
     --sc_id GSE115746 \
-    --nmarkers 80 \
+    --nmarkers 40 \
     --nmix 5 \
-    --samp_split
+    --samp_split \
+    --val_samp
 
 python -u coral.py \
     -f "${CONFIG_FILE}" \
@@ -26,7 +27,6 @@ python -u coral.py \
     -cdir "configs" \
     --model_dir="model_FINAL" \
     -c 2
-    # 2>> logs/CORAL/training_FINAL.err 1>> logs/CORAL/training_FINAL.out
 
 echo "Evaluating"
 ./eval_config.py \
@@ -38,7 +38,6 @@ echo "Evaluating"
     --results_dir="results_FINAL" \
     --njobs 16 \
     -c 2
-    # >> logs/CORAL/eval_FINAL.out
 
 for i in "${!ps_seeds[@]}"; do
     ps_seed=${ps_seeds[$i]}
@@ -49,9 +48,10 @@ for i in "${!ps_seeds[@]}"; do
         --dset mouse_cortex \
         --st_id spotless_mouse_cortex \
         --sc_id GSE115746 \
-        --nmarkers 80 \
+        --nmarkers 40 \
         --nmix 5 \
         --samp_split \
+        --val_samp \
         --ps_seed=$ps_seed
 
 
@@ -63,7 +63,6 @@ for i in "${!ps_seeds[@]}"; do
         --seed_override=$model_seed \
         --ps_seed=$ps_seed \
         -c 2
-        # 2>> logs/CORAL/training_FINAL.err 1>> logs/CORAL/training_FINAL.out
 
     echo "Evaluating"
     ./eval_config.py \
@@ -77,7 +76,6 @@ for i in "${!ps_seeds[@]}"; do
         --results_dir="results_FINAL/std" \
         --njobs 16 \
         -c 2
-        # >> logs/CORAL/eval_FINAL.out
 done
 
 end=`date +%s`

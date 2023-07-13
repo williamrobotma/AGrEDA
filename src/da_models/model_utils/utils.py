@@ -106,7 +106,7 @@ def get_model(model_dir, name, lib_config):
     return model
 
 
-def out_func(x, model, device=None):
+def _out_func(x, model, device=None):
     out = model(torch.as_tensor(x, dtype=torch.float32, device=device))
     if isinstance(out, tuple):
         out = out[0]
@@ -159,7 +159,9 @@ class ModelWrapper:
             self.model.target_inference()
 
         with torch.no_grad():
-            return out_func(input, self.model, device=self.lib_config.device).detach().cpu().numpy()
+            return (
+                _out_func(input, self.model, device=self.lib_config.device).detach().cpu().numpy()
+            )
 
     def get_embeddings(self, input, source_encoder=False):
         if source_encoder:

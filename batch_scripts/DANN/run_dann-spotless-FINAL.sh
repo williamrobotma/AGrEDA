@@ -19,6 +19,7 @@ model_seeds=(2353 24385 284 86322 98237)
     --nmarkers 80 \
     --nmix 5 \
     --samp_split \
+    --val_samp
     -c 3
 
 python -u dann.py \
@@ -33,7 +34,7 @@ echo "Evaluating"
     -n DANN \
     -f "${CONFIG_FILE}" \
     -cdir "configs" \
-    --early_stopping -t \
+    -t \
     --model_dir="model_FINAL" \
     --results_dir="results_FINAL" \
     --njobs 16 \
@@ -51,6 +52,7 @@ for i in "${!ps_seeds[@]}"; do
         --nmarkers 80 \
         --nmix 5 \
         --samp_split \
+        --val_samp \
         --ps_seed=$ps_seed
 
 
@@ -61,19 +63,19 @@ for i in "${!ps_seeds[@]}"; do
         --model_dir="model_FINAL/std" \
         --seed_override=$model_seed \
         --ps_seed=$ps_seed \
-        -c 3 # 2>> logs/DANN/training_FINAL.err 1>> logs/DANN/training_FINAL.out
+        -c 3
 
     echo "Evaluating"
     ./eval_config.py \
         -n DANN \
         -f "${CONFIG_FILE}" \
         -cdir "configs" \
-        --early_stopping -t \
+        -t \
         --model_dir="model_FINAL/std" \
         --seed_override=$model_seed \
         --ps_seed=$ps_seed \
         --results_dir="results_FINAL/std" \
-        --njobs \
+        --njobs 16 \
         -c 3
 done
 
