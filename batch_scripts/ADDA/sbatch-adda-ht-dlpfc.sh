@@ -34,7 +34,7 @@ for config_file in $CONFIG_FILES;
 do
     echo "ADDA config file no. ${n}: ${config_file}"
     ./adda.py -f "${config_file}" -l "log.txt" -cdir "configs/generated_dlpfc" -d "$SLURM_TMPDIR/tmp_model"
-    ./eval_config.py -n ADDA -f "${config_file}" -cdir "configs/generated_dlpfc" --njobs=$SLURM_CPUS_PER_TASK -d "$SLURM_TMPDIR/tmp_results" -m -e
+    ./eval_config.py -n ADDA -f "${config_file}" -cdir "configs/generated_dlpfc" --njobs=$SLURM_CPUS_PER_TASK -d "$SLURM_TMPDIR/tmp_results" -m
 done
 
 # echo "running eval"
