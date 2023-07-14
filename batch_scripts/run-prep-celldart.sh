@@ -16,6 +16,7 @@ for i in "${!ps_seeds[@]}"; do
         --nmarkers 20 \
         --nmix 8 \
         --samp_split \
+        --val_samp \
         --ps_seed=$ps_seed
 
 done
@@ -32,6 +33,7 @@ for i in "${!ps_seeds[@]}"; do
         --nmarkers 40 \
         --nmix 5 \
         --samp_split \
+        --val_samp \
         --ps_seed=$ps_seed
 
 done
