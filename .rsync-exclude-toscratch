@@ -27,7 +27,7 @@ data/*.xml
 data/*.tar
 data/*.zip
 logs/
-model/
-results/
+model*/
+results*/
 archive/
 *.code-workspace
