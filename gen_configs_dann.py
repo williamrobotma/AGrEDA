@@ -29,12 +29,12 @@ config["data_params"]["dset"] = "dlpfc"
 config["data_params"]["n_spots"] = 100000
 config["data_params"]["samp_split"] = True
 config["data_params"]["sc_id"] = "GSE144136"
-config["data_params"]["scaler_name"] = "standard"
+# config["data_params"]["scaler_name"] = "standard"
 config["data_params"]["st_id"] = "spatialLIBD"
 config["data_params"]["st_split"] = False
 
 config["model_params"]["dann_kwargs"] = {}
-config["model_params"]["dann_kwargs"]["enc_out_act"] = None
+config["model_params"]["dann_kwargs"]["enc_out_act"] = True
 
 config["train_params"]["adv_opt_kwargs"] = {}
 config["train_params"]["adv_opt_kwargs"]["betas"] = (0.5, 0.999)
@@ -69,6 +69,7 @@ with open(os.path.join(CONFIG_DIR, MODEL_NAME, f"{CONFIG_FNAME_PREFIX}.yml"), "w
 data_params_lists = dict(
     n_markers=[20, 40, 80],
     n_mix=[3, 5, 8, 10],
+    scaler_name=["minmax", "standard"],
 )
 
 # model_params
