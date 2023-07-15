@@ -4,11 +4,10 @@
 import glob
 import itertools
 import os
-import yaml
 from copy import deepcopy
 
 import numpy as np
-
+import yaml
 
 # %%
 # CONFIG_FNAME = "dann.yml"

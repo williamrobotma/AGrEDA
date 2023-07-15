@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 
 # %%
-import os
-import yaml
-import itertools
-from copy import deepcopy
 import glob
+import itertools
+import os
+from copy import deepcopy
 
 import numpy as np
+import yaml
 
 # %%
 # CONFIG_FNAME = "bnfix_minmax_samp_split.yml"

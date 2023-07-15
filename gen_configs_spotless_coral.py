@@ -4,11 +4,10 @@
 import glob
 import itertools
 import os
-import yaml
 from copy import deepcopy
 
 import numpy as np
-
+import yaml
 
 # %%
 # CONFIG_FNAME = "coral.yml"
@@ -73,7 +72,6 @@ model_params_lists = dict(
         (256, 128),
         (512, 256, 128),
     ],
-    enc_out_act=[True, False],
     hidden_act=["leakyrelu", "relu"],
 )
 # train_params
