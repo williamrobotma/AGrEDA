@@ -61,7 +61,7 @@ class ADDAST(nn.Module):
                 output_act="elu",
             )
             self.source_encoder = MLP(*enc_args, **enc_kwargs)
-            self.target_encoder = MLP(*enc_args, **enc_kwargs)
+            self.target_encoder = self.source_encoder
             self.dis = MLP(
                 emb_dim,
                 2,
@@ -118,7 +118,8 @@ class ADDAST(nn.Module):
             target encoder
 
         """
-        set_requires_grad(self.source_encoder, False)
+        if self.source_encoder is not self.target_encoder:
+            set_requires_grad(self.source_encoder, False)
 
         if train_dis:
             self.train_discriminator()
