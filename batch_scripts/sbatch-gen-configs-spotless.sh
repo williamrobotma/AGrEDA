@@ -22,7 +22,7 @@ set -x
 source ~/.venv-agreda/bin/activate
 # if ["$SLURM_ARRAY_TASK_ID" == "5"]; then
 
-python gen_configs_pdac_adda.py
-python gen_configs_pdac_celldart.py
-python gen_configs_pdac_coral.py
-python gen_configs_pdac_dann.py
+python gen_configs_spotless_adda.py
+python gen_configs_spotless_celldart.py
+python gen_configs_spotless_coral.py
+python gen_configs_spotless_dann.py
