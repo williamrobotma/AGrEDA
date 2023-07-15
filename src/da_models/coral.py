@@ -1,5 +1,6 @@
 """CORAL model."""
 
+from collections import OrderedDict
 from torch import nn
 
 from src.da_models.components import MLP, get_act_from_str
@@ -49,19 +50,29 @@ class CORAL(nn.Module):
 
         if not emb_dim:
             emb_dim = ncls_source
-        self.encoder = MLP(
+        _encoder = MLP(
             inp_dim,
             emb_dim,
             hidden_layer_sizes=enc_hidden_layer_sizes,
             output_act=None,
             **common_kwargs
         )
-        self.source_encoder = self.target_encoder = self.encoder
+
 
         if enc_out_act:
-            self.encoder_output_act = get_act_from_str(kwargs.get("hidden_act"))
+            _encoder_output_act = get_act_from_str(kwargs.get("hidden_act"))
         else:
-            self.encoder_output_act = nn.Identity()
+            _encoder_output_act = nn.Identity()
+
+        self.encoder = nn.Sequential(
+            OrderedDict(
+                [
+                    ("encoder_bare", _encoder),
+                    ("output_act", _encoder_output_act),
+                ]
+            )
+        )
+        self.source_encoder = self.target_encoder = self.encoder
 
         if use_predictor:
             self.clf = MLP(
@@ -79,8 +90,8 @@ class CORAL(nn.Module):
     def forward(self, x):
         xl = []
 
-        xl.append(self.encoder(x))
-        x = self.encoder_output_act(xl[-1])
+        xl.append(self.encoder.encoder_bare(x))
+        x = self.encoder.output_act(xl[-1])
 
         xl.append(self.clf(x))
         x = self.output_act(xl[-1])

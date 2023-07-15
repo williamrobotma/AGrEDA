@@ -707,6 +707,7 @@ def train_adversarial_iters(
     dataloader_source_val,
     dataloader_target_train,
     dataloader_target_val=None,
+    checkpoints=False,
 ):
     if dataloader_target_val is None:
         dataloader_target_val = dataloader_target_train
@@ -1081,6 +1082,7 @@ if data_params.get("samp_split") or data_params.get("one_model"):
         dataloader_source_d["val"],
         dataloader_target_d["train"],
         dataloader_target_d.get("val", None),
+        checkpoints=True,
     )
 
     if train_params["reverse_val"]:
@@ -1109,6 +1111,7 @@ else:
             dataloader_source_d["val"],
             dataloader_target_d[sample_id]["train"],
             dataloader_target_d[sample_id].get("val", None),
+            checkpoints=True
         )
 
         if train_params["reverse_val"]:

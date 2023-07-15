@@ -81,7 +81,6 @@ LOG_FNAME = args.log_fname
 NUM_THREADS = int(args.num_threads) if args.num_threads else None
 MIN_EVAL_BS = 512
 
-# %%
 # CUDA_INDEX = 2
 # NUM_WORKERS = 4
 # CONFIG_FNAME = "dann.yml"
@@ -94,85 +93,7 @@ MIN_EVAL_BS = 512
 # NUM_WORKERS = 4
 # CONFIG_FNAME = "dann.yml"
 
-
-# %%
-# data_params = {}
-# # Data path and parameters
-# data_params["data_dir"] = "data"
-# data_params["n_markers"] = 20
-# data_params["all_genes"] = False
-
-# # Pseudo-spot parameters
-# data_params["n_spots"] = 20000
-# data_params["n_mix"] = 8
-
-# # ST spot parameters
-# data_params["st_split"] = False
-# data_params["sample_id_n"] = "151673"
-
-# # Scaler parameter
-# data_params["scaler_name"] = "standard"
-
 MODEL_NAME = "DANN"
-
-
-# %%
-# model_params = {}
-
-# # Model parameters
-# model_params["model_version"] = "Standard1"
-# model_params["dann_kwargs"] = {
-#     "emb_dim": 64,
-#     "alpha_": 1,
-# }
-
-# train_params = {}
-
-# train_params["batch_size"] = 512
-
-# # Pretraining parameters
-# # SAMPLE_ID_N = "151673"
-# train_params["initial_train_lr"] = 0.001
-# train_params["initial_train_epochs"] = 100
-
-# train_params["early_stop_crit"] = 100
-# train_params["min_epochs"] = 0.4 * train_params["initial_train_epochs"]
-
-# # Adversarial training parameters
-# train_params["epochs"] = 500
-# train_params["early_stop_crit_adv"] = 500
-# train_params["min_epochs_adv"] =  0.4 * 500
-
-
-# train_params["adv_lr"] = 2e-4
-# train_params["lambda"] = 1
-# train_params["pretraining"] = False
-
-# train_params["adv_opt_kwargs"] = {"lr": train_params["adv_lr"], "betas": (0.5, 0.999), "eps": 1e-07}
-
-# train_params["plateau_kwargs"] = {
-#     "patience": 50,
-#     "factor": 0.5,
-#     "min_lr": train_params["adv_lr"] / 10,
-#     "verbose": True,
-# }
-
-# train_params["two_step"] = False
-
-
-# %%
-# config = {
-#     "lib_params": lib_params,
-#     "data_params": data_params,
-#     "model_params": model_params,
-#     "train_params": train_params,
-# }
-
-# if not os.path.exists(os.path.join("configs", MODEL_NAME)):
-#     os.makedirs(os.path.join("configs", MODEL_NAME))
-
-# with open(os.path.join("configs", MODEL_NAME, CONFIG_FNAME), "w") as f:
-#     yaml.safe_dump(config, f)
 
 with open(os.path.join(CONFIGS_DIR, MODEL_NAME, CONFIG_FNAME), "r") as f:
     config = yaml.safe_load(f)
