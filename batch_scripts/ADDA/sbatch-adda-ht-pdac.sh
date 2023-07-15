@@ -35,8 +35,8 @@ do
     ./eval_config.py -n ADDA -f "${config_file}" -cdir "configs/generated_pdac" -m --njobs=$SLURM_CPUS_PER_TASK -d "$SLURM_TMPDIR/tmp_results"
 done
 
-echo "running eval"
-sbatch --output="./logs/ADDA/generated_pdac/gen_v1-${SLURM_ARRAY_TASK_ID}-eval.out" --export=SLURM_ARRAY_TASK_ID ./batch_scripts/ADDA/sbatch-adda-ht-pdac-eval.sh
+# echo "running eval"
+# sbatch --output="./logs/ADDA/generated_pdac/gen_v1-${SLURM_ARRAY_TASK_ID}-eval.out" --export=SLURM_ARRAY_TASK_ID ./batch_scripts/ADDA/sbatch-adda-ht-pdac-eval.sh
 
 end=`date +%s`
 echo "script time: $(($end-$start))" 
