@@ -30,7 +30,7 @@ config["data_params"]["dset"] = "mouse_cortex"
 config["data_params"]["n_spots"] = 100000
 config["data_params"]["samp_split"] = True
 config["data_params"]["sc_id"] = "GSE115746"
-config["data_params"]["scaler_name"] = "standard"
+# config["data_params"]["scaler_name"] = "standard"
 config["data_params"]["st_id"] = "spotless_mouse_cortex"
 config["data_params"]["st_split"] = False
 
@@ -40,6 +40,7 @@ config["model_params"]["coral_kwargs"]["batchnorm_after_act"] = True
 config["model_params"]["coral_kwargs"]["predictor_hidden_layer_sizes"] = None
 config["model_params"]["coral_kwargs"]["use_predictor"] = True
 config["model_params"]["coral_kwargs"]["bn_momentum"] = 0.1  # setting high bc of large batch size
+config["model_params"]["coral_kwargs"]["enc_out_act"] = True
 
 config["train_params"]["epochs"] = 200
 config["train_params"]["batch_size"] = 8
@@ -59,6 +60,7 @@ with open(os.path.join(CONFIG_DIR, MODEL_NAME, f"{CONFIG_FNAME_PREFIX}.yml"), "w
 data_params_lists = dict(
     n_markers=[20, 40, 80],
     n_mix=[5, 8, 10, 15],
+    scaler_name=["minmax", "standard"],
 )
 
 # model_params
