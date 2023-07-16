@@ -1,0 +1,28 @@
+data_params:
+  all_genes: false
+  data_dir: data
+  dset: dlpfc
+  n_markers: 40
+  n_mix: 3
+  n_spots: 100000
+  samp_split: true
+  sc_id: GSE144136
+  scaler_name: minmax
+  st_id: spatialLIBD
+  st_split: false
+lib_params:
+  manual_seed: 1846326316
+model_params:
+  celldart_kwargs:
+    bn_momentum: 0.01
+    emb_dim: 32
+  model_version: gen_dlpfc_dlpfc-9356
+train_params:
+  alpha: 2.0
+  alpha_lr: 10
+  batch_size: 512
+  initial_train_epochs: 10
+  lr: 0.0001
+  n_iter: 15000
+  pretraining: true
+  reverse_val: false

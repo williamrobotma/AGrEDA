@@ -1,0 +1,48 @@
+data_params:
+  all_genes: false
+  data_dir: data
+  dset: dlpfc
+  n_markers: 40
+  n_mix: 5
+  n_spots: 100000
+  samp_split: true
+  sc_id: GSE144136
+  scaler_name: standard
+  st_id: spatialLIBD
+  st_split: false
+lib_params:
+  manual_seed: 3166630596
+model_params:
+  dann_kwargs:
+    alpha_: 3
+    dis_dropout_factor: 0.5
+    dropout: 0.5
+    emb_dim: 64
+    enc_hidden_layer_sizes:
+      - 1024
+    enc_out_act: true
+  model_version: gen_dlpfc_dlpfc-930083
+train_params:
+  adv_opt_kwargs:
+    betas:
+      - 0.5
+      - 0.999
+    eps: 1.0e-07
+    lr: 2.0e-05
+    weight_decay: 0.1
+  batch_size: 1024
+  early_stop_crit: 100
+  early_stop_crit_adv: 500
+  epochs: 500
+  lambda: 2
+  min_epochs: 40
+  min_epochs_adv: 100
+  plateau_kwargs:
+    factor: 0.5
+    min_lr: 2.0e-06
+    patience: 50
+    verbose: true
+  pretraining: false
+  reverse_val: false
+  source_first: true
+  two_step: false
