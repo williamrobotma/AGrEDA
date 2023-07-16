@@ -1,20 +1,29 @@
 #!/bin/bash
 
+# #SBATCH --account=rrg-aminemad
+# #SBATCH --cpus-per-task=1  # Cores proportional to GPUs: 6 on Cedar, 16 on Graham.
+# #SBATCH --mem=16G      
+# #SBATCH --time=0-03:00:00
+# #SBATCH --array=1-200:100
+
+# #SBATCH --output=logs/DANN/generated_pdac/gen_v1-eval_only%a-%N-%A.out
+
 #SBATCH --account=rrg-aminemad
 #SBATCH --gpus=1 
 #SBATCH --cpus-per-task=1  # Cores proportional to GPUs: 6 on Cedar, 16 on Graham.
 #SBATCH --mem=16G      
-#SBATCH --time=0-04:30:00
-#SBATCH --array=1-991:100
+#SBATCH --time=0-01:00:00
+#SBATCH --array=1-200:20
 
 #SBATCH --output=logs/DANN/generated_pdac/gen_v1-%a-%N-%A.out
 #SBATCH --error=logs/DANN/generated_pdac/gen_v1-%a-%N-%A.err
+
 
 set -x
 
 start=`date +%s`
 
-CONFIG_FILES=$(sed -n "${SLURM_ARRAY_TASK_ID},$(($SLURM_ARRAY_TASK_ID+99))p" configs/generated_pdac/DANN/a_list.txt)
+CONFIG_FILES=$(sed -n "${SLURM_ARRAY_TASK_ID},$(($SLURM_ARRAY_TASK_ID+19))p" configs/generated_pdac/DANN/a_list.txt)
 
 export BLIS_NUM_THREADS=1
 export MKL_NUM_THREADS=$SLURM_CPUS_PER_TASK
@@ -38,7 +47,7 @@ do
 done
 
 # echo "running eval"
-# sbatch --output="./logs/DANN/generated_pdac/gen_v1-${SLURM_ARRAY_TASK_ID}-eval.out" --export=SLURM_ARRAY_TASK_ID ./batch_scripts/DANN/sbatch-dann-ht-pdac-eval.sh
+#sbatch --output="./logs/DANN/generated_pdac/gen_v1-${SLURM_ARRAY_TASK_ID}-eval.out" --export=SLURM_ARRAY_TASK_ID ./batch_scripts/DANN/sbatch-dann-ht-pdac-eval.sh
 
 end=`date +%s`
 echo "script time: $(($end-$start))" 
