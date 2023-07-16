@@ -9,7 +9,6 @@ import re
 import scanpy as sc
 from scipy.sparse import csr_matrix
 
-from da_utils.data_processing import qc_sc
 from .preprocessing_mouse_GSE115746 import (
     cell_cluster_cell_type_to_spot_composition,
     cell_subclass_to_spot_composition,
@@ -177,4 +176,6 @@ def main():
 
 # %%
 if __name__ == "__main__":
+    from da_utils.data_processing import qc_sc
+
     main()

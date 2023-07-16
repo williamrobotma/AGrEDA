@@ -8,7 +8,8 @@ import pandas as pd
 import scanpy as sc
 from scipy.sparse import csr_matrix
 
-from da_utils.data_processing import qc_sc
+if __name__ == "__main__":
+    from da_utils.data_processing import qc_sc
 
 # %%
 dset_dir = "data/dlpfc"

@@ -4,7 +4,8 @@ import os
 
 import scanpy as sc
 
-from da_utils.data_processing import qc_sc
+if __name__ == "__main__":
+    from da_utils.data_processing import qc_sc
 
 PDAC_DIR = "./data/pdac"
 SC_OUT_DIR = os.path.join(PDAC_DIR, "sc_adata")
