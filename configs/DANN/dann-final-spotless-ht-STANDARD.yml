@@ -2,34 +2,34 @@ data_params:
   all_genes: false
   data_dir: data
   dset: mouse_cortex
-  n_markers: 20
-  n_mix: 5
+  n_markers: 40
+  n_mix: 10
   n_spots: 100000
   samp_split: true
   sc_id: GSE115746
-  scaler_name: minmax
+  scaler_name: standard
   st_id: spotless_mouse_cortex
   st_split: false
 lib_params:
-  manual_seed: 1698672391
+  manual_seed: 169465162
 model_params:
   dann_kwargs:
     alpha_: 2
-    dis_dropout_factor: 1
-    dropout: 0.2
-    emb_dim: 64
+    dis_dropout_factor: 0.5
+    dropout: 0.5
+    emb_dim: 32
     enc_hidden_layer_sizes:
-      - 256
-      - 128
+      - 512
+      - 512
     enc_out_act: true
-  model_version: gen_spotless_oracle-14271
+  model_version: gen_spotless_oracle-351969
 train_params:
   adv_opt_kwargs:
     betas:
       - 0.5
       - 0.999
     eps: 1.0e-07
-    lr: 0.001
+    lr: 1.0e-05
     weight_decay: 0.1
   batch_size: 8
   early_stop_crit: 100
@@ -45,5 +45,5 @@ train_params:
     verbose: true
   pretraining: false
   reverse_val: false
-  source_first: false
-  two_step: true
+  source_first: true
+  two_step: false

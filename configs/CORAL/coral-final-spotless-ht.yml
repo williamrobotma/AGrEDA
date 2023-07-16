@@ -2,8 +2,8 @@ data_params:
   all_genes: false
   data_dir: data
   dset: mouse_cortex
-  n_markers: 40
-  n_mix: 5
+  n_markers: 20
+  n_mix: 10
   n_spots: 100000
   samp_split: true
   sc_id: GSE115746
@@ -11,29 +11,29 @@ data_params:
   st_id: spotless_mouse_cortex
   st_split: false
 lib_params:
-  manual_seed: 1981517644
+  manual_seed: 62445307
 model_params:
   coral_kwargs:
     batchnorm: true
     batchnorm_after_act: true
     bn_momentum: 0.1
     dropout: 0.5
-    emb_dim: 32
+    emb_dim: 64
     enc_hidden_layer_sizes:
       - 256
       - 128
     enc_out_act: true
-    hidden_act: leakyrelu
+    hidden_act: relu
     predictor_hidden_layer_sizes: null
     use_predictor: true
-  model_version: gen_spotless_oracle-24631
+  model_version: gen_spotless_oracle-15405
 train_params:
   batch_size: 8
   epochs: 200
   lambda:
     - 0
-    - 50
+    - 100
   opt_kwargs:
     lr: 0.0001
-    weight_decay: 0.3
+    weight_decay: 0.1
   reverse_val: false
