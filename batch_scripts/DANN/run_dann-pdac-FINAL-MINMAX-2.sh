@@ -2,7 +2,7 @@
 
 start=`date +%s`
 
-CONFIG_FILE="dann-final-pdac-ht-MINMAX.yml"
+CONFIG_FILE="dann-final-pdac-ht-MINMAX-2.yml"
 
 mkdir -p logs/DANN
 

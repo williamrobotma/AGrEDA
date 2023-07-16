@@ -2,8 +2,8 @@ data_params:
   all_genes: false
   data_dir: data
   dset: pdac
-  n_markers: 20
-  n_mix: 50
+  n_markers: 40
+  n_mix: 70
   n_spots: 100000
   one_model: true
   samp_split: false
@@ -12,17 +12,18 @@ data_params:
   st_id: GSE111672
   st_split: false
 lib_params:
-  manual_seed: 92348369
+  manual_seed: 3198683172
 model_params:
   dann_kwargs:
-    alpha_: 3
+    alpha_: 1
     dis_dropout_factor: 1
-    dropout: 0.5
-    emb_dim: 64
+    dropout: 0.2
+    emb_dim: 32
     enc_hidden_layer_sizes:
-      - 1024
+      - 512
+      - 256
     enc_out_act: true
-  model_version: gen_pdac-308205
+  model_version: gen_pdac-867405
 train_params:
   adv_opt_kwargs:
     betas:
@@ -31,11 +32,11 @@ train_params:
     eps: 1.0e-07
     lr: 1.0e-05
     weight_decay: 0.1
-  batch_size: 256
+  batch_size: 512
   early_stop_crit: 100
   early_stop_crit_adv: 500
   epochs: 500
-  lambda: 0.5
+  lambda: 1
   min_epochs: 40
   min_epochs_adv: 100
   plateau_kwargs:

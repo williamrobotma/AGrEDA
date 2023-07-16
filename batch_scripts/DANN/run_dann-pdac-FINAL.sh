@@ -17,7 +17,7 @@ model_seeds=(2353 24385 284 86322 98237)
     --st_id GSE111672 \
     --sc_id CA001063 \
     --nmarkers 40 \
-    --nmix 50 \
+    --nmix 70 \
     --one_model
 
 python -u dann.py \
@@ -48,7 +48,7 @@ for i in "${!ps_seeds[@]}"; do
         --st_id GSE111672 \
         --sc_id CA001063 \
         --nmarkers 40 \
-        --nmix 50 \
+        --nmix 70 \
         --one_model \
         --ps_seed=$ps_seed
 
