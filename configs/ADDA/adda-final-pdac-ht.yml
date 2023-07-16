@@ -8,24 +8,24 @@ data_params:
   one_model: true
   samp_split: false
   sc_id: CA001063
-  scaler_name: standard
+  scaler_name: minmax
   st_id: GSE111672
   st_split: false
 lib_params:
-  manual_seed: 2454007770
+  manual_seed: 1004461899
 model_params:
   adda_kwargs:
     bn_momentum: 0.01
     emb_dim: 32
-  model_version: gen_pdac-1635
+  model_version: gen_pdac-2563
 train_params:
   adam_beta1: 0.5
-  alpha: 5
-  batch_size: 256
-  dis_loop_factor: 5
+  alpha: 2
+  batch_size: 512
+  dis_loop_factor: 10
   enc_lr: 0.0002
   epochs: 20
   initial_train_epochs: 200
-  initial_train_lr: 0.0001
+  initial_train_lr: 0.0002
   pretraining: true
   reverse_val: false

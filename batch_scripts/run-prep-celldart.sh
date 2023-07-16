@@ -22,23 +22,23 @@ for i in "${!ps_seeds[@]}"; do
 done
 
 # spotless
-for i in "${!ps_seeds[@]}"; do
-    ps_seed=${ps_seeds[$i]}
+# for i in "${!ps_seeds[@]}"; do
+#     ps_seed=${ps_seeds[$i]}
     
-    echo ps_seed: $ps_seed
-    ./prep_data.py -s minmax \
-        --dset mouse_cortex \
-        --st_id spotless_mouse_cortex \
-        --sc_id GSE115746 \
-        --nmarkers 40 \
-        --nmix 5 \
-        --samp_split \
-        --val_samp \
-        --ps_seed=$ps_seed
+#     echo ps_seed: $ps_seed
+#     ./prep_data.py -s minmax \
+#         --dset mouse_cortex \
+#         --st_id spotless_mouse_cortex \
+#         --sc_id GSE115746 \
+#         --nmarkers 40 \
+#         --nmix 5 \
+#         --samp_split \
+#         --val_samp \
+#         --ps_seed=$ps_seed
 
-done
+# done
 
-pdac
+# pdac
 for i in "${!ps_seeds[@]}"; do
     ps_seed=${ps_seeds[$i]}
     
@@ -48,7 +48,7 @@ for i in "${!ps_seeds[@]}"; do
         --st_id GSE111672 \
         --sc_id CA001063 \
         --nmarkers 80 \
-        --nmix 70 \
+        --nmix 50 \
         --one_model \
         --ps_seed=$ps_seed
 

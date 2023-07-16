@@ -26,7 +26,7 @@ fi
 python src/download_pdac.py
 python src/preprocess_pdac_GSE111672.py
 python src/preprocess_pdac_zenodo6024273.py
-python src/preprocessing_libd.py.py
+python src/preprocessing_libd.py
 python src/preprocessing_dlpfc.py
 python src/preprocessing_spotless.py
 python src/preprocessing_mouse_GSE115746.py
