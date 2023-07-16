@@ -16,5 +16,5 @@ mkdir -p logs/DANN
 # ./batch_scripts/CellDART/run_CellDART-pdac-FINAL.sh 1> logs/CellDART/run-pdac-FINAL.out 2> logs/CellDART/run-pdac-FINAL.err
 # ./batch_scripts/CORAL/run_coral-pdac-FINAL.sh 1> logs/CORAL/run-pdac-FINAL.out 2> logs/CORAL/run-pdac-FINAL.err
 ./batch_scripts/DANN/run_dann-pdac-FINAL.sh 1> logs/DANN/run-pdac-FINAL.out 2> logs/DANN/run-pdac-FINAL.err
-./batch_scripts/DANN/run_dann-pdac-FINAL-MINMAX.sh 1> logs/DANN/run-pdac-FINAL.out 2> logs/DANN/run-pdac-FINAL-MINMAX.err
-./batch_scripts/DANN/run_dann-pdac-FINAL-MINMAX-2.sh 1> logs/DANN/run-pdac-FINAL-2.out 2> logs/DANN/run-pdac-FINAL-MINMAX-2.err
+./batch_scripts/DANN/run_dann-pdac-FINAL-MINMAX.sh 1> logs/DANN/run-pdac-FINAL-MINMAX.out 2> logs/DANN/run-pdac-FINAL-MINMAX.err
+./batch_scripts/DANN/run_dann-pdac-FINAL-MINMAX-2.sh 1> logs/DANN/run-pdac-FINAL-MINMAX-2.out 2> logs/DANN/run-pdac-FINAL-MINMAX-2.err
