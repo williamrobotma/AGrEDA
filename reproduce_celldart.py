@@ -950,6 +950,8 @@ if data_params.get("samp_split") or data_params.get("one_model"):
     model.to(device)
     model.advtraining()
 
+    tqdm.write(repr(model))
+    
     train_adversarial(
         model,
         save_folder,

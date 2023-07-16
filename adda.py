@@ -1004,6 +1004,9 @@ def load_train_plot(
 
     model.advtraining()
 
+    if adv_train_kwargs.get("checkpoints", False):
+        tqdm.write(repr(model))
+
     results, checkpoint = train_adversarial_iters(
         model,
         save_folder,
