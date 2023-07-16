@@ -42,7 +42,7 @@ echo "build time: $(($endbuild-$start))"
 for config_file in $CONFIG_FILES;
 do
     echo "DANN config file no. ${n}: ${config_file}"
-    # ./dann.py -f "${config_file}" -l "log.txt" -cdir "configs/generated_pdac" -d "$SLURM_TMPDIR/tmp_model"
+    ./dann.py -f "${config_file}" -l "log.txt" -cdir "configs/generated_pdac" -d "$SLURM_TMPDIR/tmp_model"
     ./eval_config.py -n DANN -f "${config_file}" -cdir "configs/generated_pdac" -m --njobs=$SLURM_CPUS_PER_TASK -d "$SLURM_TMPDIR/tmp_results"
 done
 
