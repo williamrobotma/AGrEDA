@@ -12,14 +12,14 @@ ps_seeds=(3679 343 25 234 98098)
 
 model_seeds=(2353 24385 284 86322 98237)
 
-./prep_data.py -s minmax \
-    --dset dlpfc \
-    --st_id spatialLIBD \
-    --sc_id GSE144136 \
-    --nmarkers 80 \
-    --nmix 3 \
-    --samp_split \
-    --val_samp
+# ./prep_data.py -s minmax \
+#     --dset dlpfc \
+#     --st_id spatialLIBD \
+#     --sc_id GSE144136 \
+#     --nmarkers 80 \
+#     --nmix 3 \
+#     --samp_split \
+#     --val_samp
 
 python -u dann.py \
     -f "${CONFIG_FILE}" \
@@ -44,15 +44,15 @@ for i in "${!ps_seeds[@]}"; do
     model_seed=${model_seeds[$i]}
     
     echo ps_seed: $ps_seed model_seed: $model_seed
-    ./prep_data.py -s minmax \
-        --dset dlpfc \
-        --st_id spatialLIBD \
-        --sc_id GSE144136 \
-        --nmarkers 80 \
-        --nmix 3 \
-        --samp_split \
-        --val_samp \
-        --ps_seed=$ps_seed
+    # ./prep_data.py -s minmax \
+    #     --dset dlpfc \
+    #     --st_id spatialLIBD \
+    #     --sc_id GSE144136 \
+    #     --nmarkers 80 \
+    #     --nmix 3 \
+    #     --samp_split \
+    #     --val_samp \
+    #     --ps_seed=$ps_seed
 
 
     python -u dann.py \
