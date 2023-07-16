@@ -2,11 +2,11 @@
 
 start=`date +%s`
 
-CONFIG_FILE="celldart-final-pdac-ht.yml"
+CONFIG_FILE="dann-final-pdac-ht-MINMAX.yml"
 
-mkdir -p logs/CellDART
+mkdir -p logs/DANN
 
-echo "CellDART config file: ${CONFIG_FILE}"
+echo "DANN config file: ${CONFIG_FILE}"
 
 ps_seeds=(3679 343 25 234 98098)
 
@@ -16,27 +16,27 @@ model_seeds=(2353 24385 284 86322 98237)
     --dset pdac \
     --st_id GSE111672 \
     --sc_id CA001063 \
-    --nmarkers 80 \
+    --nmarkers 20 \
     --nmix 50 \
     --one_model
 
-python -u reproduce_celldart.py \
+python -u dann.py \
     -f "${CONFIG_FILE}" \
     -l "log.txt" \
     -cdir "configs" \
     --model_dir="model_FINAL" \
-    # -c 1
+    # -c 3
 
 echo "Evaluating"
 ./eval_config.py \
-    -n CellDART \
+    -n DANN \
     -f "${CONFIG_FILE}" \
     -cdir "configs" \
     -t \
     --model_dir="model_FINAL" \
     --results_dir="results_FINAL" \
     --njobs 16 \
-    # -c 1
+    # -c 3
 
 for i in "${!ps_seeds[@]}"; do
     ps_seed=${ps_seeds[$i]}
@@ -47,24 +47,24 @@ for i in "${!ps_seeds[@]}"; do
         --dset pdac \
         --st_id GSE111672 \
         --sc_id CA001063 \
-        --nmarkers 80 \
+        --nmarkers 20 \
         --nmix 50 \
         --one_model \
         --ps_seed=$ps_seed
 
 
-    python -u reproduce_celldart.py \
+    python -u dann.py \
         -f "${CONFIG_FILE}" \
         -l "log.txt" \
         -cdir "configs" \
         --model_dir="model_FINAL/std" \
         --seed_override=$model_seed \
         --ps_seed=$ps_seed \
-        # -c 1
+        # -c 3
 
     echo "Evaluating"
     ./eval_config.py \
-        -n CellDART \
+        -n DANN \
         -f "${CONFIG_FILE}" \
         -cdir "configs" \
         -t \
@@ -73,7 +73,7 @@ for i in "${!ps_seeds[@]}"; do
         --ps_seed=$ps_seed \
         --results_dir="results_FINAL/std" \
         --njobs 16 \
-        # -c 1
+        # -c 3
 done
 
 end=`date +%s`
