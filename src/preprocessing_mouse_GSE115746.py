@@ -9,8 +9,6 @@ import pandas as pd
 import scanpy as sc
 from scipy.sparse import csr_matrix
 
-from da_utils.data_processing import qc_sc
-
 cell_subclass_to_spot_composition = {
     "Astro": {"Astrocytes deep", "Astrocytes superficial"},
     "CR": set(),
@@ -127,4 +125,6 @@ def main():
 
 
 if __name__ == "__main__":
+    from da_utils.data_processing import qc_sc
+
     main()
