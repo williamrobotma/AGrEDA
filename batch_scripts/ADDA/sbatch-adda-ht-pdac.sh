@@ -1,5 +1,13 @@
 #!/bin/bash
 
+# SBATCH --account=rrg-aminemad
+# SBATCH --cpus-per-task=1  # Cores proportional to GPUs: 6 on Cedar, 16 on Graham.
+# SBATCH --mem=16G      
+# SBATCH --time=0-02:10:00
+# SBATCH --array=1-200:10
+
+# SBATCH --output=logs/ADDA/generated_pdac/gen_v1-eval_only%a-%N-%A.out
+
 #SBATCH --account=rrg-aminemad
 #SBATCH --gpus=1 
 #SBATCH --cpus-per-task=1  # Cores proportional to GPUs: 6 on Cedar, 16 on Graham.
@@ -31,12 +39,12 @@ echo "build time: $(($endbuild-$start))"
 for config_file in $CONFIG_FILES;
 do
     echo "ADDA config file no. ${n}: ${config_file}"
-    ./adda.py -f "${config_file}" -l "log.txt" -cdir "configs/generated_pdac" -d "$SLURM_TMPDIR/tmp_model"
+    # ./adda.py -f "${config_file}" -l "log.txt" -cdir "configs/generated_pdac" -d "$SLURM_TMPDIR/tmp_model"
     ./eval_config.py -n ADDA -f "${config_file}" -cdir "configs/generated_pdac" -m --njobs=$SLURM_CPUS_PER_TASK -d "$SLURM_TMPDIR/tmp_results"
 done
 
 # echo "running eval"
-# sbatch --output="./logs/ADDA/generated_pdac/gen_v1-${SLURM_ARRAY_TASK_ID}-eval.out" --export=SLURM_ARRAY_TASK_ID ./batch_scripts/ADDA/sbatch-adda-ht-pdac-eval.sh
+#sbatch --output="./logs/ADDA/generated_pdac/gen_v1-${SLURM_ARRAY_TASK_ID}-eval.out" --export=SLURM_ARRAY_TASK_ID ./batch_scripts/ADDA/sbatch-adda-ht-pdac-eval.sh
 
 end=`date +%s`
 echo "script time: $(($end-$start))" 

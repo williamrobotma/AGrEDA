@@ -117,7 +117,7 @@ config
 # %%
 rng = np.random.default_rng(46758)
 
-yes_samples = set(rng.choice(total_configs, size=1000, replace=False))
+yes_samples = set(rng.choice(total_configs, size=200, replace=False))
 
 
 data_params_l = []
