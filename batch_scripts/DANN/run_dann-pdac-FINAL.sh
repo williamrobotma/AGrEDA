@@ -25,7 +25,7 @@ python -u dann.py \
     -l "log.txt" \
     -cdir "configs" \
     --model_dir="model_FINAL" \
-    -c 3
+    # -c 3
 
 echo "Evaluating"
 ./eval_config.py \
@@ -36,7 +36,7 @@ echo "Evaluating"
     --model_dir="model_FINAL" \
     --results_dir="results_FINAL" \
     --njobs 16 \
-    -c 3
+    # -c 3
 
 for i in "${!ps_seeds[@]}"; do
     ps_seed=${ps_seeds[$i]}
@@ -60,7 +60,7 @@ for i in "${!ps_seeds[@]}"; do
         --model_dir="model_FINAL/std" \
         --seed_override=$model_seed \
         --ps_seed=$ps_seed \
-        -c 3
+        # -c 3
 
     echo "Evaluating"
     ./eval_config.py \
@@ -73,7 +73,7 @@ for i in "${!ps_seeds[@]}"; do
         --ps_seed=$ps_seed \
         --results_dir="results_FINAL/std" \
         --njobs 16 \
-        -c 3
+        # -c 3
 done
 
 end=`date +%s`

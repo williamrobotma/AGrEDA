@@ -414,12 +414,7 @@ if train_params["pretraining"]:
     model.apply(initialize_weights)
     model.to(device)
 
-    (
-        loss_history,
-        loss_history_val,
-        loss_history_running,
-        lr_history_running,
-    ), _ = pretrain(
+    (loss_history, loss_history_val, loss_history_running, lr_history_running,), _ = pretrain(
         pretrain_folder,
         model,
         dataloader_source_d["train"],
@@ -927,7 +922,7 @@ def plot_results(
     best_clf_loss_val = results_history_source_val["clf_loss"][best_epoch]
     axs[0].text(
         x=best_epoch + (2 if best_epoch < n_epochs * 0.75 else -2),
-        y=max(results_history_source_val["clf_loss"]) * 0.5,
+        y=1.1,
         s=f"Best clf val. loss:\n{best_clf_loss_val:.4f} at epoch {best_epoch}",
         ha="left" if best_epoch < n_epochs * 0.75 else "right",
         size="x-small",
