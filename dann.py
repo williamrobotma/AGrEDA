@@ -864,7 +864,7 @@ def train_adversarial_iters(
     inner.close()
     outer.close()
     # Save final model
-    if epoch_override is not None:
+    if epoch_override is None:
         checkpoint = torch.load(os.path.join(save_folder, f"best_model.pth"))
     torch.save(checkpoint, os.path.join(save_folder, f"final_model.pth"))
 
