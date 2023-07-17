@@ -93,6 +93,9 @@ def get_torch_device(cuda_index=None):
         warnings.warn("Using CPU", category=UserWarning, stacklevel=2)
         return torch.device("cpu")
     if cuda_index is not None and 0 <= int(cuda_index) < torch.cuda.device_count():
+        warnings.warn(
+            f"Invalid torch.device ordinal {cuda_index}", category=UserWarning, stacklevel=2
+        )
         return torch.device(f"cuda:{cuda_index}")
     return torch.device("cuda")
 
@@ -121,9 +124,13 @@ class ModelWrapper:
         if cls.lib_config.cuda_index is not None and f"index={lib_config.cuda_index}" not in repr(
             cls.lib_config.device
         ):
-            raise ValueError(
-                f"Device index mismatch: {cls.lib_config.device.idx} != {lib_config.cuda_index}"
-            )
+            try:
+                actual_index = cls.lib_config.device.idx
+            except AttributeError:
+                actual_index = None
+
+            warnings.warn(f"Device index mismatch: {actual_index} != {lib_config.cuda_index}")
+            lib_config.cuda_index = actual_index
 
     def __init__(self, model_or_model_dir, name="final_model"):
         if isinstance(model_or_model_dir, str):
