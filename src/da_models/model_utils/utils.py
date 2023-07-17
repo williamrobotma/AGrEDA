@@ -92,7 +92,7 @@ def get_torch_device(cuda_index=None):
     if not torch.cuda.is_available():
         warnings.warn("Using CPU", category=UserWarning, stacklevel=2)
         return torch.device("cpu")
-    if cuda_index is not None:
+    if cuda_index is not None and 0 <= int(cuda_index) < torch.cuda.device_count():
         return torch.device(f"cuda:{cuda_index}")
     return torch.device("cuda")
 
