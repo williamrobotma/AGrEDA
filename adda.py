@@ -843,7 +843,7 @@ def train_adversarial_iters(
                 results_val = compute_acc_dis(dataloader_source_val, dataloader_target_val, model)
             evaluation.recurse_running_dict(results_val, results_history_val)
 
-            if (epoch % 10 == 9 or epoch >= epochs - 1 or epoch < 20) and checkpoints:
+            if (epoch % 10 == 9 or epoch >= epochs - 1 or epoch < 200) and checkpoints:
                 torch.save(
                     {"model": model.state_dict()},
                     os.path.join(save_folder, f"{fname_prefix}checkpt-{epoch}.pth"),
