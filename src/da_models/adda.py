@@ -65,6 +65,7 @@ class ADDAST(nn.Module):
             self.dis = MLP(
                 emb_dim,
                 2,
+                # TODO: Investigate CellDART with this changed
                 hidden_layer_sizes=(32,),
                 dropout=0.5,
                 bn_kwargs={"eps": 0.001, "momentum": bn_momentum},

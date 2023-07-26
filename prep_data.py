@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 SPLIT_RATIOS = (0.8, 0.1, 0.1)
 DATA_DIR = "./data"
 
-SCALER_OPTS = ("minmax", "standard", "celldart")
+SCALER_OPTS = ("minmax", "standard", "celldart", "unscaled")
 
 
 # %%
@@ -36,6 +36,7 @@ def main(args):
         st_id=args.st_id,
         n_markers=args.nmarkers,
         all_genes=args.allgenes,
+        normalize=not args.no_process,
     )
 
     print("Selecting subset genes and splitting single-cell data")
@@ -47,25 +48,28 @@ def main(args):
         n_markers=args.nmarkers,
         all_genes=args.allgenes,
         rng=462,
+        normalize=not args.no_process,
     )
 
-    print("Generating Pseudospots")
-    print("-" * 80)
-    sc_mix_d, lab_mix_d = gen_pseudo_spots(
-        selected_dir, n_mix=args.nmix, rng=args.ps_seed, n_jobs=args.njobs
-    )
+    if not args.no_process:
+        print("Generating Pseudospots")
+        print("-" * 80)
+        sc_mix_d, lab_mix_d = gen_pseudo_spots(
+            selected_dir, n_mix=args.nmix, rng=args.ps_seed, n_jobs=args.njobs
+        )
 
-    print("Log scaling pseudospots")
-    print("-" * 80)
-    log_scale_pseudospots(
-        selected_dir,
-        args.scaler,
-        n_mix=args.nmix,
-        # n_spots=args.nspots,
-        sc_mix_d=sc_mix_d,
-        lab_mix_d=lab_mix_d,
-        seed_int=-1 if args.ps_seed == 623 else args.ps_seed,
-    )
+        if args.scaler != "unscaled":
+            print("Log scaling pseudospots")
+            print("-" * 80)
+            log_scale_pseudospots(
+                selected_dir,
+                args.scaler,
+                n_mix=args.nmix,
+                # n_spots=args.nspots,
+                sc_mix_d=sc_mix_d,
+                lab_mix_d=lab_mix_d,
+                seed_int=-1 if args.ps_seed == 623 else args.ps_seed,
+            )
 
     print("Log scaling and maybe splitting spatial data")
     print("-" * 80)
@@ -77,13 +81,15 @@ def main(args):
         one_model=args.one_model,
         rng=16,
     )
-    log_scale_st(
-        selected_dir,
-        scaler_name=args.scaler,
-        stsplit=args.stsplit,
-        samp_split=args.samp_split,
-        one_model=args.one_model,
-    )
+
+    if args.scaler != "unscaled":
+        log_scale_st(
+            selected_dir,
+            scaler_name=args.scaler,
+            stsplit=args.stsplit,
+            samp_split=args.samp_split,
+            one_model=args.one_model,
+        )
 
 
 def scale(scaler, *unscaled):
@@ -106,6 +112,8 @@ def get_scaler(scaler_name):
             "celldart scaler is provided for legacy purposes only. " "Use minmax instead."
         )
         return scaler_name
+    if scaler_name == "unscaled":
+        return None
 
     raise ValueError(f"Scaler '{scaler_name}' not recognized.")
 
@@ -160,6 +168,7 @@ def select_genes_and_split(
     n_markers=data_loading.DEFAULT_N_MARKERS,
     all_genes=False,
     rng=None,
+    normalize=True,
 ):
     """Select genes and split sc data into train, val, and test sets
 
@@ -176,9 +185,13 @@ def select_genes_and_split(
     rng_integers = misc.check_integer_rng(rng)
 
     selected_dir = data_loading.get_selected_dir(
-        dset_dir, sc_id=sc_id, st_id=st_id, n_markers=n_markers, all_genes=all_genes
+        dset_dir,
+        sc_id=sc_id,
+        st_id=st_id,
+        n_markers=n_markers,
+        all_genes=all_genes,
+        normalize=normalize,
     )
-
     if check_selected_split_exists(selected_dir):
         print("Selected and split data already exists. Skipping.")
         return
@@ -198,7 +211,8 @@ def select_genes_and_split(
 
     adata_st = ad.concat(adata_st_d.values(), label="sample_id", keys=adata_st_d.keys())
     adata_st.obs_names_make_unique()
-    sc.pp.normalize_total(adata_st, inplace=True, target_sum=1e4)
+    if normalize:
+        sc.pp.normalize_total(adata_st, inplace=True, target_sum=1e4)
     adata_st.var_names_make_unique()
 
     st_sample_id_l = adata_st.obs["sample_id"].unique()
@@ -206,7 +220,8 @@ def select_genes_and_split(
     print("Loading Single Cell Data")
     sc_path = os.path.join(dset_dir, "sc_adata", f"{sc_id}.h5ad")
     adata_sc = sc.read_h5ad(sc_path)
-    sc.pp.normalize_total(adata_sc, inplace=True, target_sum=1e4)
+    if normalize:
+        sc.pp.normalize_total(adata_sc, inplace=True, target_sum=1e4)
     adata_sc.var_names_make_unique()
 
     print("Splitting single cell data")
@@ -700,6 +715,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--ps_seed", type=int, default=623, help="Seed to use for pseudospot generation."
     )
+    parser.add_argument("--no_process", action="store_true", help="Whether to skip processing.")
 
     args = parser.parse_args()
 

@@ -39,44 +39,44 @@ echo "Evaluating"
     --njobs 16 \
     -c 0
 
-for i in "${!ps_seeds[@]}"; do
-    ps_seed=${ps_seeds[$i]}
-    model_seed=${model_seeds[$i]}
+# for i in "${!ps_seeds[@]}"; do
+#     ps_seed=${ps_seeds[$i]}
+#     model_seed=${model_seeds[$i]}
     
-    echo ps_seed: $ps_seed model_seed: $model_seed
-    # ./prep_data.py -s standard \
-    #     --dset mouse_cortex \
-    #     --st_id spotless_mouse_cortex \
-    #     --sc_id GSE115746 \
-    #     --nmarkers 80 \
-    #     --nmix 5 \
-    #     --samp_split \
-    #     --val_samp \
-    #     --ps_seed=$ps_seed
+#     echo ps_seed: $ps_seed model_seed: $model_seed
+#     # ./prep_data.py -s standard \
+#     #     --dset mouse_cortex \
+#     #     --st_id spotless_mouse_cortex \
+#     #     --sc_id GSE115746 \
+#     #     --nmarkers 80 \
+#     #     --nmix 5 \
+#     #     --samp_split \
+#     #     --val_samp \
+#     #     --ps_seed=$ps_seed
 
 
-    python -u adda.py \
-        -f "${CONFIG_FILE}" \
-        -l "log.txt" \
-        -cdir "configs" \
-        --model_dir="model_FINAL/std" \
-        --seed_override=$model_seed \
-        --ps_seed=$ps_seed \
-        -c 0
+#     python -u adda.py \
+#         -f "${CONFIG_FILE}" \
+#         -l "log.txt" \
+#         -cdir "configs" \
+#         --model_dir="model_FINAL/std" \
+#         --seed_override=$model_seed \
+#         --ps_seed=$ps_seed \
+#         -c 0
 
-    echo "Evaluating"
-    ./eval_config.py \
-        -n ADDA \
-        -f "${CONFIG_FILE}" \
-        -cdir "configs" \
-        -t \
-        --model_dir="model_FINAL/std" \
-        --seed_override=$model_seed \
-        --ps_seed=$ps_seed \
-        --results_dir="results_FINAL/std" \
-        --njobs 16 \
-        -c 0
-done
+#     echo "Evaluating"
+#     ./eval_config.py \
+#         -n ADDA \
+#         -f "${CONFIG_FILE}" \
+#         -cdir "configs" \
+#         -t \
+#         --model_dir="model_FINAL/std" \
+#         --seed_override=$model_seed \
+#         --ps_seed=$ps_seed \
+#         --results_dir="results_FINAL/std" \
+#         --njobs 16 \
+#         -c 0
+# done
 
-end=`date +%s`
-echo "script time: $(($end-$start))"
+# end=`date +%s`
+# echo "script time: $(($end-$start))"
