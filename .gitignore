@@ -147,3 +147,7 @@ dmypy.json
 # slurm files
 *.out
 sinfo-requirements.txt
+
+# figures and tables
+/figures/
+/tables/

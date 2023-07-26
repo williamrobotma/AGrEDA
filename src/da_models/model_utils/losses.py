@@ -27,6 +27,6 @@ def coral_loss(source, target):
         torch.tensor: CORAL loss.
 
     """
-    c_diff = torch.cov(source.T) - torch.cov(target.T)
+    c_diff = torch.cov(source.T, correction=0) - torch.cov(target.T, correction=0)
     loss = torch.sum(torch.mul(c_diff, c_diff))
     return loss / (4 * source.size(1) ** 2)

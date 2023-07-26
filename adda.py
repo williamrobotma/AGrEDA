@@ -12,6 +12,7 @@ import argparse
 import datetime
 import glob
 import os
+import pickle
 import shutil
 import tarfile
 from collections import OrderedDict
@@ -880,7 +881,7 @@ def train_adversarial_iters(
 
 # %%
 def plot_results(results_history, results_history_running, results_history_val, save_folder):
-    fig, axs = plt.subplots(4, 1, sharex=True, figsize=(9, 12), layout="constrained")
+    fig, axs = plt.subplots(4, 1, sharex=True, figsize=(9, 6), layout="constrained")
 
     # loss
     axs[0].plot(
@@ -908,41 +909,41 @@ def plot_results(results_history, results_history_running, results_history_val, 
     axs[0].legend()
 
     # accuracy
-    axs[1].plot(
+    axs[2].plot(
         *evaluation.format_iters(results_history_running["dis"]["source"]["accu"]),
         label="d-source",
         linewidth=0.5,
     )
-    axs[1].plot(
+    axs[2].plot(
         *evaluation.format_iters(results_history_running["dis"]["target"]["accu"]),
         label="d-target",
         linewidth=0.5,
     )
-    axs[1].plot(
+    axs[2].plot(
         *evaluation.format_iters(results_history_running["gen"]["target"]["accu"]),
         label="g-target",
         linewidth=0.5,
     )
 
-    axs[1].set_ylim(bottom=0, top=1)
-    axs[1].grid(which="major")
-    axs[1].minorticks_on()
-    axs[1].grid(which="minor", alpha=0.2)
-
-    axs[1].set_title("Training Accuracy")
-    axs[1].legend()
-
-    # val loss
-    axs[2].plot(results_history["dis"]["source"]["loss"], label="d-source")
-    axs[2].plot(results_history["dis"]["target"]["loss"], label="d-target")
-
-    axs[2].set_ylim(bottom=0, top=2)
+    axs[2].set_ylim(bottom=0, top=1)
     axs[2].grid(which="major")
     axs[2].minorticks_on()
     axs[2].grid(which="minor", alpha=0.2)
 
-    axs[2].set_title("Validation BCE Loss")
+    axs[2].set_title("Training Accuracy")
     axs[2].legend()
+
+    # val loss
+    axs[1].plot(results_history["dis"]["source"]["loss"], label="d-source")
+    axs[1].plot(results_history["dis"]["target"]["loss"], label="d-target")
+
+    axs[1].set_ylim(bottom=0, top=2)
+    axs[1].grid(which="major")
+    axs[1].minorticks_on()
+    axs[1].grid(which="minor", alpha=0.2)
+
+    axs[1].set_title("Validation BCE Loss")
+    axs[1].legend()
 
     # val accuracy
     axs[3].plot(results_history["dis"]["source"]["accu"], label="d-source")
@@ -1018,6 +1019,9 @@ def load_train_plot(
         **adv_train_kwargs,
     )
     plot_results(*results, save_folder)
+
+    with open(os.path.join(save_folder, "results.pkl"), "wb") as f:
+        pickle.dump(results, f)
 
     return checkpoint
 
