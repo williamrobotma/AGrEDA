@@ -2,21 +2,17 @@
 
 #SBATCH --account=rrg-aminemad
 
-# #SBATCH --cpus-per-task=32  # Cores proportional to GPUs: 6 on Cedar, 16 on Graham.
 #SBATCH --cpus-per-task=1
-# #SBATCH --mem=32G 
 #SBATCH --mem=4G        
-# #SBATCH --time=0:30:00
 #SBATCH --time=1:30:00
-# #SBATCH --array=5,10,20,40,80
 
 #SBATCH --output=logs/prep%N-%j.out
-# #SBATCH --error=logs/prep%N-%j.err
 
 set -x
 
 export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
-# num_workers=$(($SLURM_CPUS_PER_TASK/2))
+
+source ~/.venv-agreda/bin/activate
 
 # module load python/3.8
 # virtualenv --no-download $SLURM_TMPDIR/env
@@ -24,7 +20,7 @@ export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
 # pip install --no-index --upgrade pip
 # pip install --no-index -r requirements_cc.txt
 
-source ~/.venv-agreda/bin/activate
+
 
 for n in 20 40 80
 do
