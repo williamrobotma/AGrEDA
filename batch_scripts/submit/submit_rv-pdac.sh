@@ -9,7 +9,7 @@ mkdir -p logs/DANN/generated_pdac
 
 GENCONFIG_JOBID=$(sbatch "batch_scripts/sbatch-gen-configs-pdac.sh" | tr -dc '0-9')
 sleep 5
-PREP_JOBID=$(sbatch "batch_scripts/sbatch-prep-pdac.sh" | tr -dc '0-9')
+PREP_JOBID=$(sbatch "batch_scripts/sbatch-prep-rv-pdac.sh" | tr -dc '0-9')
 sleep 5
 
 JOBID=$(sbatch -d afterok:$GENCONFIG_JOBID,afterok:$PREP_JOBID "batch_scripts/CellDART/sbatch-celldart_rv-pdac.sh" | tr -dc '0-9')
