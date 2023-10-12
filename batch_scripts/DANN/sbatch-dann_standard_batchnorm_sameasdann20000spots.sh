@@ -22,7 +22,7 @@ virtualenv --no-download $SLURM_TMPDIR/env
 source $SLURM_TMPDIR/env/bin/activate
 pip install --no-index --upgrade pip
 pip install --no-index -r requirements_cc.txt
-# source .venv/bin/activate
+# source ~/.venv-agreda/bin/activate
 
 # ./prep_data.py --njobs -1
 # ./prep_data.py -s standard  --njobs -1
