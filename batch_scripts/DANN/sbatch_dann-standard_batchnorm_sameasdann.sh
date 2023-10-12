@@ -21,7 +21,7 @@ num_workers=$(($SLURM_CPUS_PER_TASK/2))
 # source $SLURM_TMPDIR/env/bin/activate
 # pip install --no-index --upgrade pip
 # pip install --no-index -r requirements_cc.txt
-source .venv/bin/activate
+source ~/.venv-agreda/bin/activate
 
 # python -u dann.py -f "standard_batchnorm_sameasdann.yml" --njobs $num_workers
 python -u eval_config.py -n "DANN" -f "standard_batchnorm_sameasdann.yml" --njobs $SLURM_CPUS_PER_TASK
