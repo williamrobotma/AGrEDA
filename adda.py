@@ -650,6 +650,7 @@ def train_adversarial_iters(
     checkpoints=False,
     fname_prefix="",
     epoch_override=None,
+    iter_override=None,
 ):
     if dataloader_target_val is None:
         dataloader_target_val = dataloader_target_train
@@ -675,6 +676,11 @@ def train_adversarial_iters(
         len(dataloader_target_train),
         len(dataloader_target_train_dis) * train_params["dis_loop_factor"],
     ]
+
+    if iter_override is not None:
+        iter_override_lengths = [iter_override, iter_override * train_params["dis_loop_factor"]]
+        dataloader_lengths = [min(a, b) for a, b in zip(iter_override_lengths, dataloader_lengths)]
+
     max_len_dataloader = np.amax(dataloader_lengths)
 
     # dis_scheduler = torch.optim.lr_scheduler.OneCycleLR(
@@ -1104,6 +1110,7 @@ def reverse_val(
             dataloader_source_d["val"],
             checkpoints=False,
             epoch_override=epoch + 1,
+            iter_override=len(dataloader_target_now_source_d["train"]),
         )
 
         # model = ModelWrapper(model)

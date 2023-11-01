@@ -760,7 +760,7 @@ def train_adversarial(
             model.clf.load_state_dict(clf_weights, strict=False)
             model.source_encoder.load_state_dict(source_encoder_weights, strict=False)
 
-            # Save checkpoint every 100
+            # Save checkpoint every 1000
             if iters % 1000 == 999 or iters >= n_iter - 1:
                 if checkpoints:
                     torch.save(
@@ -951,7 +951,7 @@ if data_params.get("samp_split") or data_params.get("one_model"):
     model.advtraining()
 
     tqdm.write(repr(model))
-    
+
     train_adversarial(
         model,
         save_folder,

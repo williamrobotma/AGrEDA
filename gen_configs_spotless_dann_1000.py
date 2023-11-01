@@ -12,8 +12,8 @@ import yaml
 # %%
 # CONFIG_FNAME = "dann.yml"
 MODEL_NAME = "DANN"
-CONFIG_DIR = "configs/generated_spotless"
-CONFIG_FNAME_PREFIX = "gen_spotless10001000_oracle"
+CONFIG_DIR = "configs/generated_spotless1000"
+CONFIG_FNAME_PREFIX = "gen_spotless1000_oracle"
 
 # %%
 config = {
@@ -49,7 +49,7 @@ config["train_params"]["min_epochs_adv"] = 100
 config["train_params"]["pretraining"] = False
 # config["train_params"]["reverse_val"] = False
 config["train_params"]["reverse_val"] = True
-config["train_params"]["val_samp"] = False
+config["data_params"]["val_samp"] = True
 
 
 config["train_params"]["plateau_kwargs"] = {}
