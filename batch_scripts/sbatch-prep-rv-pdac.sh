@@ -3,11 +3,11 @@
 #SBATCH --account=rrg-aminemad
 
 #SBATCH --cpus-per-task=1
-#SBATCH --mem=4G        
+#SBATCH --mem=16G        
 #SBATCH --time=0:20:00
 #SBATCH --array=20,40,80
 
-#SBATCH --output=logs/prep-%a-%N-%A.out
+#SBATCH --output=logs/prep-rv-pdac-%a-%N-%A.out
 
 set -x
 

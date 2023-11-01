@@ -49,7 +49,7 @@ config["train_params"]["min_epochs_adv"] = 100
 config["train_params"]["pretraining"] = False
 # config["train_params"]["reverse_val"] = False
 config["train_params"]["reverse_val"] = True
-config["train_params"]["val_samp"] = False
+config["data_params"]["val_samp"] = True
 
 
 config["train_params"]["plateau_kwargs"] = {}

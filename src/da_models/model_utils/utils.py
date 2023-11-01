@@ -132,11 +132,29 @@ class ModelWrapper:
             warnings.warn(f"Device index mismatch: {actual_index} != {lib_config.cuda_index}")
             lib_config.cuda_index = actual_index
 
+    @classmethod
+    def _get_lib_config_device(cls):
+        try:
+            return cls.lib_config.device
+        except AttributeError:
+            cls.lib_config = LibConfig(
+                device=get_torch_device(cuda_index=None),
+                cuda_index=None,
+            )
+
+            warnings.warn(
+                "PyTorch device not yet configured, "
+                f"initializing using {repr(cls.lib_config.device)}",
+                UserWarning,
+            )
+
+            return cls.lib_config.device
+
     def __init__(self, model_or_model_dir, name="final_model"):
         if isinstance(model_or_model_dir, str):
             model_path = os.path.join(model_or_model_dir, f"{name}.pth")
 
-            check_point_da = torch.load(model_path, map_location=self.lib_config.device)
+            check_point_da = torch.load(model_path, map_location=self._get_lib_config_device())
             try:
                 check_point_da["model"].to(self.lib_config.device)
             except AttributeError:
@@ -236,7 +254,7 @@ def get_best_params_file(model_name, dset, sc_id, st_id, configs_dir="configs"):
         "samp_split" if data_params.get("samp_split") else "",
         "final_model.pth",
     )
-    checkpoint = torch.load(model_path)
+    checkpoint = torch.load(model_path, map_location=ModelWrapper._get_lib_config_device())
 
     try:
         epoch = checkpoint["epoch"]

@@ -23,7 +23,7 @@ if ! [ -z "${SLURM_JOB_ID}" ]; then
     source ~/.venv-agreda/bin/activate
 fi
 
-python src/download_pdac.py
+# python src/download_pdac.py
 python src/preprocess_pdac_GSE111672.py
 python src/preprocess_pdac_zenodo6024273.py
 python src/preprocessing_libd.py

@@ -414,7 +414,12 @@ if train_params["pretraining"]:
     model.apply(initialize_weights)
     model.to(device)
 
-    (loss_history, loss_history_val, loss_history_running, lr_history_running,), _ = pretrain(
+    (
+        loss_history,
+        loss_history_val,
+        loss_history_running,
+        lr_history_running,
+    ), _ = pretrain(
         pretrain_folder,
         model,
         dataloader_source_d["train"],
@@ -603,6 +608,7 @@ def run_epoch(
     dataloader_target,
     model,
     tqdm_bar=None,
+    iter_override=None,
     **kwargs,
 ):
     source_results = {}
@@ -618,6 +624,8 @@ def run_epoch(
     target_results["weights"] = []
 
     n_iters = len(dataloader_target)
+    if iter_override is not None:
+        n_iters = min(n_iters, iter_override)
 
     s_iter = iter(dataloader_source)
     t_iter = iter(dataloader_target)
@@ -668,6 +676,7 @@ def train_adversarial_iters(
     dataloader_target_val=None,
     checkpoints=False,
     epoch_override=None,
+    iter_override=None,
 ):
     if dataloader_target_val is None:
         dataloader_target_val = dataloader_target_train
@@ -760,6 +769,7 @@ def train_adversarial_iters(
                 dataloader_target_train,
                 model,
                 tqdm_bar=inner,
+                iter_override=iter_override,
                 optimizer=optimizer,
                 two_step=train_params["two_step"],
                 source_first=train_params.get("source_first", True),
@@ -1122,6 +1132,7 @@ def reverse_val(
             dataloader_source_d["val"],
             checkpoints=False,
             epoch_override=epoch + 1,
+            iter_override=len(dataloader_target_now_source_d["train"]),
         )
 
         # model = ModelWrapper(model)

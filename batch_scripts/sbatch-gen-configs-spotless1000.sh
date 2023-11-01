@@ -6,7 +6,7 @@
 #SBATCH --mem=4G
 #SBATCH --time=00:15:00
 
-#SBATCH --output=logs/prep-genconfigs-%N-%j.out
+#SBATCH --output=logs/prep-genconfigs-spotless1000-%N-%j.out
 
 set -x
 
@@ -24,3 +24,6 @@ source ~/.venv-agreda/bin/activate
 
 python gen_configs_spotless_celldart_1000.py
 python gen_configs_spotless_dann_1000.py
+
+python gen_configs_spotless_adda.py
+python gen_configs_spotless_coral.py
