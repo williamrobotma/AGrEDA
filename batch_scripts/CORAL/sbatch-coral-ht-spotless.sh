@@ -5,7 +5,9 @@
 #SBATCH --cpus-per-task=1  # Cores proportional to GPUs: 6 on Cedar, 16 on Graham.
 #SBATCH --mem=8G      
 #SBATCH --time=0-03:00:00
-#SBATCH --array=1-991:100
+#SBATCH --array=1-1000:100
+
+# #SBATCH --array=701
 
 #SBATCH --output=logs/CORAL/generated_spotless/gen_v1-%a-%N-%A.out
 #SBATCH --error=logs/CORAL/generated_spotless/gen_v1-%a-%N-%A.err
