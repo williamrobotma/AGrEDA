@@ -46,8 +46,8 @@ config["train_params"]["early_stop_crit_adv"] = 500
 config["train_params"]["min_epochs"] = 40
 config["train_params"]["min_epochs_adv"] = 100
 config["train_params"]["pretraining"] = False
-# config["train_params"]["reverse_val"] = False
-config["train_params"]["reverse_val"] = True
+config["train_params"]["reverse_val"] = False
+# config["train_params"]["reverse_val"] = True
 config["data_params"]["val_samp"] = True
 
 
