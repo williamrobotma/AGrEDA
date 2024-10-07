@@ -46,15 +46,26 @@ script_start_time = datetime.datetime.now(datetime.timezone.utc)
 parser = argparse.ArgumentParser(
     description="Creating something like CellDART but just using coral loss"
 )
-parser.add_argument("--config_fname", "-f", type=str, help="Name of the config file to use")
-parser.add_argument("--configs_dir", "-cdir", type=str, default="configs", help="config dir")
 parser.add_argument(
-    "--num_workers", type=int, default=0, help="Number of workers to use for dataloaders."
+    "--config_fname", "-f", type=str, help="Name of the config file to use"
+)
+parser.add_argument(
+    "--configs_dir", "-cdir", type=str, default="configs", help="config dir"
+)
+parser.add_argument(
+    "--num_workers",
+    type=int,
+    default=0,
+    help="Number of workers to use for dataloaders.",
 )
 parser.add_argument("--cuda", "-c", default=None, help="gpu index to use")
-parser.add_argument("--tmpdir", "-d", default=None, help="optional temporary model directory")
+parser.add_argument(
+    "--tmpdir", "-d", default=None, help="optional temporary model directory"
+)
 parser.add_argument("--log_fname", "-l", default=None, help="optional log file name")
-parser.add_argument("--num_threads", "-t", default=None, help="number of threads to use")
+parser.add_argument(
+    "--num_threads", "-t", default=None, help="number of threads to use"
+)
 parser.add_argument("--model_dir", default="model", help="model directory")
 parser.add_argument(
     "--seed_override",
@@ -261,7 +272,9 @@ for split in sc_mix_d:
     dataloader_source_d[split] = torch.utils.data.DataLoader(
         source_set_d[split],
         shuffle=(split == "train"),
-        batch_size=train_params.get("batch_size", MIN_EVAL_BS) if "train" in split else alt_bs,
+        batch_size=train_params.get("batch_size", MIN_EVAL_BS)
+        if "train" in split
+        else alt_bs,
         **source_dataloader_kwargs,
     )
 
@@ -286,7 +299,9 @@ if data_params.get("samp_split", False) or data_params.get("one_model", False):
         dataloader_target_d[split] = torch.utils.data.DataLoader(
             target_set_d[split],
             shuffle=("train" in split),
-            batch_size=train_params.get("batch_size", MIN_EVAL_BS) if "train" in split else alt_bs,
+            batch_size=train_params.get("batch_size", MIN_EVAL_BS)
+            if "train" in split
+            else alt_bs,
             **target_dataloader_kwargs,
         )
 else:
@@ -415,7 +430,9 @@ def pretrain(
     log_file_path = os.path.join(pretrain_folder, LOG_FNAME) if LOG_FNAME else None
     with DupStdout().dup_to_file(log_file_path, "w") as dup_stdout:
         tqdm.write("Start pretrain...")
-        outer = tqdm(total=train_params["initial_train_epochs"], desc="Epochs", position=0)
+        outer = tqdm(
+            total=train_params["initial_train_epochs"], desc="Epochs", position=0
+        )
         inner = tqdm(total=len(dataloader_source_d["train"]), desc=f"Batch", position=1)
 
         tqdm.write(" Epoch | Train Loss | Val Loss   | Next LR    ")
@@ -482,8 +499,12 @@ def pretrain(
                 early_stop_count >= train_params["early_stop_crit"]
                 and epoch >= train_params["min_epochs"] - 1
             ):
-                tqdm.write(f"Validation loss plateaued after {early_stop_count} at epoch {epoch}")
-                torch.save(checkpoint, os.path.join(pretrain_folder, f"earlystop{epoch}.pth"))
+                tqdm.write(
+                    f"Validation loss plateaued after {early_stop_count} at epoch {epoch}"
+                )
+                torch.save(
+                    checkpoint, os.path.join(pretrain_folder, f"earlystop{epoch}.pth")
+                )
                 break
 
             early_stop_count += 1
@@ -621,7 +642,9 @@ def model_adv_loss(
     else:
         y_pred, logits = model(torch.cat([x_source, x_target], dim=0))
         y_pred_source, _ = torch.split(y_pred, [len(x_source), len(x_target)])
-        logits = [torch.split(logit, [len(x_source), len(x_target)]) for logit in logits]
+        logits = [
+            torch.split(logit, [len(x_source), len(x_target)]) for logit in logits
+        ]
 
     loss_clf = criterion_clf(y_pred_source, y_source)
     loss_dis = []
@@ -678,7 +701,9 @@ def run_epoch(
         x_target = x_target.to(**to_inp_kwargs)
         y_source = y_source.to(**to_inp_kwargs)
 
-        loss, loss_dis, loss_clf = model_adv_loss(x_source, x_target, y_source, model, **kwargs)
+        loss, loss_dis, loss_clf = model_adv_loss(
+            x_source, x_target, y_source, model, **kwargs
+        )
 
         results_running["dis"]["loss"].append(loss_dis.item())
         results_running["clf"]["loss"].append(loss_clf.item())
@@ -745,9 +770,15 @@ def train_adversarial_iters(
         outer = tqdm(total=train_params["epochs"], desc="Epochs", position=0)
         inner = tqdm(total=max_len_dataloader, desc=f"Batch", position=1)
 
-        tqdm.write(" Epoch || KLDiv.          || Coral           || Overall         || Next LR    ")
-        tqdm.write("       || Train  | Val.   || Train  | Val.   || Train  | Val.   ||            ")
-        tqdm.write("------------------------------------------------------------------------------")
+        tqdm.write(
+            " Epoch || KLDiv.          || Coral           || Overall         || Next LR    "
+        )
+        tqdm.write(
+            "       || Train  | Val.   || Train  | Val.   || Train  | Val.   ||            "
+        )
+        tqdm.write(
+            "------------------------------------------------------------------------------"
+        )
         checkpoint = {
             "epoch": -1,
             "model": model,
@@ -758,6 +789,7 @@ def train_adversarial_iters(
             inner.refresh()  # force print final state
             inner.reset()  # reuse bar
 
+            model.train()
             checkpoint["epoch"] = epoch
 
             results_running = run_epoch(
@@ -776,7 +808,9 @@ def train_adversarial_iters(
 
             model.eval()
             with torch.no_grad():
-                results_val = run_epoch(dataloader_source_val, dataloader_target_val, model)
+                results_val = run_epoch(
+                    dataloader_source_val, dataloader_target_val, model
+                )
 
             evaluation.recurse_avg_dict(results_val, results_history_val)
 
@@ -968,7 +1002,9 @@ def load_train_plot(
     model.apply(initialize_weights)
 
     if train_params.get("pretraining", False):
-        best_pre_checkpoint = torch.load(os.path.join(pretrain_folder, f"final_model.pth"))
+        best_pre_checkpoint = torch.load(
+            os.path.join(pretrain_folder, f"final_model.pth")
+        )
         model.load_state_dict(best_pre_checkpoint["model"].state_dict())
     model.to(device)
 
@@ -1005,7 +1041,9 @@ def reverse_val(
         dataloader_target_now_source_d[split] = torch.utils.data.DataLoader(
             SpotDataset(target_d[split], pred_target_d[split]),
             shuffle=("train" in split),
-            batch_size=train_params.get("batch_size", MIN_EVAL_BS) if "train" in split else alt_bs,
+            batch_size=train_params.get("batch_size", MIN_EVAL_BS)
+            if "train" in split
+            else alt_bs,
             **source_dataloader_kwargs,
         )
 
@@ -1038,7 +1076,9 @@ def reverse_val(
         model,
         rv_save_folder,
         dataloader_target_now_source_d["train"],
-        dataloader_target_now_source_d.get("val", dataloader_target_now_source_d["train"]),
+        dataloader_target_now_source_d.get(
+            "val", dataloader_target_now_source_d["train"]
+        ),
         dataloader_source_d["train"],
         dataloader_source_d["val"],
     )
@@ -1111,7 +1151,7 @@ else:
             dataloader_source_d["val"],
             dataloader_target_d[sample_id]["train"],
             dataloader_target_d[sample_id].get("val", None),
-            checkpoints=True
+            checkpoints=True,
         )
 
         if train_params["reverse_val"]:
@@ -1134,4 +1174,6 @@ with open(os.path.join(model_folder, "config.yml"), "w") as f:
 temp_folder_holder.copy_out()
 
 # %%
-tqdm.write(f"Script run time: {datetime.datetime.now(datetime.timezone.utc) - script_start_time}")
+tqdm.write(
+    f"Script run time: {datetime.datetime.now(datetime.timezone.utc) - script_start_time}"
+)
