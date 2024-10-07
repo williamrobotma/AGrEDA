@@ -44,6 +44,8 @@ config["model_params"]["coral_kwargs"]["enc_out_act"] = True
 config["train_params"]["epochs"] = 200
 config["train_params"]["batch_size"] = 8
 config["train_params"]["reverse_val"] = False
+# config["train_params"]["reverse_val"] = True
+config["data_params"]["val_samp"] = True
 config["train_params"]["opt_kwargs"] = {}
 
 if not os.path.exists(os.path.join(CONFIG_DIR, MODEL_NAME)):
@@ -77,12 +79,12 @@ model_params_lists = dict(
 # train_params
 train_params_lists = {
     "lambda": [
-        (0, 50),
-        (0, 100),
-        (0, 200),
-        (50, 50),
-        (100, 100),
-        (200, 200),
+        (0, 5),
+        (0, 10),
+        (0, 20),
+        (5, 5),
+        (10, 10),
+        (20, 20),
     ],
 }
 

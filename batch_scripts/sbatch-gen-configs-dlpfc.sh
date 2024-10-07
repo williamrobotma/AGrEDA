@@ -6,7 +6,7 @@
 #SBATCH --mem=4G
 #SBATCH --time=00:15:00
 
-#SBATCH --output=logs/prep-genconfigs-%N-%j.out
+#SBATCH --output=logs/prep-genconfigs-dlpfc-%N-%j.out
 
 set -x
 

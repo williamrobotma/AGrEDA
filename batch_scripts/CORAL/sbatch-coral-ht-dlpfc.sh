@@ -4,8 +4,8 @@
 #SBATCH --gpus=1 
 #SBATCH --cpus-per-task=1  # Cores proportional to GPUs: 6 on Cedar, 16 on Graham.
 #SBATCH --mem=16G      
-#SBATCH --time=0-01:15:00
-#SBATCH --array=1-200:5
+#SBATCH --time=0-06:00:00
+#SBATCH --array=1-1000:20
 
 #SBATCH --output=logs/CORAL/generated_dlpfc/gen_v1-%a-%N-%A.out
 #SBATCH --error=logs/CORAL/generated_dlpfc/gen_v1-%a-%N-%A.err
@@ -14,7 +14,7 @@ set -x
 
 start=`date +%s`
 
-CONFIG_FILES=$(sed -n "${SLURM_ARRAY_TASK_ID},$(($SLURM_ARRAY_TASK_ID+4))p" configs/generated_dlpfc/CORAL/a_list.txt)
+CONFIG_FILES=$(sed -n "${SLURM_ARRAY_TASK_ID},$(($SLURM_ARRAY_TASK_ID+19))p" configs/generated_dlpfc/CORAL/a_list.txt)
 
 # export BLIS_NUM_THREADS=1
 # export MKL_NUM_THREADS=$SLURM_CPUS_PER_TASK
@@ -25,7 +25,7 @@ virtualenv --no-download $SLURM_TMPDIR/env
 source $SLURM_TMPDIR/env/bin/activate
 pip install --no-index --upgrade pip
 pip install --no-index -r requirements_cc.txt
-# source .venv/bin/activate
+# source ~/.venv-agreda/bin/activate
 
 endbuild=`date +%s`
 echo "build time: $(($endbuild-$start))"

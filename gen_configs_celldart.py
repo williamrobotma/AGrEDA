@@ -38,6 +38,8 @@ config["model_params"]["celldart_kwargs"] = {}
 config["train_params"]["initial_train_epochs"] = 10
 config["train_params"]["n_iter"] = 15000
 config["train_params"]["reverse_val"] = False
+# config["train_params"]["reverse_val"] = True
+config["data_params"]["val_samp"] = True
 config["train_params"]["pretraining"] = True
 
 if not os.path.exists(os.path.join(CONFIG_DIR, MODEL_NAME)):
@@ -87,7 +89,7 @@ config
 # %%
 rng = np.random.default_rng(45836)
 
-yes_samples = set(rng.choice(total_configs, size=200, replace=False))
+yes_samples = set(rng.choice(total_configs, size=1000, replace=False))
 
 
 data_params_l = []

@@ -45,7 +45,9 @@ config["train_params"]["early_stop_crit_adv"] = 500
 config["train_params"]["min_epochs"] = 40
 config["train_params"]["min_epochs_adv"] = 100
 config["train_params"]["pretraining"] = False
-config["train_params"]["reverse_val"] = False
+# config["train_params"]["reverse_val"] = False
+config["train_params"]["reverse_val"] = True
+config["data_params"]["val_samp"] = False
 
 
 config["train_params"]["plateau_kwargs"] = {}
@@ -116,7 +118,7 @@ config
 # %%
 rng = np.random.default_rng(357935)
 
-yes_samples = set(rng.choice(total_configs, size=200, replace=False))
+yes_samples = set(rng.choice(total_configs, size=1000, replace=False))
 
 
 data_params_l = []

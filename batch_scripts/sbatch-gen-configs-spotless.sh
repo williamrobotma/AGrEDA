@@ -4,9 +4,9 @@
 
 #SBATCH --cpus-per-task=1  # Cores proportional to GPUs: 6 on Cedar, 16 on Graham.
 #SBATCH --mem=4G
-#SBATCH --time=00:15:00
+#SBATCH --time=00:10:00
 
-#SBATCH --output=logs/prep-genconfigs-%N-%j.out
+#SBATCH --output=logs/prep-genconfigs-spotless-%N-%j.out
 
 set -x
 

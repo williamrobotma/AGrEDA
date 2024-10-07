@@ -9,13 +9,13 @@ import re
 import scanpy as sc
 from scipy.sparse import csr_matrix
 
-from .preprocessing_mouse_GSE115746 import (
-    cell_cluster_cell_type_to_spot_composition,
-    cell_subclass_to_spot_composition,
-)
+# from preprocessing_mouse_GSE115746 import (
+#     cell_cluster_cell_type_to_spot_composition,
+#     cell_subclass_to_spot_composition,
+# )
+from prep_utils import get_st_sub_map
 
 # %%
-
 SPOTLESS_DIR = "data/spotless/standards"
 
 CORTEX_DIR = "data/mouse_cortex"
@@ -41,20 +41,20 @@ id_to_dir = {
 }
 
 
-def get_st_sub_map():
-    st_sub_map = {}
-    for k, s in itertools.chain(
-        cell_cluster_cell_type_to_spot_composition.items(),
-        cell_subclass_to_spot_composition.items(),
-    ):
-        if s is not None:
-            if k == "keep_the_rest":
-                for s_ in s:
-                    st_sub_map[s_] = [s_]
-            elif len(s) > 0:
-                names = sorted(list(s))
-                st_sub_map["/".join(names)] = names
-    return st_sub_map
+# def get_st_sub_map():
+#     st_sub_map = {}
+#     for k, s in itertools.chain(
+#         cell_cluster_cell_type_to_spot_composition.items(),
+#         cell_subclass_to_spot_composition.items(),
+#     ):
+#         if s is not None:
+#             if k == "keep_the_rest":
+#                 for s_ in s:
+#                     st_sub_map[s_] = [s_]
+#             elif len(s) > 0:
+#                 names = sorted(list(s))
+#                 st_sub_map["/".join(names)] = names
+#     return st_sub_map
 
 
 # %%

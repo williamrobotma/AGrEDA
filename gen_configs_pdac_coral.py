@@ -40,7 +40,9 @@ config["model_params"]["coral_kwargs"]["use_predictor"] = True
 config["model_params"]["coral_kwargs"]["enc_out_act"] = True
 
 config["train_params"]["epochs"] = 200
-config["train_params"]["reverse_val"] = False
+# config["train_params"]["reverse_val"] = False
+config["train_params"]["reverse_val"] = True
+config["data_params"]["val_samp"] = False
 config["train_params"]["opt_kwargs"] = {}
 
 if not os.path.exists(os.path.join(CONFIG_DIR, MODEL_NAME)):
@@ -107,7 +109,7 @@ config
 # %%
 rng = np.random.default_rng(58)
 
-yes_samples = set(rng.choice(total_configs, size=200, replace=False))
+yes_samples = set(rng.choice(total_configs, size=1000, replace=False))
 
 
 data_params_l = []

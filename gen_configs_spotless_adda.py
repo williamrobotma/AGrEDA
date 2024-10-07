@@ -41,6 +41,8 @@ config["train_params"]["batch_size"] = 8
 config["train_params"]["initial_train_epochs"] = 200
 config["train_params"]["adam_beta1"] = 0.5
 config["train_params"]["reverse_val"] = False
+# config["train_params"]["reverse_val"] = True
+config["data_params"]["val_samp"] = True
 config["train_params"]["pretraining"] = True
 
 if not os.path.exists(os.path.join(CONFIG_DIR, MODEL_NAME)):

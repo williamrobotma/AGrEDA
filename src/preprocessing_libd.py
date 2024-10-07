@@ -26,7 +26,7 @@ except FileNotFoundError as e:
             index_col=0,
             sep=",",
         )
-        st = pd.read_csv(os.path.join(SPATIALLIBD_DIR, "spatialLIBD_spot_st.csv"))
+        st = pd.read_csv(os.path.join(SPATIALLIBD_DIR, "spatialLIBD_spot_st.csv"), index_col=0)
         gene_meta = pd.read_csv(os.path.join(SPATIALLIBD_DIR, "gene_meta.csv"))
         cell_type = pd.read_csv(os.path.join(SPATIALLIBD_DIR, "RowDataTable1.csv"))
         csr = pd.read_csv(
@@ -45,15 +45,15 @@ except FileNotFoundError as e:
 
 
 # %%
-print("spots")
+print(spots)
 # display(spots)
-print("st")
+print(st)
 # display(st)
-print("gene_meta")
+print(gene_meta)
 # display(gene_meta)
-print("cell_type")
+print(cell_type)
 # display(cell_type)
-print("csr")
+print(csr)
 # display(csr)
 
 
@@ -63,28 +63,31 @@ print(spots.columns)
 
 # %%
 # rename st column names
-st.columns = ["spot", "X", "Y"]
+st.columns = ["X", "Y"]
+st.index.name = "spot"
+st = st.reset_index()
 print(st.head())
 
 
 # %%
-spot = spots[
-    [
-        "sample_id",
-        "key",
-        "subject",
-        "replicate",
-        "Cluster",
-        "sum_umi",
-        "sum_gene",
-        "cell_count",
-        "in_tissue",
-        "spatialLIBD",
-        "array_col",
-        "array_row",
-    ]
-]
-print(spot)
+# spot = spots[
+#     [
+#         "sample_id",
+#         "key",
+#         "subject",
+#         "replicate",
+#         "Cluster",
+#         "sum_umi",
+#         "sum_gene",
+#         "cell_count",
+#         "in_tissue",
+#         "spatialLIBD",
+#         "array_col",
+#         "array_row",
+#     ]
+# ]
+spot = spots
+print(spot.shape, st.shape)
 
 
 # %%
@@ -123,28 +126,37 @@ print(cell_type)
 
 
 # %%
-cell_type = cell_type.set_index("Symbol")
+cell_type = cell_type.set_index("ID")
+cell_type.index.name = "gene_id"
 
 
 # %%
-cell_type_idx_df = cell_type.iloc[:, :3]
+# cell_type_idx_df = cell_type[["gene_biotype", "ID"]]
 
 
 # %%
-cell_type = cell_type.drop(["Unnamed: 0", "gene_biotype", "ID"], axis=1)
+# cell_type.drop(columns=["Unnamed: 0", "gene_biotype", "ID"], inplace=True)
 
 
 # %%
-ID_to_symbol_d = cell_type_idx_df.ID.reset_index().set_index("ID")["Symbol"].to_dict()
+# ID_to_symbol = cell_type_idx_df.ID.reset_index().set_index("ID")["Symbol"]
+# ID_to_symbol_d = ID_to_symbol.to_dict()
 
 
+# %%
+# cell_type_idx_df = cell_type_idx_df.reset_index().set_index("ID")
+
+# %%
+gene_meta = gene_meta.drop(columns=["Unnamed: 0"]).set_index("gene_id")
+
+# %%
 # %%
 del spots
 del spot
-del gene_meta
+# del gene_meta
 del st
-del cell_type
-del cell_type_idx_df
+# del cell_type
+# del cell_type_idx_df
 
 gc.collect()
 
@@ -164,48 +176,57 @@ print(counts_df)
 
 
 # %%
-counts_df.columns = counts_df.columns.map(ID_to_symbol_d, na_action=None)
-print(counts_df)
-
-
 # %%
 # # working with sampleID 151673 only, for now
 # dlpfc = spot_meta[spot_meta['sample_id'] == 151673]
 dlpfc = spot_meta
-
-
-# %%
 dlpfc = dlpfc.set_index(["sample_id", "spot"])
-
-
-# %%
 print(dlpfc)
 
 
 # %%
-temp = pd.concat([dlpfc, counts_df], join="inner", axis=1)
+# gene_meta = gene_meta.reindex(counts_df.columns)
+counts_df = counts_df.reindex(gene_meta.index, axis=1).reindex(dlpfc.index)
+print(counts_df)
 
 
 # %%
-temp = temp.drop(
-    columns=[
-        "X",
-        "Y",
-        "index",
-        "key",
-        "subject",
-        "replicate",
-        "Cluster",
-        "sum_umi",
-        "sum_gene",
-        "cell_count",
-        "in_tissue",
-        "spatialLIBD",
-        "array_col",
-        "array_row",
-    ]
-)
-print(temp)
+temp = counts_df.dropna(axis=1).dropna(axis=0)
+counts_df = counts_df.fillna(0.0)
+
+# %%
+# counts_df.columns = counts_df.columns.map(ID_to_symbol_d, na_action=None)
+# print(counts_df)
+
+
+# %%
+# dlpfc = dlpfc.reindex(counts_df.index)
+
+
+# %%
+# temp = pd.concat([dlpfc, counts_df], join="inner", axis=1)
+
+
+# %%
+# temp = temp.drop(
+#     columns=[
+#         "X",
+#         "Y",
+#         "index",
+#         "key",
+#         "subject",
+#         "replicate",
+#         "Cluster",
+#         "sum_umi",
+#         "sum_gene",
+#         "cell_count",
+#         "in_tissue",
+#         "spatialLIBD",
+#         "array_col",
+#         "array_row",
+#     ]
+# )
+# print(temp)
 
 
 # %%
@@ -218,12 +239,60 @@ counts_df.to_pickle(os.path.join(SPATIALLIBD_DIR, "counts_df.pkl"))
 
 
 # %%
-print(dlpfc)
-
-
 # %%
 dlpfc.to_pickle(os.path.join(SPATIALLIBD_DIR, "dlpfc.pkl"))
 
 
 # %%
+gene_meta.to_pickle(os.path.join(SPATIALLIBD_DIR, "gene_meta_processed.pkl"))
 temp.to_pickle(os.path.join(SPATIALLIBD_DIR, "temp.pkl"))
+
+
+# %%
+import anndata as ad
+import numpy as np
+
+# %%
+adata = ad.AnnData(
+    X=counts_df.to_numpy(),
+    obs=dlpfc.reset_index().set_index("index"),
+    var=gene_meta,
+    varm=cell_type.iloc[:, 3:].reindex(gene_meta.index),
+    dtype=np.float32,
+)
+print(adata)
+
+# %%
+adata.obs.columns
+
+# %%
+adata.var
+
+# %%
+adata.varm
+
+# %%
+adata.varm["propNucleiExprs"]
+
+# %%
+from scipy.sparse import csr_matrix
+
+adata.X = csr_matrix(adata.X)
+
+# %%
+adata.X
+
+# %%
+for k, v in adata.varm.items():
+    adata.varm[k] = v.to_numpy(dtype=np.float32)
+
+# %%
+adata.write_h5ad(os.path.join(SPATIALLIBD_DIR, "spatialLIBD.h5ad"))
+
+# %%
+adata2 = ad.read_h5ad(os.path.join(SPATIALLIBD_DIR, "spatialLIBD.h5ad"))
+
+# %%
+adata2.X.toarray().sum()
+
+# %%

@@ -88,6 +88,7 @@ def main(args):
             scaler_name=args.scaler,
             stsplit=args.stsplit,
             samp_split=args.samp_split,
+            val_samp=args.val_samp,
             one_model=args.one_model,
         )
 
@@ -242,11 +243,7 @@ def select_genes_and_split(
     )
 
     print("Selecting genes")
-    (
-        (adata_sc_train, adata_st),
-        df_genelists,
-        (fig, ax),
-    ) = data_processing.select_marker_genes(
+    ((adata_sc_train, adata_st), df_genelists, (fig, ax),) = data_processing.select_marker_genes(
         adata_sc_train,
         adata_st,
         n_markers=None if all_genes else n_markers,
@@ -444,12 +441,14 @@ def split_st(
     rng_integers = misc.check_integer_rng(rng)
 
     unscaled_data_dir = os.path.join(selected_dir, "unscaled")
-    if samp_split:
-        fname = "mat_sp_samp_split_d.h5ad"
-    elif stsplit:
-        fname = "mat_sp_split_d.h5ad"
-    else:
-        fname = "mat_sp_train_d.h5ad"
+
+    fname = data_loading.get_sp_fname(
+        st_split=stsplit,
+        samp_split=samp_split,
+        val_samp=val_samp,
+        one_model=one_model,
+        scaler_name="unscaled",
+    )
 
     out_path = os.path.join(unscaled_data_dir, fname)
     if os.path.isfile(out_path):
@@ -588,7 +587,14 @@ def split_st(
     adata_st.write_h5ad(Path(out_path))
 
 
-def log_scale_st(selected_dir, scaler_name, stsplit=False, samp_split=False, one_model=False):
+def log_scale_st(
+    selected_dir,
+    scaler_name,
+    stsplit=False,
+    samp_split=False,
+    val_samp=True,
+    one_model=False,
+):
     """Log scale spatial data and save to file.
 
     Args:
@@ -610,19 +616,23 @@ def log_scale_st(selected_dir, scaler_name, stsplit=False, samp_split=False, one
     if not os.path.isdir(preprocessed_data_dir):
         os.makedirs(preprocessed_data_dir)
 
-    if samp_split:
-        st_fname = "mat_sp_samp_split_d"
-    elif stsplit:
-        st_fname = "mat_sp_split_d"
-    else:
-        st_fname = "mat_sp_train_d"
+    in_fname = data_loading.get_sp_fname(
+        st_split=stsplit,
+        samp_split=samp_split,
+        val_samp=val_samp,
+        one_model=one_model,
+        scaler_name="unscaled",
+    )
 
-    in_path = os.path.join(unscaled_data_dir, f"{st_fname}.h5ad")
+    in_path = os.path.join(unscaled_data_dir, in_fname)
 
-    if one_model:
-        st_fname = f"{st_fname}_one_model.h5ad"
-    else:
-        st_fname = f"{st_fname}.h5ad"
+    st_fname = data_loading.get_sp_fname(
+        st_split=stsplit,
+        samp_split=samp_split,
+        val_samp=val_samp,
+        one_model=one_model,
+        scaler_name=scaler_name,
+    )
 
     out_path = os.path.join(preprocessed_data_dir, st_fname)
 

@@ -671,6 +671,7 @@ def run_epoch(
     model,
     tqdm_bar=None,
     scheduler=None,
+    iter_override=None,
     **kwargs,
 ):
     results_running = {
@@ -681,7 +682,10 @@ def run_epoch(
 
     if scheduler is not None:
         results_running["ovr"]["lr"] = []
+
     n_iters = len(dataloader_target)
+    if iter_override is not None:
+        n_iters = min(n_iters, iter_override)
 
     s_iter = iter(dataloader_source)
     t_iter = iter(dataloader_target)
@@ -733,6 +737,7 @@ def train_adversarial_iters(
     dataloader_target_train,
     dataloader_target_val=None,
     checkpoints=False,
+    iter_override=None,
 ):
     if dataloader_target_val is None:
         dataloader_target_val = dataloader_target_train
@@ -741,6 +746,8 @@ def train_adversarial_iters(
     model.advtraining()
 
     max_len_dataloader = len(dataloader_target_train)
+    if iter_override is not None:
+        max_len_dataloader = min(max_len_dataloader, iter_override)
 
     optimizer = torch.optim.AdamW(model.parameters(), **train_params["opt_kwargs"])
 
@@ -799,6 +806,7 @@ def train_adversarial_iters(
                 tqdm_bar=inner,
                 optimizer=optimizer,
                 scheduler=scheduler,
+                iter_override=iter_override,
                 two_step=train_params.get("two_step", False),
                 source_first=train_params.get("source_first", True),
             )
@@ -1081,6 +1089,7 @@ def reverse_val(
         ),
         dataloader_source_d["train"],
         dataloader_source_d["val"],
+        iter_override=len(dataloader_target_now_source_d["train"]),
     )
 
     # model = ModelWrapper(model)

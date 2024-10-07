@@ -19,7 +19,7 @@ export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
 # source $SLURM_TMPDIR/env/bin/activate
 # pip install --no-index --upgrade pip
 # pip install --no-index -r requirements_cc.txt
-source .venv/bin/activate
+source ~/.venv-agreda/bin/activate
 
 echo "CellDART config file: ${CONFIG_FILE}"
 python -u eval_config.py -n "ADDA" -f "${CONFIG_FILE}" --njobs $SLURM_CPUS_PER_TASK -p
