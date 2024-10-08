@@ -1,11 +1,16 @@
-#!/usr/bin/env python3
-
 # %%
+from collections import defaultdict
 import gc
 import os
 
 import matplotlib.pyplot as plt
 import pandas as pd
+from pandas.api.types import CategoricalDtype
+from scipy.sparse import csr_array, csr_matrix
+
+import anndata as ad
+import numpy as np
+
 
 # %%
 SPATIALLIBD_DIR = "data/dlpfc/spatialLIBD_data"
@@ -30,7 +35,9 @@ except FileNotFoundError as e:
         gene_meta = pd.read_csv(os.path.join(SPATIALLIBD_DIR, "gene_meta.csv"))
         cell_type = pd.read_csv(os.path.join(SPATIALLIBD_DIR, "RowDataTable1.csv"))
         csr = pd.read_csv(
-            os.path.join(SPATIALLIBD_DIR, "spatialLIBD_csr_counts_sample_id.csv"), index_col=0
+            os.path.join(SPATIALLIBD_DIR, "spatialLIBD_csr_counts_sample_id.csv"),
+            index_col=0,
+            dtype=defaultdict(lambda: "string", count=np.float32),
         )
 
         spots.to_pickle(os.path.join(SPATIALLIBD_DIR, "spatialLIBD_spot_counts.pkl"))
@@ -93,7 +100,11 @@ print(spot.shape, st.shape)
 # %%
 # merge spot and st info -- merging based on index... no other specifying info in st:S, seems okay?
 spot_meta = st.join(spot.reset_index())
+spot_meta["sample_id"] = spot_meta["sample_id"].astype("string").astype("object")
 print(spot_meta)
+
+
+# %%
 
 
 # %%
@@ -118,7 +129,7 @@ def plot_cell_layers(df):
 
 
 # %%
-print(plot_cell_layers(spot_meta))
+plot_cell_layers(spot_meta)
 
 
 # %%
@@ -146,10 +157,13 @@ cell_type.index.name = "gene_id"
 # %%
 # cell_type_idx_df = cell_type_idx_df.reset_index().set_index("ID")
 
+
 # %%
 gene_meta = gene_meta.drop(columns=["Unnamed: 0"]).set_index("gene_id")
 
+
 # %%
+
 # %%
 del spots
 del spot
@@ -160,78 +174,67 @@ del st
 
 gc.collect()
 
+
 # %%
-wide = (
-    csr.pivot_table(index=["sample_id", "spot"], columns="gene", values="count")
-    .fillna(0)
-    .astype(pd.SparseDtype("float", 0.0))
-)
+print("LONG TO WIDE")
+
+
+# %%
+idx = pd.Series(zip(csr["sample_id"], csr["spot"]))
+
+idx_c = CategoricalDtype(sorted(idx.unique()), ordered=True)
+gene_c = CategoricalDtype(sorted(csr["gene"].unique()), ordered=True)
+
+row = idx.astype(idx_c).cat.codes
+col = csr["gene"].astype(gene_c).cat.codes
+# sparse_matrix =
+# sparse_matrix #, sparse_matrix.toarray()
+
+# %%
+# wide = csr.pivot_table(
+#     index=["sample_id", "spot"],
+#     columns="gene",
+#     values="count",
+#     fill_value=0.0,
+#     sort=False,
+# )  # .astype(pd.SparseDtype(np.float32, 0.0))
 # wide = wide.fillna(0)
 # wide = wide.astype(pd.SparseDtype("float", 0.0))
 
+# %%
+counts_df = pd.DataFrame.sparse.from_spmatrix(
+    csr_array(
+        (csr["count"], (row, col)),
+        shape=(idx_c.categories.size, gene_c.categories.size),
+    ),
+    index=pd.MultiIndex.from_tuples(idx_c.categories, names=["sample_id", "spot"]),
+    columns=gene_c.categories,
+)  # .astype(pd.SparseDtype(np.float32, 0.0))
 
 # %%
-counts_df = wide
-print(counts_df)
+# counts_df = wide
+print(counts_df.iloc[:5, :5])
 
 
-# %%
 # %%
 # # working with sampleID 151673 only, for now
 # dlpfc = spot_meta[spot_meta['sample_id'] == 151673]
-dlpfc = spot_meta
-dlpfc = dlpfc.set_index(["sample_id", "spot"])
-print(dlpfc)
+spot_meta = spot_meta.set_index(["sample_id", "spot"])
+print(spot_meta.index)
 
 
 # %%
 # gene_meta = gene_meta.reindex(counts_df.columns)
-counts_df = counts_df.reindex(gene_meta.index, axis=1).reindex(dlpfc.index)
+counts_df = (
+    counts_df.reindex(spot_meta.index, axis=0, fill_value=np.float32(0.0))
+    .reindex(gene_meta.index, axis=1, fill_value=np.float32(0.0))
+    .astype(pd.SparseDtype(np.float32, 0.0))
+)
+# counts_df = counts_df.loc[spot_meta.index, gene_meta.index]
 print(counts_df)
 
-
 # %%
-temp = counts_df.dropna(axis=1).dropna(axis=0)
-counts_df = counts_df.fillna(0.0)
-
-# %%
-# counts_df.columns = counts_df.columns.map(ID_to_symbol_d, na_action=None)
-# print(counts_df)
-
-
-# %%
-# dlpfc = dlpfc.reindex(counts_df.index)
-
-
-# %%
-# temp = pd.concat([dlpfc, counts_df], join="inner", axis=1)
-
-
-# %%
-# temp = temp.drop(
-#     columns=[
-#         "X",
-#         "Y",
-#         "index",
-#         "key",
-#         "subject",
-#         "replicate",
-#         "Cluster",
-#         "sum_umi",
-#         "sum_gene",
-#         "cell_count",
-#         "in_tissue",
-#         "spatialLIBD",
-#         "array_col",
-#         "array_row",
-#     ]
-# )
-# print(temp)
-
-
-# %%
-# same_genes = cell_type[cell_type.index.isin(temp.columns)]
-# print(same_genes)
+temp = counts_df.loc[counts_df.any(axis=1), counts_df.any(axis=0)]  # .dropna(axis=1).dropna(axis=0)
 
 
 # %%
@@ -239,8 +242,7 @@ counts_df.to_pickle(os.path.join(SPATIALLIBD_DIR, "counts_df.pkl"))
 
 
 # %%
-# %%
-dlpfc.to_pickle(os.path.join(SPATIALLIBD_DIR, "dlpfc.pkl"))
+spot_meta.to_pickle(os.path.join(SPATIALLIBD_DIR, "dlpfc.pkl"))
 
 
 # %%
@@ -249,50 +251,48 @@ temp.to_pickle(os.path.join(SPATIALLIBD_DIR, "temp.pkl"))
 
 
 # %%
-import anndata as ad
-import numpy as np
+counts_df.iloc[:, 0]
 
 # %%
 adata = ad.AnnData(
-    X=counts_df.to_numpy(),
-    obs=dlpfc.reset_index().set_index("index"),
+    X=csr_matrix(counts_df.sparse.to_coo()),
+    obs=spot_meta.reset_index().set_index("index"),
     var=gene_meta,
     varm=cell_type.iloc[:, 3:].reindex(gene_meta.index),
     dtype=np.float32,
 )
 print(adata)
 
-# %%
-adata.obs.columns
-
-# %%
-adata.var
 
 # %%
 adata.varm
 
+
 # %%
 adata.varm["propNucleiExprs"]
 
-# %%
-from scipy.sparse import csr_matrix
-
-adata.X = csr_matrix(adata.X)
 
 # %%
 adata.X
+
 
 # %%
 for k, v in adata.varm.items():
     adata.varm[k] = v.to_numpy(dtype=np.float32)
 
+
 # %%
 adata.write_h5ad(os.path.join(SPATIALLIBD_DIR, "spatialLIBD.h5ad"))
 
-# %%
-adata2 = ad.read_h5ad(os.path.join(SPATIALLIBD_DIR, "spatialLIBD.h5ad"))
 
 # %%
-adata2.X.toarray().sum()
+# # %%
+# adata2 = ad.read_h5ad(os.path.join(SPATIALLIBD_DIR, "spatialLIBD.h5ad"))
+
+
+# %%
+# # %%
+# adata2.X.toarray().sum()
+
 
 # %%

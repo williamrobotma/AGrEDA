@@ -26,7 +26,7 @@ sc.set_figure_params(facecolor="white", figsize=(8, 8))
 sc.settings.verbosity = 3
 
 # %%
-temp = pd.read_pickle(os.path.join(spatialLIBD_dir, "temp.pkl"))
+temp = pd.read_pickle(os.path.join(spatialLIBD_dir, "temp.pkl")).sparse.to_dense()
 dlpfc = pd.read_pickle(os.path.join(spatialLIBD_dir, "dlpfc.pkl"))
 
 # %%
